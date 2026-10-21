@@ -1,66 +1,77 @@
-# PuppyBot6 - โครงสร้างโปรเจกต์ PlatformIO
+# Puppybot6_Mukdahan
 
-โปรเจกต์ควบคุมหุ่นยนต์ PuppyBot6 พัฒนาด้วย **PlatformIO** รองรับบอร์ดไมโครคอนโทรลเลอร์ **RP2040 / RP2350** (เช่น Adafruit Metro RP2350, Raspberry Pi Pico) พร้อมระบบ Dual-Core และไลบรารีทั้งหมดแบบ Standalone ภายในโปรเจกต์
+> โครงการหุ่นยนต์แข่งขัน PuppyBot6 (Mukdahan) ขับเคลื่อน 4 ล้อ (4WD) บนชิปไมโครคอนโทรลเลอร์ **RP2040 / RP2350** (Dual-Core) พร้อมระบบควบคุมผ่านหน้าเว็บ Web Serial Dashboard
+
+---
+
+## ⚡ สำหรับเพื่อนร่วมทีม: วิธีเปิดและคอมไพล์ใช้งานได้ทันที (Quick Start)
+
+โปรเจกต์นี้ออกแบบมาให้ **Standalone 100%** (รวมไลบรารีทุกตัวไว้ในโฟลเดอร์ `lib/` ครบหมดแล้ว ไม่ต้องโหลดอะไรเพิ่ม):
+
+1. **ดึงโค้ดลงเครื่อง (Clone Repository):**
+   ```bash
+   git clone https://github.com/SuepsakunSuwanna-Thomas/Puppybot6_Mukdahan.git
+   ```
+2. **เปิดโฟลเดอร์ใน VS Code หรือ Antigravity IDE:**
+   - เมนู `File` &rarr; `Open Folder...` &rarr; เลือกโฟลเดอร์ `Puppybot6_Mukdahan`
+3. **ติดตั้งส่วนขยาย PlatformIO (หากยังไม่มี):**
+   - เมื่อเปิดโปรเจกต์ VS Code จะแนะนำให้ติดตั้ง **PlatformIO IDE** อัตโนมัติ (หรือค้นหา `PlatformIO IDE` ในแท็บ Extensions แล้วกด Install)
+4. **คอมไพล์และอัปโหลดได้ทันที (1-Click Build & Upload):**
+   - **คอมไพล์ (Build):** กดไอคอนเครื่องหมายถูก `✓` ที่แถบด้านล่าง หรือพิมพ์คำสั่ง:
+     ```bash
+     pio run
+     ```
+   - **อัปโหลดลงบอร์ด (Upload):** เสียบสาย USB เข้าบอร์ดแล้วกดไอคอนลูกศร `→` ด้านล่าง หรือพิมพ์คำสั่ง:
+     ```bash
+     pio run -t upload
+     ```
+5. **เปิดหน้าเว็บทดสอบหุ่นยนต์ (Web Serial Controller):**
+   - ดับเบิ้ลคลิกไฟล์ `web_dashboard/start_dashboard.bat` เพื่อเปิดหน้าเว็บควบคุมและปรับแต่ง PID สดๆ ได้ทันที
 
 ---
 
 ## 📁 โครงสร้างโปรเจกต์
 
 ```text
-puppybot6_Mukdahan/
-├── platformio.ini         # การกำหนดค่าบอร์ด, คอมไพเลอร์ และพารามิเตอร์การอัปโหลด
-├── src/                   # โค้ดต้นฉบับหลักของโปรเจกต์
-│   └── main.cpp           # โปรแกรมหลัก (Core 0: setup/loop, Core 1: setup1/loop1)
-├── lib/                   # รวมไลบรารีทุกตัวไว้ในนี้ (รวมถึง Servo, IMU, และ Turn PID)
-│   ├── puppybot6/         # puppybot6.h, PuppyBotIMU.h, PuppyBotTurnPID.h, PicoEncoder
-│   ├── Servo/             # ไลบรารีควบคุม Servo Motor (PIO-based)
-│   ├── rp2040-encoder-library/ # ไดรเวอร์อ่าน Encoder มอเตอร์ความเร็วสูงด้วย PIO
-│   ├── ICM-20948/         # ไดรเวอร์เซนเซอร์ IMU 9-DOF พร้อมระบบ DMP
-│   ├── Adafruit_ST7735/   # ไดรเวอร์จอแสดงผลสี ST7735 SPI TFT
-│   ├── Adafruit_GFX/      # แกนการวาดกราฟิกและฟอนต์
-│   ├── Adafruit_BusIO/    # ตัวช่วยจัดการ I2C และ SPI บัส
-│   ├── Adafruit_MCP3008/  # ไดรเวอร์ ADC 8 ช่อง สำหรับ Sensor Bar
-│   └── Adafruit_TCS34725/ # ไดรเวอร์เซนเซอร์ตรวจจับสีแบบ I2C
-├── docs/                  # เอกสารคู่มือและการใช้งาน
-│   └── วิธีการใช้งานบอร์ด.docx
-├── backup/                # สำรองไฟล์ต้นฉบับและไฟล์ ZIP
-└── .gitignore             # รายการไฟล์ที่ไม่ต้องนำเข้า Version Control
+Puppybot6_Mukdahan/
+├── platformio.ini         # กำหนดค่าบอร์ด RP2350 / RP2040, Core, ความถี่
+├── src/                   # โค้ดต้นฉบับหุ่นยนต์
+│   ├── main.ino           # จุดเริ่มต้นโปรแกรม (Core 0 setup/loop, Core 1 setup1/loop1)
+│   ├── config.h / .cpp    # ตัวแปรกลาง, Motor Trims, KP, KD, Battery Offset
+│   ├── motor_drive.h      # ควบคุม 4 ล้ออิสระ (drive4, fd, bk, sl, sr, tl, tr, stop)
+│   ├── sensor_system.h    # เซนเซอร์หน้า 7 ตัว, หลัง 7 ตัว, IR Distance, TCS Color
+│   ├── line_follow.h      # การวิ่งตามเส้น PID ทั้งหมด (Fline_by_pass, phase, time)
+│   ├── eeprom_calib.h     # คาลิเบรตผ่านจอ LCD และบันทึก EEPROM ถาวร
+│   └── serial_tester.h    # ตัวรับคำสั่งจาก Web Serial และส่ง Telemetry แบบ Real-time
+├── lib/                   # รวมไลบรารีทั้งหมดแบบ Standalone (เปิดเครื่องไหนก็คอมไพล์ได้)
+│   ├── puppybot6/         # ไลบรารีหลักบอร์ด PuppyBot6
+│   ├── Servo/             # ควบคุม Servo Motor ด้วย PIO
+│   ├── rp2040-encoder-library/ # อ่าน Encoder มอเตอร์ความเร็วสูงด้วย PIO
+│   ├── ICM-20948/         # ไจโร IMU 9-DOF
+│   ├── Adafruit_ST7735/   # จอแสดงผลสี TFT
+│   ├── Adafruit_GFX/      # กราฟิกและฟอนต์
+│   ├── Adafruit_MCP3008/  # อ่าน ADC เซนเซอร์บาร์
+│   └── Adafruit_TCS34725/ # อ่านเซนเซอร์สี
+├── web_dashboard/         # หน้าเว็บ Cyberpunk ควบคุมและปรับจูนหุ่นยนต์ผ่าน USB
+│   ├── index.html         # แดชบอร์ดมอนิเตอร์และห้องแล็บทดสอบ
+│   ├── styles.css         # สไตล์มืดนีออน Glassmorphism
+│   ├── app.js             # ควบคุมผ่าน Web Serial API
+│   ├── server.py          # เซิร์ฟเวอร์ Python จำลอง
+│   └── start_dashboard.bat# ดับเบิ้ลคลิกเปิดหน้าเว็บอัตโนมัติ
+└── .gitignore             # กันไฟล์ขยะคอมไพล์ (.pio) ขึ้น GitHub
 ```
-
----
-
-## ⚙️ การคอมไพล์และอัปโหลดโค้ด
-
-### 1. ใช้ปุ่มบนแถบสถานะ PlatformIO (VS Code / Antigravity IDE)
-- **คอมไพล์ (Build)**: คลิกไอคอนเครื่องหมายถูก `✓` ด้านล่าง
-- **อัปโหลด (Upload)**: เสียบสาย USB เข้าบอร์ดแล้วคลิกไอคอนลูกศร `→` ด้านล่าง
-- **ดูข้อมูล (Serial Monitor)**: คลิกไอคอนปลั๊กสายไฟ `Serial Monitor` (Baudrate: `115200`)
-
-### 2. ใช้คำสั่งผ่าน Terminal (Command Line)
-- **คอมไพล์บอร์ดค่าเริ่มต้น (Adafruit Metro RP2350)**:
-  ```powershell
-  pio run
-  ```
-- **อัปโหลดลงบอร์ด**:
-  ```powershell
-  pio run -t upload
-  ```
-- **หากใช้งานบอร์ด Raspberry Pi Pico (Pico 1 / RP2040)**:
-  ```powershell
-  pio run -e pico
-  pio run -e pico -t upload
-  ```
 
 ---
 
 ## 🤖 ระบบการเคลื่อนที่และการนำทาง (Navigation & Movement System)
 
 ไฟล์ระบบทั้งหมดอยู่ในโฟลเดอร์ `src/`:
-- [config.h](file:///D:/puppybot6_Mukdahan/src/config.h) & [config.cpp](file:///D:/puppybot6_Mukdahan/src/config.cpp): ค่าตั้งต้น, Motor Trims, Battery Scale, Pin Mapping
-- [motor_drive.h](file:///D:/puppybot6_Mukdahan/src/motor_drive.h): ระบบขับเคลื่อน 4 ล้อพร้อมกัน (M1=ซ้ายหน้า, M2=ขวาหน้า, M3=ซ้ายหลัง, M4=ขวาหลัง)
-- [sensor_system.h](file:///D:/puppybot6_Mukdahan/src/sensor_system.h): เซนเซอร์หน้า 7 ตัว, หลัง 7 ตัว, IR Distance (ซม.), ปุ่มกด, Encoder (ซม.)
-- [eeprom_calib.h](file:///D:/puppybot6_Mukdahan/src/eeprom_calib.h): ระบบบันทึก EEPROM และเมนู Interactive บนหน้าจอ LCD
-- [line_follow.h](file:///D:/puppybot6_Mukdahan/src/line_follow.h): ฟังก์ชันการวิ่งตามเส้นและการหมุนเลี้ยวทั้งหมด
+- [config.h](src/config.h) & [config.cpp](src/config.cpp): ค่าตั้งต้น, Motor Trims, Battery Scale, Pin Mapping, KP, KD
+- [motor_drive.h](src/motor_drive.h): ระบบขับเคลื่อน 4 ล้อพร้อมกัน (M1=ซ้ายหน้า, M2=ขวาหน้า, M3=ซ้ายหลัง, M4=ขวาหลัง)
+- [sensor_system.h](src/sensor_system.h): เซนเซอร์หน้า 7 ตัว, หลัง 7 ตัว, IR Distance (ซม.), ปุ่มกด, Encoder (ซม.)
+- [eeprom_calib.h](src/eeprom_calib.h): ระบบบันทึก EEPROM และเมนู Interactive บนหน้าจอ LCD
+- [line_follow.h](src/line_follow.h): ฟังก์ชันการวิ่งตามเส้นและการหมุนเลี้ยวทั้งหมด
+- [serial_tester.h](src/serial_tester.h): ระบบทดสอบและควบคุมผ่าน Serial Web Dashboard
 
 ### 1. ฟังก์ชันการวิ่งตามเส้นและเคลื่อนที่ทั้งหมด
 | ฟังก์ชัน | พารามิเตอร์ | คำอธิบาย |

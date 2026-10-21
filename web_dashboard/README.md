@@ -64,7 +64,7 @@ python server.py
 
 ## 🤖 วิธีสั่งให้หุ่นยนต์เข้าโหมด Web Controller
 
-ในโค้ด [main.ino](file:///d:/puppybot6_Mukdahan/src/main.ino) บรรทัดที่ 37:
+ในโค้ด [main.ino](../src/main.ino) บรรทัดที่ 37:
 ```cpp
 // ยกเลิกคอมเมนต์บรรทัดนี้:
 runSerialTestMode();
