@@ -37,6 +37,7 @@ struct ActiveTask {
   int motor_time = 1000;
   int s1 = 90, s2 = 90;
   int roundCount = 0;      // นับรอบตั้งแต่ส่งข้อมูลหาบอร์ด
+  unsigned long lastElapsedMs = 0; // เวลาที่ใช้ในรอบล่าสุด (ms)
   bool isRunning = false;
 };
 
@@ -91,10 +92,11 @@ inline void sendTelemetry() {
   Serial.print(",\"yaw\":"); Serial.print(yaw_loop1, 1);
   Serial.print(",\"btn\":"); Serial.print(btnPressed);
 
-  // สถานะ Task และตัวนับรอบ
+  // สถานะ Task และตัวนับรอบ + เวลา
   Serial.print(",\"task\":{");
   Serial.print("\"has\":"); Serial.print(activeTask.hasCommand ? 1 : 0);
   Serial.print(",\"round\":"); Serial.print(activeTask.roundCount);
+  Serial.print(",\"time_ms\":"); Serial.print(activeTask.lastElapsedMs);
   Serial.print(",\"running\":"); Serial.print(activeTask.isRunning ? 1 : 0);
   Serial.print(",\"cmd\":\""); Serial.print(activeTask.cmdType); Serial.print("\"");
   Serial.print(",\"mode\":\""); Serial.print(activeTask.mode); Serial.print("\"");
@@ -148,7 +150,7 @@ inline void updateIdleDisplay() {
   printText(5, 110, yawStr, 1, ST7735_YELLOW, ST7735_BLACK);
 }
 
-// หน้าจอแสดงคำสั่งปัจจุบัน ตัวนับรอบ และสถานะรอกดปุ่ม (กดได้เรื่อยๆ กี่รอบก็ได้)
+// หน้าจอแสดงคำสั่งปัจจุบัน ตัวนับรอบ เวลาที่ใช้ และสถานะรอกดปุ่ม (กดได้เรื่อยๆ กี่รอบก็ได้)
 inline void drawTaskReadyScreen() {
   tft_.fillScreen(ST7735_BLACK);
   printText(4, 3, "== WEB MISSION LAB ==", 1, ST7735_CYAN);
@@ -156,39 +158,59 @@ inline void drawTaskReadyScreen() {
 
   // 1. ข้อมูลคำสั่งและพารามิเตอร์
   if (activeTask.cmdType == "TEST_PID") {
-    printText(4, 18, "MODE: " + activeTask.mode, 1, ST7735_YELLOW, ST7735_BLACK);
+    printText(4, 17, "MODE: " + activeTask.mode, 1, ST7735_YELLOW, ST7735_BLACK);
     char pBuf[32];
     snprintf(pBuf, sizeof(pBuf), "Spd:%d Val:%.1f P:%.2f", activeTask.speed, activeTask.val, activeTask.kp);
-    printText(4, 29, pBuf, 1, ST7735_WHITE, ST7735_BLACK);
+    printText(4, 28, pBuf, 1, ST7735_WHITE, ST7735_BLACK);
   } else if (activeTask.cmdType == "TEST_MOTOR") {
-    printText(4, 18, "MODE: 4WD MOTOR TEST", 1, ST7735_YELLOW, ST7735_BLACK);
+    printText(4, 17, "MODE: 4WD MOTOR TEST", 1, ST7735_YELLOW, ST7735_BLACK);
     char mBuf[32];
     snprintf(mBuf, sizeof(mBuf), "M:%d,%d,%d,%d T:%dms", activeTask.m1, activeTask.m2, activeTask.m3, activeTask.m4, activeTask.motor_time);
-    printText(4, 29, mBuf, 1, ST7735_WHITE, ST7735_BLACK);
+    printText(4, 28, mBuf, 1, ST7735_WHITE, ST7735_BLACK);
   } else if (activeTask.cmdType == "SERVO") {
-    printText(4, 18, "MODE: DUAL SERVO TEST", 1, ST7735_YELLOW, ST7735_BLACK);
+    printText(4, 17, "MODE: DUAL SERVO TEST", 1, ST7735_YELLOW, ST7735_BLACK);
     char sBuf[32];
     snprintf(sBuf, sizeof(sBuf), "S1:%d deg  S2:%d deg", activeTask.s1, activeTask.s2);
-    printText(4, 29, sBuf, 1, ST7735_WHITE, ST7735_BLACK);
+    printText(4, 28, sBuf, 1, ST7735_WHITE, ST7735_BLACK);
   }
 
-  tft_.drawFastHLine(0, 42, 160, ST7735_BLUE);
+  tft_.drawFastHLine(0, 39, 160, ST7735_BLUE);
 
-  // 2. กล่องแสดงตัวนับรอบ (ROUNDS) โดดเด่น ชัดเจน
-  tft_.drawRect(3, 46, 154, 46, ST7735_GREEN);
-  printText(8, 50, "ROUNDS COMPLETED:", 1, ST7735_WHITE, ST7735_BLACK);
+  // 2. กล่องแสดงตัวนับรอบ (ROUNDS) และเวลาต่อรอบ (TIME) โดดเด่น ชัดเจน
+  tft_.drawRect(2, 42, 156, 56, ST7735_GREEN);
   
-  char rBuf[24];
-  snprintf(rBuf, sizeof(rBuf), "  [ %d ]", activeTask.roundCount);
-  printText(20, 64, rBuf, 2, ST7735_GREEN, ST7735_BLACK);
+  if (activeTask.roundCount == 0) {
+    printText(6, 46, "ROUNDS COMPLETED:", 1, ST7735_WHITE, ST7735_BLACK);
+    printText(16, 58, " [ ROUND 0 ]", 2, ST7735_GREEN, ST7735_BLACK);
+    printText(6, 82, "Ready for 1st round run", 1, ST7735_CYAN, ST7735_BLACK);
+  } else {
+    char rBuf[32];
+    snprintf(rBuf, sizeof(rBuf), "ROUND #%d COMPLETED", activeTask.roundCount);
+    printText(6, 46, rBuf, 1, ST7735_GREEN, ST7735_BLACK);
+
+    unsigned long s = activeTask.lastElapsedMs / 1000;
+    unsigned long ms = activeTask.lastElapsedMs % 1000;
+    float totalSec = (float)activeTask.lastElapsedMs / 1000.0f;
+
+    // แสดงเวลา: ทั้งวินาทีและมิลลิวินาที
+    char tBuf1[32];
+    snprintf(tBuf1, sizeof(tBuf1), "TIME: %lu s %lu ms", s, ms);
+    printText(6, 59, tBuf1, 1, ST7735_YELLOW, ST7735_BLACK);
+
+    char tBuf2[32];
+    snprintf(tBuf2, sizeof(tBuf2), "= %.3f sec (%lums)", totalSec, activeTask.lastElapsedMs);
+    printText(6, 73, tBuf2, 1, ST7735_CYAN, ST7735_BLACK);
+
+    printText(6, 85, "Lap timer recorded!", 1, ST7735_WHITE, ST7735_BLACK);
+  }
 
   // 3. สถานะคำแนะนำการกดปุ่ม
   if (activeTask.roundCount == 0) {
-    printText(4, 98, "> PRESS BTN TO START <", 1, ST7735_YELLOW, ST7735_BLACK);
+    printText(4, 102, "> PRESS BTN TO START <", 1, ST7735_YELLOW, ST7735_BLACK);
   } else {
-    printText(4, 98, "> PRESS BTN AGAIN <", 1, ST7735_YELLOW, ST7735_BLACK);
+    printText(4, 102, "> PRESS BTN FOR NEXT <", 1, ST7735_YELLOW, ST7735_BLACK);
   }
-  printText(4, 112, "(or send new cmd from web)", 1, ST7735_CYAN, ST7735_BLACK);
+  printText(4, 115, "(or send new cmd from web)", 1, ST7735_CYAN, ST7735_BLACK);
 }
 
 // หน้าจอตอนกำลังทำงาน (Running)
@@ -206,7 +228,8 @@ inline void drawTaskRunningScreen() {
   }
 
   tft_.drawRect(8, 55, 144, 40, ST7735_RED);
-  printText(16, 68, ">>> IN ACTION <<<", 1, ST7735_RED, ST7735_BLACK);
+  printText(16, 64, ">>> IN ACTION <<<", 1, ST7735_RED, ST7735_BLACK);
+  printText(16, 78, "Timing lap duration...", 1, ST7735_YELLOW, ST7735_BLACK);
 
   printText(4, 110, "Emergency: click STOP on web", 1, ST7735_WHITE, ST7735_BLACK);
 }
@@ -223,6 +246,8 @@ inline void executeActiveTask() {
   Serial.print(activeTask.roundCount + 1);
   Serial.print(",\"mode\":\""); Serial.print(activeTask.mode);
   Serial.println("\",\"msg\":\"Mission running...\"}");
+
+  unsigned long runStart = millis();
 
   // ทำงานตามประเภทคำสั่ง
   if (activeTask.cmdType == "TEST_PID") {
@@ -281,6 +306,8 @@ inline void executeActiveTask() {
 
   // จบการทำงาน
   stop_4w();
+  unsigned long elapsedMs = millis() - runStart;
+  activeTask.lastElapsedMs = elapsedMs;
   activeTask.roundCount++; // เพิ่มตัวนับรอบการทำงาน
   activeTask.isRunning = false;
 
@@ -291,6 +318,8 @@ inline void executeActiveTask() {
 
   Serial.print("{\"type\":\"RES\",\"status\":\"DONE\",\"round\":");
   Serial.print(activeTask.roundCount);
+  Serial.print(",\"time_ms\":");
+  Serial.print(elapsedMs);
   Serial.println(",\"msg\":\"Command finished. Ready for next run.\"}");
 
   // วาดหน้าจอกลับมารอการกดปุ่มอีกครั้ง (กดซ้ำกี่รอบก็ได้)
@@ -314,6 +343,7 @@ inline void processCommand(const String& cmdLine) {
     activeTask.hasCommand = false;
     activeTask.isRunning = false;
     activeTask.roundCount = 0;
+    activeTask.lastElapsedMs = 0;
 
     buzzer(800, 100);
     tft_.fillScreen(ST7735_RED);
@@ -353,6 +383,7 @@ inline void processCommand(const String& cmdLine) {
     activeTask.kd_b = getJsonFloat(cmdLine, "kd_b", line_KD_B);
     activeTask.val = getJsonFloat(cmdLine, "val", 0.0f);
     activeTask.roundCount = 0; // รีเซ็ตรอบใหม่ทุกครั้งที่มีการส่งข้อมูลใหม่จากเว็บ!
+    activeTask.lastElapsedMs = 0;
     activeTask.isRunning = false;
 
     buzzer(1800, 120);
@@ -375,6 +406,7 @@ inline void processCommand(const String& cmdLine) {
     activeTask.m4 = getJsonInt(cmdLine, "m4", 0);
     activeTask.motor_time = getJsonInt(cmdLine, "time", 1000);
     activeTask.roundCount = 0; // รีเซ็ตรอบใหม่
+    activeTask.lastElapsedMs = 0;
     activeTask.isRunning = false;
 
     buzzer(1800, 120);
@@ -392,6 +424,7 @@ inline void processCommand(const String& cmdLine) {
     activeTask.s1 = getJsonInt(cmdLine, "s1", 50);
     activeTask.s2 = getJsonInt(cmdLine, "s2", 146);
     activeTask.roundCount = 0; // รีเซ็ตรอบใหม่
+    activeTask.lastElapsedMs = 0;
     activeTask.isRunning = false;
 
     buzzer(1800, 120);

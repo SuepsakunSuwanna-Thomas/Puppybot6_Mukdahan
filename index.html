@@ -245,6 +245,10 @@
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
           <span>ตั้งองศาเซอร์โว (Servo)</span>
         </button>
+        <button class="tab-btn" data-tab="tab-calib" id="tab-btn-calib">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          <span>คาลิเบรตเซนเซอร์ (Calibration)</span>
+        </button>
         <button class="tab-btn" data-tab="tab-terminal" id="tab-btn-terminal">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
           <span>Serial Terminal & Logs</span>
@@ -301,31 +305,31 @@
             <!-- Line KP Slider & Input -->
             <div class="form-group">
               <div class="slider-header">
-                <label for="pid-kp-slider">ค่า Line KP (การตอบสนองเลี้ยว):</label>
+                <label for="pid-kp-slider">ค่า Line KP (การตอบสนองเลี้ยว &mdash; ทศนิยม 2 ตำแหน่ง):</label>
                 <div class="val-input-group">
-                  <input type="number" id="pid-kp-num" min="0.1" max="10.0" step="0.1" value="1.8" class="custom-input num-input">
+                  <input type="number" id="pid-kp-num" min="0.01" max="10.00" step="0.01" value="0.40" class="custom-input num-input">
                 </div>
               </div>
-              <input type="range" id="pid-kp-slider" min="0.1" max="6.0" step="0.1" value="1.8" class="custom-range">
+              <input type="range" id="pid-kp-slider" min="0.01" max="6.00" step="0.01" value="0.40" class="custom-range">
             </div>
 
             <!-- Line KD Slider & Input -->
             <div class="form-group full-width">
               <div class="slider-header">
-                <label for="pid-kd-slider">ค่า Line KD (ลดการสะบัด/เพิ่มความนิ่ง &mdash; 0.0 = Auto ตารางความเร็ว):</label>
+                <label for="pid-kd-slider">ค่า Line KD (ลดการสะบัด/เพิ่มความนิ่ง &mdash; 0.00 = Auto ตารางความเร็ว):</label>
                 <div class="val-input-group">
-                  <input type="number" id="pid-kd-num" min="0.0" max="30.0" step="0.1" value="0.0" class="custom-input num-input">
+                  <input type="number" id="pid-kd-num" min="0.00" max="30.00" step="0.01" value="0.00" class="custom-input num-input">
                   <span id="pid-kd-auto-badge" class="unit-text" style="color:var(--neon-cyan); font-size:12px;">(Auto)</span>
                 </div>
               </div>
               <div class="input-with-presets">
-                <input type="range" id="pid-kd-slider" min="0.0" max="25.0" step="0.1" value="0.0" class="custom-range" style="flex: 1;">
+                <input type="range" id="pid-kd-slider" min="0.00" max="25.00" step="0.01" value="0.00" class="custom-range" style="flex: 1;">
                 <div class="preset-buttons" id="kd-preset-buttons">
-                  <button type="button" class="btn-chip active" data-kd="0.0">Auto</button>
-                  <button type="button" class="btn-chip" data-kd="5.5">5.5</button>
-                  <button type="button" class="btn-chip" data-kd="7.5">7.5</button>
-                  <button type="button" class="btn-chip" data-kd="10.5">10.5</button>
-                  <button type="button" class="btn-chip" data-kd="14.5">14.5</button>
+                  <button type="button" class="btn-chip active" data-kd="0.00">Auto</button>
+                  <button type="button" class="btn-chip" data-kd="5.50">5.50</button>
+                  <button type="button" class="btn-chip" data-kd="7.50">7.50</button>
+                  <button type="button" class="btn-chip" data-kd="10.50">10.50</button>
+                  <button type="button" class="btn-chip" data-kd="14.50">14.50</button>
                 </div>
               </div>
             </div>
@@ -334,7 +338,7 @@
             <div class="form-group full-width" id="param-group">
               <label id="param-label" for="pid-param-input">ระยะทาง (เซนติเมตร cm):</label>
               <div class="input-with-presets">
-                <input type="number" id="pid-param-input" value="30.0" step="1" class="custom-input">
+                <input type="number" id="pid-param-input" value="30.00" step="0.01" class="custom-input">
                 <div class="preset-buttons" id="preset-buttons">
                   <button type="button" class="btn-chip" data-val="15">15 cm</button>
                   <button type="button" class="btn-chip" data-val="30">30 cm</button>
@@ -539,6 +543,161 @@
               <span>ส่งค่ามุมเซอร์โวไปยังหุ่นยนต์ (Set Servo Angles)</span>
             </button>
             <div id="servo-exec-status" class="exec-status-box">สถานะ: พร้อมส่งมุมเซอร์โว</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Sensor Calibration Lab -->
+      <div class="tab-pane" id="tab-calib">
+        <div class="lab-card">
+          <div class="lab-card-header">
+            <div>
+              <h3>ศูนย์กลางการคาลิเบรตเซนเซอร์ (Sensor Calibration Center)</h3>
+              <p style="color: var(--text-muted); font-size: 13px; margin-top: 4px;">
+                กดเลือกหมวดที่ต้องการคาลิเบรตจากหน้าเว็บ แล้วทำตามขั้นตอนที่หน้าจอหุ่นยนต์ หรือดูผลลัพธ์ผ่านเว็บได้ทันที
+              </p>
+            </div>
+            <button type="button" id="btn-get-calib" class="btn btn-secondary btn-sm" style="display: flex; align-items: center; gap: 6px;">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+              <span>ดึงค่าล่าสุดจาก EEPROM</span>
+            </button>
+          </div>
+
+          <!-- Calibration Cards Grid -->
+          <div class="calib-cards-grid">
+            <!-- Calib Card 1: Front Sensors -->
+            <div class="calib-card">
+              <div class="calib-card-badge">STEP 1 & 2</div>
+              <div class="calib-card-icon">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--neon-cyan)" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+              </div>
+              <h4>เซนเซอร์แสงหน้า 7 ตัว (Front ADC 0-6)</h4>
+              <p class="calib-desc">คาลิเบรตค่าแสงพื้นขาว และเส้นดำ เพื่อหาจุดตัดกึ่งกลางเส้นที่แม่นยำ</p>
+              <div class="calib-steps-hint">
+                <span>1. วางบนพื้นขาว &rarr; กดปุ่มที่หุ่น</span><br>
+                <span>2. วางบนเส้นดำ &rarr; กดปุ่มที่หุ่นเพื่อบันทึก</span>
+              </div>
+              <button type="button" id="btn-calib-front" class="btn btn-primary full-width">
+                <span>เริ่มคาลิเบรตเซนเซอร์หน้า</span>
+              </button>
+            </div>
+
+            <!-- Calib Card 2: Back Sensors -->
+            <div class="calib-card">
+              <div class="calib-card-badge">STEP 1 & 2</div>
+              <div class="calib-card-icon">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--neon-purple)" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+              </div>
+              <h4>เซนเซอร์แสงหลัง 7 ตัว (Back ADC 7-13)</h4>
+              <p class="calib-desc">คาลิเบรตค่าแสงพื้นขาว และเส้นดำ สำหรับการวิ่งถอยหลังตามเส้น</p>
+              <div class="calib-steps-hint">
+                <span>1. วางบนพื้นขาว &rarr; กดปุ่มที่หุ่น</span><br>
+                <span>2. วางบนเส้นดำ &rarr; กดปุ่มที่หุ่นเพื่อบันทึก</span>
+              </div>
+              <button type="button" id="btn-calib-back" class="btn btn-secondary full-width">
+                <span>เริ่มคาลิเบรตเซนเซอร์หลัง</span>
+              </button>
+            </div>
+
+            <!-- Calib Card 3: Color Sensor -->
+            <div class="calib-card">
+              <div class="calib-card-badge">4 COLORS</div>
+              <div class="calib-card-icon">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--neon-amber)" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="m4.93 4.93 4.24 4.24"></path><path d="m14.83 9.17 4.24-4.24"></path><path d="m14.83 14.83 4.24 4.24"></path><path d="m9.17 14.83-4.24 4.24"></path></svg>
+              </div>
+              <h4>เซนเซอร์สี TCS34725 ด้านหน้า</h4>
+              <p class="calib-desc">บันทึกค่า RGB อ้างอิงของแต่ละสี: แดง (RED), เขียว (GREEN), น้ำเงิน (BLUE), เหลือง (YELLOW)</p>
+              <div class="calib-steps-hint">
+                <span>วางเหนือสีที่หน้าจอบอก แล้วกดปุ่มบันทึกทีละสี</span>
+              </div>
+              <button type="button" id="btn-calib-color" class="btn btn-warning full-width">
+                <span>เริ่มคาลิเบรตเซนเซอร์สี</span>
+              </button>
+            </div>
+
+            <!-- Calib Card 4: Sharp IR Distance -->
+            <div class="calib-card">
+              <div class="calib-card-badge">5cm & 10cm</div>
+              <div class="calib-card-icon">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--neon-emerald)" stroke-width="2"><path d="M2 12h20"></path><path d="M20 12l-4-4"></path><path d="M20 12l-4 4"></path></svg>
+              </div>
+              <h4>เซนเซอร์วัดระยะทาง Sharp IR (GP2Y0A41)</h4>
+              <p class="calib-desc">วัดค่าแรงดันที่ระยะ 5 ซม. และ 10 ซม. เพื่อแปลงระยะเป็นเซนติเมตรที่เที่ยงตรง</p>
+              <div class="calib-steps-hint">
+                <span>1. วางห่าง 5 ซม. &rarr; บันทึก</span><br>
+                <span>2. วางห่าง 10 ซม. &rarr; บันทึก</span>
+              </div>
+              <button type="button" id="btn-calib-ir" class="btn btn-success full-width">
+                <span>เริ่มคาลิเบรตวัดระยะ IR</span>
+              </button>
+            </div>
+
+            <!-- Calib Card 5: Full Onboard Menu -->
+            <div class="calib-card highlight-card">
+              <div class="calib-card-badge">ONBOARD UI</div>
+              <div class="calib-card-icon">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--neon-cyan)" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+              </div>
+              <h4>เปิดเมนูคาลิเบรตบนจอหุ่นยนต์</h4>
+              <p class="calib-desc">เปิดเมนูหลัก 5 ข้อบนหน้าจอ LCD/TFT ของหุ่นยนต์ และควบคุมด้วยปุ่มบนบอร์ด</p>
+              <div class="calib-steps-hint">
+                <span>เหมาะสำหรับใช้งานหน้างานสนามแข่งขันโดยตรง</span>
+              </div>
+              <button type="button" id="btn-calib-menu" class="btn btn-action-glow full-width">
+                <span>เปิดหน้าจอเมนูคาลิเบรตบนหุ่น</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- EEPROM Live Values Table -->
+          <div class="calib-table-section" style="margin-top: 24px;">
+            <h4 style="font-size: 15px; margin-bottom: 12px; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+              <span>ตารางค่าคาลิเบรตที่บันทึกอยู่ใน EEPROM ปัจจุบัน</span>
+            </h4>
+            
+            <div class="calib-table-wrapper">
+              <table class="calib-data-table">
+                <thead>
+                  <tr>
+                    <th>กลุ่มเซนเซอร์</th>
+                    <th>Ch 0</th><th>Ch 1</th><th>Ch 2</th><th>Ch 3★</th><th>Ch 4</th><th>Ch 5</th><th>Ch 6</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="row-label">หน้า Min (ขาว)</td>
+                    <td id="f-min-0">-</td><td id="f-min-1">-</td><td id="f-min-2">-</td><td id="f-min-3">-</td><td id="f-min-4">-</td><td id="f-min-5">-</td><td id="f-min-6">-</td>
+                  </tr>
+                  <tr>
+                    <td class="row-label">หน้า Max (ดำ)</td>
+                    <td id="f-max-0">-</td><td id="f-max-1">-</td><td id="f-max-2">-</td><td id="f-max-3">-</td><td id="f-max-4">-</td><td id="f-max-5">-</td><td id="f-max-6">-</td>
+                  </tr>
+                  <tr>
+                    <td class="row-label">หลัง Min (ขาว)</td>
+                    <td id="b-min-0">-</td><td id="b-min-1">-</td><td id="b-min-2">-</td><td id="b-min-3">-</td><td id="b-min-4">-</td><td id="b-min-5">-</td><td id="b-min-6">-</td>
+                  </tr>
+                  <tr>
+                    <td class="row-label">หลัง Max (ดำ)</td>
+                    <td id="b-max-0">-</td><td id="b-max-1">-</td><td id="b-max-2">-</td><td id="b-max-3">-</td><td id="b-max-4">-</td><td id="b-max-5">-</td><td id="b-max-6">-</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="calib-extra-metrics" style="margin-top: 14px; display: flex; gap: 16px; flex-wrap: wrap;">
+              <div class="extra-metric-pill">
+                <span>Sharp IR 5cm Raw:</span>
+                <strong id="eeprom-ir-5cm" style="color: var(--neon-cyan);">-</strong>
+              </div>
+              <div class="extra-metric-pill">
+                <span>Sharp IR 10cm Raw:</span>
+                <strong id="eeprom-ir-10cm" style="color: var(--neon-cyan);">-</strong>
+              </div>
+              <div class="extra-metric-pill" id="calib-status-msg" style="color: var(--text-muted); font-size: 13px;">
+                กด "ดึงค่าล่าสุดจาก EEPROM" เพื่อโหลดข้อมูล
+              </div>
+            </div>
           </div>
         </div>
       </div>

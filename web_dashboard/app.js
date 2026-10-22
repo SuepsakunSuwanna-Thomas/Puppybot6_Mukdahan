@@ -376,7 +376,7 @@ function processJsonPacket(data) {
 
   if (data.type === 'RES') {
     if (data.status === 'DONE') {
-      setRobotState('DONE', data.msg, data.round);
+      setRobotState('DONE', data.msg, data.round, data.time_ms);
     } else if (data.status === 'CALIB_DONE') {
       setRobotState('CALIB_DONE', data.msg);
     } else if (data.status === 'STOPPED') {
@@ -392,11 +392,21 @@ function processJsonPacket(data) {
   }
 }
 
-function setRobotState(state, message = '', round = null) {
+function setRobotState(state, message = '', round = null, time_ms = null) {
   const pidExec = document.getElementById('test-exec-status');
   const motorExec = document.getElementById('motor-exec-status');
   const servoExec = document.getElementById('servo-exec-status');
   const roundTag = (round !== null && round !== undefined) ? ` [รอบ: #${round}]` : '';
+
+  let timeText = '';
+  let timePillHtml = '';
+  if (time_ms !== null && time_ms !== undefined && time_ms > 0) {
+    const s = Math.floor(time_ms / 1000);
+    const ms = time_ms % 1000;
+    const secStr = (time_ms / 1000).toFixed(3);
+    timeText = `⏱️ ใช้เวลา: ${s} วินาที ${ms} มิลลิวินาที (${secStr}s / ${time_ms.toLocaleString()} ms)`;
+    timePillHtml = `<span class="lap-time-badge" style="display:inline-flex; align-items:center; gap:6px; background:rgba(0,240,255,0.15); border:1px solid #00f0ff; color:#00f0ff; padding:3px 10px; border-radius:12px; font-weight:bold; font-size:13px; margin-left:8px;">⏱️ ${s} วิ ${ms} ms (${secStr}s)</span>`;
+  }
 
   if (state === 'WAIT_BTN') {
     robotStatePill.className = 'status-pill status-waiting-switch';
@@ -408,8 +418,8 @@ function setRobotState(state, message = '', round = null) {
   } else if (state === 'RUNNING') {
     robotStatePill.className = 'status-pill status-running';
     robotStateText.textContent = `ROBOT: RUNNING ⚡${roundTag}`;
-    instructionStepText.innerHTML = `<strong>▶️ หุ่นยนต์กำลังทำงาน${roundTag}...</strong> รอจนกว่าจะเสร็จสิ้นภารกิจ`;
-    if (pidExec) pidExec.innerHTML = `<span style="color:#00f0ff;">⚡ กำลังวิ่งทดสอบ PID...${roundTag}</span>`;
+    instructionStepText.innerHTML = `<strong>▶️ หุ่นยนต์กำลังทำงาน${roundTag}...</strong> รอจนกว่าจะเสร็จสิ้นภารกิจ (กำลังจับเวลา)`;
+    if (pidExec) pidExec.innerHTML = `<span style="color:#00f0ff;">⚡ กำลังวิ่งทดสอบ PID...${roundTag} (กำลังจับเวลา)</span>`;
     if (motorExec) motorExec.innerHTML = `<span style="color:#00f0ff;">⚡ มอเตอร์กำลังหมุน...${roundTag}</span>`;
     if (servoExec) servoExec.innerHTML = `<span style="color:#00f0ff;">⚡ เซอร์โวกำลังหมุน...${roundTag}</span>`;
   } else if (state === 'CALIBRATING') {
@@ -425,11 +435,18 @@ function setRobotState(state, message = '', round = null) {
     }, 4000);
   } else if (state === 'DONE') {
     robotStatePill.className = 'status-pill status-connected';
-    robotStateText.textContent = `ROBOT: READY FOR RE-RUN ✅${roundTag}`;
-    instructionStepText.innerHTML = `<strong>✅ ภารกิจสำเร็จ${roundTag}!</strong> สามารถกดสวิตช์ที่ตัวหุ่นเพื่อวิ่งซ้ำอีกรอบได้ทันที หรือส่งคำสั่งใหม่จากเว็บ`;
-    if (pidExec) pidExec.innerHTML = `<span style="color:#34d399;">✅ สำเร็จ${roundTag}! (กดสวิตช์ที่ตัวหุ่นเพื่อวิ่งซ้ำได้เรื่อยๆ หรือส่งคำสั่งใหม่)</span>`;
-    if (motorExec) motorExec.innerHTML = `<span style="color:#34d399;">✅ สำเร็จ${roundTag}! (กดสวิตช์เพื่อหมุนซ้ำได้)</span>`;
-    if (servoExec) servoExec.innerHTML = `<span style="color:#34d399;">✅ สำเร็จ${roundTag}!</span>`;
+    const timeShort = (time_ms !== null && time_ms !== undefined && time_ms > 0) ? ` ⏱️ ${(time_ms / 1000).toFixed(3)}s` : '';
+    robotStateText.textContent = `ROBOT: READY FOR RE-RUN ✅${roundTag}${timeShort}`;
+    instructionStepText.innerHTML = `<strong>✅ ภารกิจสำเร็จ${roundTag}!</strong> ${timeText ? `<br><span style="color:#00f0ff; font-weight:bold; font-size:15px;">${timeText}</span>` : ''}<br>สามารถกดสวิตช์ที่ตัวหุ่นเพื่อวิ่งซ้ำรอบต่อไปได้ทันที (หรือส่งคำสั่งใหม่จากเว็บ)`;
+    if (pidExec) {
+      pidExec.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <span style="color:#34d399; font-weight:bold;">✅ สำเร็จ${roundTag}! (กดสวิตช์ที่ตัวหุ่นเพื่อวิ่งซ้ำได้เรื่อยๆ หรือส่งคำสั่งใหม่)</span>
+          ${timePillHtml}
+        </div>`;
+    }
+    if (motorExec) motorExec.innerHTML = `<span style="color:#34d399;">✅ สำเร็จ${roundTag}!${timePillHtml}</span>`;
+    if (servoExec) servoExec.innerHTML = `<span style="color:#34d399;">✅ สำเร็จ${roundTag}!${timePillHtml}</span>`;
   } else if (state === 'STOPPED') {
     robotStatePill.className = 'status-pill status-disconnected';
     robotStateText.textContent = 'ROBOT: STOPPED 🛑';

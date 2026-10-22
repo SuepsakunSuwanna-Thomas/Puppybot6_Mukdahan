@@ -152,9 +152,12 @@ async function openAndStartPort(port, baudRate) {
     // เริ่มต้นอ่านข้อมูลเข้า
     readSerialLoop();
 
-    // ส่ง PING ตรวจสอบสถานะหุ่น
+    // ส่ง PING ตรวจสอบสถานะหุ่น และดึงค่า EEPROM Calibration ล่าสุด
     setTimeout(() => {
       sendCommand({ cmd: 'PING' });
+      setTimeout(() => {
+        sendCommand({ cmd: 'GET_CALIB' });
+      }, 350);
     }, 400);
   } finally {
     isConnecting = false;
@@ -355,18 +358,27 @@ function processJsonPacket(data) {
     return;
   }
 
+  if (data.type === 'CALIB_DATA') {
+    updateCalibTable(data);
+    return;
+  }
+
   if (data.type === 'STATUS') {
     if (data.state === 'WAIT_BTN') {
-      setRobotState('WAIT_BTN', data.msg);
+      setRobotState('WAIT_BTN', data.msg, data.round);
     } else if (data.state === 'RUNNING') {
-      setRobotState('RUNNING', data.msg);
+      setRobotState('RUNNING', data.msg, data.round);
+    } else if (data.state === 'CALIBRATING') {
+      setRobotState('CALIBRATING', data.msg);
     }
     return;
   }
 
   if (data.type === 'RES') {
     if (data.status === 'DONE') {
-      setRobotState('DONE', data.msg);
+      setRobotState('DONE', data.msg, data.round, data.time_ms);
+    } else if (data.status === 'CALIB_DONE') {
+      setRobotState('CALIB_DONE', data.msg);
     } else if (data.status === 'STOPPED') {
       setRobotState('STOPPED', data.msg);
     } else if (data.status === 'CONFIG_SAVED') {
@@ -380,35 +392,61 @@ function processJsonPacket(data) {
   }
 }
 
-function setRobotState(state, message = '') {
+function setRobotState(state, message = '', round = null, time_ms = null) {
   const pidExec = document.getElementById('test-exec-status');
   const motorExec = document.getElementById('motor-exec-status');
   const servoExec = document.getElementById('servo-exec-status');
+  const roundTag = (round !== null && round !== undefined) ? ` [รอบ: #${round}]` : '';
+
+  let timeText = '';
+  let timePillHtml = '';
+  if (time_ms !== null && time_ms !== undefined && time_ms > 0) {
+    const s = Math.floor(time_ms / 1000);
+    const ms = time_ms % 1000;
+    const secStr = (time_ms / 1000).toFixed(3);
+    timeText = `⏱️ ใช้เวลา: ${s} วินาที ${ms} มิลลิวินาที (${secStr}s / ${time_ms.toLocaleString()} ms)`;
+    timePillHtml = `<span class="lap-time-badge" style="display:inline-flex; align-items:center; gap:6px; background:rgba(0,240,255,0.15); border:1px solid #00f0ff; color:#00f0ff; padding:3px 10px; border-radius:12px; font-weight:bold; font-size:13px; margin-left:8px;">⏱️ ${s} วิ ${ms} ms (${secStr}s)</span>`;
+  }
 
   if (state === 'WAIT_BTN') {
     robotStatePill.className = 'status-pill status-waiting-switch';
-    robotStateText.textContent = 'ROBOT: WAITING SWITCH ⏳';
-    instructionStepText.innerHTML = '<strong>⚠️ หุ่นยนต์กำลังรอกดสวิตช์:</strong> กรุณากดสวิตช์ (ปุ่มบนบอร์ด หรือ ADC15) เพื่อเริ่มวิ่งตามที่ตั้งค่าไว้!';
-    if (pidExec) pidExec.innerHTML = `<span style="color:#fbbf24;">⏳ หุ่นยนต์กำลังรอกดสวิตช์ที่ตัวหุ่น... (${message})</span>`;
-    if (motorExec) motorExec.innerHTML = `<span style="color:#fbbf24;">⏳ รอกดสวิตช์เพื่อหมุนมอเตอร์...</span>`;
-    if (servoExec) servoExec.innerHTML = `<span style="color:#fbbf24;">⏳ รอกดสวิตช์เพื่อหมุนเซอร์โว...</span>`;
+    robotStateText.textContent = `ROBOT: WAITING SWITCH ⏳${roundTag}`;
+    instructionStepText.innerHTML = `<strong>⚠️ หุ่นยนต์รอกดสวิตช์${roundTag}:</strong> กดสวิตช์ที่ตัวหุ่นยนต์เพื่อเริ่มวิ่ง (กดซ้ำกี่รอบก็ได้ หรือส่งคำสั่งใหม่จากเว็บ)`;
+    if (pidExec) pidExec.innerHTML = `<span style="color:#fbbf24;">⏳ รอกดสวิตช์ที่ตัวหุ่นยนต์...${roundTag} (${message})</span>`;
+    if (motorExec) motorExec.innerHTML = `<span style="color:#fbbf24;">⏳ รอกดสวิตช์เพื่อหมุนมอเตอร์...${roundTag}</span>`;
+    if (servoExec) servoExec.innerHTML = `<span style="color:#fbbf24;">⏳ รอกดสวิตช์เพื่อหมุนเซอร์โว...${roundTag}</span>`;
   } else if (state === 'RUNNING') {
     robotStatePill.className = 'status-pill status-running';
-    robotStateText.textContent = 'ROBOT: RUNNING ⚡';
-    instructionStepText.innerHTML = '<strong>▶️ หุ่นยนต์กำลังทำงานตามคำสั่ง...</strong> รอจนกว่าจะเสร็จสิ้นภารกิจ';
-    if (pidExec) pidExec.innerHTML = `<span style="color:#00f0ff;">⚡ กำลังวิ่งทดสอบ PID... (${message})</span>`;
-    if (motorExec) motorExec.innerHTML = `<span style="color:#00f0ff;">⚡ มอเตอร์กำลังหมุน...</span>`;
-    if (servoExec) servoExec.innerHTML = `<span style="color:#00f0ff;">⚡ เซอร์โวกำลังหมุน...</span>`;
-  } else if (state === 'DONE') {
+    robotStateText.textContent = `ROBOT: RUNNING ⚡${roundTag}`;
+    instructionStepText.innerHTML = `<strong>▶️ หุ่นยนต์กำลังทำงาน${roundTag}...</strong> รอจนกว่าจะเสร็จสิ้นภารกิจ (กำลังจับเวลา)`;
+    if (pidExec) pidExec.innerHTML = `<span style="color:#00f0ff;">⚡ กำลังวิ่งทดสอบ PID...${roundTag} (กำลังจับเวลา)</span>`;
+    if (motorExec) motorExec.innerHTML = `<span style="color:#00f0ff;">⚡ มอเตอร์กำลังหมุน...${roundTag}</span>`;
+    if (servoExec) servoExec.innerHTML = `<span style="color:#00f0ff;">⚡ เซอร์โวกำลังหมุน...${roundTag}</span>`;
+  } else if (state === 'CALIBRATING') {
+    robotStatePill.className = 'status-pill status-running';
+    robotStateText.textContent = `ROBOT: CALIBRATING 🛠️`;
+    instructionStepText.innerHTML = `<strong>🛠️ กำลังคาลิเบรต:</strong> ทำตามขั้นตอนบนหน้าจอ LCD/TFT ของหุ่นยนต์ (${message})`;
+  } else if (state === 'CALIB_DONE') {
     robotStatePill.className = 'status-pill status-connected';
-    robotStateText.textContent = 'ROBOT: COMPLETED ✅';
-    instructionStepText.innerHTML = '<strong>✅ ภารกิจเสร็จสิ้น!</strong> หุ่นยนต์หยุดนิ่งและรอรับคำสั่งถัดไปจากหน้าเว็บต่อทันที';
-    if (pidExec) pidExec.innerHTML = `<span style="color:#34d399;">✅ ทดสอบ PID สำเร็จเรียบร้อย!</span>`;
-    if (motorExec) motorExec.innerHTML = `<span style="color:#34d399;">✅ ทดสอบมอเตอร์ 4 ล้อเรียบร้อย!</span>`;
-    if (servoExec) servoExec.innerHTML = `<span style="color:#34d399;">✅ ตั้งมุมเซอร์โวเรียบร้อย!</span>`;
+    robotStateText.textContent = `ROBOT: CALIBRATED ✅`;
+    instructionStepText.innerHTML = `<strong>✅ คาลิเบรตเสร็จสมบูรณ์และบันทึก EEPROM แล้ว!</strong> (${message})`;
     setTimeout(() => {
       setRobotState('IDLE');
-    }, 3000);
+    }, 4000);
+  } else if (state === 'DONE') {
+    robotStatePill.className = 'status-pill status-connected';
+    const timeShort = (time_ms !== null && time_ms !== undefined && time_ms > 0) ? ` ⏱️ ${(time_ms / 1000).toFixed(3)}s` : '';
+    robotStateText.textContent = `ROBOT: READY FOR RE-RUN ✅${roundTag}${timeShort}`;
+    instructionStepText.innerHTML = `<strong>✅ ภารกิจสำเร็จ${roundTag}!</strong> ${timeText ? `<br><span style="color:#00f0ff; font-weight:bold; font-size:15px;">${timeText}</span>` : ''}<br>สามารถกดสวิตช์ที่ตัวหุ่นเพื่อวิ่งซ้ำรอบต่อไปได้ทันที (หรือส่งคำสั่งใหม่จากเว็บ)`;
+    if (pidExec) {
+      pidExec.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <span style="color:#34d399; font-weight:bold;">✅ สำเร็จ${roundTag}! (กดสวิตช์ที่ตัวหุ่นเพื่อวิ่งซ้ำได้เรื่อยๆ หรือส่งคำสั่งใหม่)</span>
+          ${timePillHtml}
+        </div>`;
+    }
+    if (motorExec) motorExec.innerHTML = `<span style="color:#34d399;">✅ สำเร็จ${roundTag}!${timePillHtml}</span>`;
+    if (servoExec) servoExec.innerHTML = `<span style="color:#34d399;">✅ สำเร็จ${roundTag}!${timePillHtml}</span>`;
   } else if (state === 'STOPPED') {
     robotStatePill.className = 'status-pill status-disconnected';
     robotStateText.textContent = 'ROBOT: STOPPED 🛑';
@@ -420,7 +458,7 @@ function setRobotState(state, message = '') {
     // IDLE
     robotStatePill.className = 'status-pill status-idle';
     robotStateText.textContent = 'ROBOT: IDLE (พร้อมรับคำสั่ง)';
-    instructionStepText.innerHTML = '1. ตั้งค่าการทดสอบด้านล่าง &rarr; 2. กดปุ่มส่งคำสั่ง &rarr; 3. หุ่นยนต์จะส่งเสียงปี๊บและรอกดสวิตช์ &rarr; 4. กดสวิตช์ที่ตัวหุ่นยนต์เพื่อเริ่มวิ่ง!';
+    instructionStepText.innerHTML = '1. ตั้งค่าการทดสอบหรือคาลิเบรต &rarr; 2. กดปุ่มส่งคำสั่งจากเว็บ &rarr; 3. หุ่นยนต์จะแสดงผลบนจอและรอกดสวิตช์ &rarr; 4. กดสวิตช์ที่ตัวหุ่นยนต์เพื่อเริ่มทำงาน!';
   }
 }
 
@@ -561,9 +599,12 @@ function bindSliderAndNumber(sliderId, numId, onChange) {
   const num = document.getElementById(numId);
   if (!slider || !num) return;
 
+  const isFloat = num.step && num.step.includes('.');
+  const decimals = isFloat ? num.step.split('.')[1].length : 0;
+
   slider.addEventListener('input', () => {
-    num.value = slider.value;
-    if (onChange) onChange(slider.value);
+    num.value = isFloat ? parseFloat(slider.value).toFixed(decimals) : slider.value;
+    if (onChange) onChange(num.value);
     saveSettingsDebounced();
   });
 
@@ -582,7 +623,7 @@ function bindSliderAndNumber(sliderId, numId, onChange) {
     if (!isNaN(val)) {
       if (!isNaN(min) && val < min) val = min;
       if (!isNaN(max) && val > max) val = max;
-      num.value = val;
+      num.value = isFloat ? val.toFixed(decimals) : val;
       slider.value = val;
       if (onChange) onChange(val);
       saveSettingsDebounced();
@@ -668,8 +709,8 @@ function createPresetChip(text, val) {
 btnSendPid.addEventListener('click', async () => {
   const mode = pidModeSelect.value;
   const speed = parseInt(pidSpeedSlider.value, 10);
-  const kp = parseFloat(pidKpSlider.value);
-  const kd = pidKdSlider ? parseFloat(pidKdSlider.value) : 0.0;
+  const kp = parseFloat(pidKpNum.value) || 0.40;
+  const kd = pidKdNum ? (parseFloat(pidKdNum.value) || 0.0) : 0.0;
   const val = parseFloat(pidParamInput.value) || 0;
   const waitBtn = pidWaitBtn.checked ? 1 : 0;
 
@@ -970,6 +1011,103 @@ if (btnResetSettings) {
       localStorage.removeItem(STORAGE_KEY);
       location.reload();
     }
+  });
+}
+
+// ============================================================================
+// 8. SENSOR CALIBRATION CENTER
+// ============================================================================
+
+function updateCalibTable(data) {
+  if (data.front_min && data.front_min.length === 7) {
+    data.front_min.forEach((v, i) => {
+      const el = document.getElementById(`f-min-${i}`);
+      if (el) el.textContent = v;
+    });
+  }
+  if (data.front_max && data.front_max.length === 7) {
+    data.front_max.forEach((v, i) => {
+      const el = document.getElementById(`f-max-${i}`);
+      if (el) el.textContent = v;
+    });
+  }
+  if (data.back_min && data.back_min.length === 7) {
+    data.back_min.forEach((v, i) => {
+      const el = document.getElementById(`b-min-${i}`);
+      if (el) el.textContent = v;
+    });
+  }
+  if (data.back_max && data.back_max.length === 7) {
+    data.back_max.forEach((v, i) => {
+      const el = document.getElementById(`b-max-${i}`);
+      if (el) el.textContent = v;
+    });
+  }
+  if (data.ir_5cm !== undefined) {
+    const el = document.getElementById('eeprom-ir-5cm');
+    if (el) el.textContent = data.ir_5cm;
+  }
+  if (data.ir_10cm !== undefined) {
+    const el = document.getElementById('eeprom-ir-10cm');
+    if (el) el.textContent = data.ir_10cm;
+  }
+  const msgEl = document.getElementById('calib-status-msg');
+  if (msgEl) {
+    const now = new Date();
+    const timeStr = now.toTimeString().split(' ')[0];
+    msgEl.innerHTML = `<span style="color:#10b981;">✓ อัปเดตข้อมูลจาก EEPROM ล่าสุดเมื่อ ${timeStr}</span>`;
+  }
+  logTerminal('[EEPROM] อัปเดตตารางค่าคาลิเบรตล่าสุดสำเร็จ', 'term-rx');
+}
+
+const btnGetCalib = document.getElementById('btn-get-calib');
+const btnCalibFront = document.getElementById('btn-calib-front');
+const btnCalibBack = document.getElementById('btn-calib-back');
+const btnCalibColor = document.getElementById('btn-calib-color');
+const btnCalibIr = document.getElementById('btn-calib-ir');
+const btnCalibMenu = document.getElementById('btn-calib-menu');
+
+if (btnGetCalib) {
+  btnGetCalib.addEventListener('click', async () => {
+    await sendCommand({ cmd: 'GET_CALIB' });
+  });
+}
+
+if (btnCalibFront) {
+  btnCalibFront.addEventListener('click', async () => {
+    if (confirm('ต้องการเริ่มคาลิเบรต "เซนเซอร์แสงหน้า 7 ตัว" ใช่หรือไม่?\n\nกรุณาเตรียมวางหุ่นยนต์บนพื้นขาวและเส้นดำตามขั้นตอนบนหน้าจอหุ่นยนต์')) {
+      await sendCommand({ cmd: 'CALIB', target: 'front' });
+    }
+  });
+}
+
+if (btnCalibBack) {
+  btnCalibBack.addEventListener('click', async () => {
+    if (confirm('ต้องการเริ่มคาลิเบรต "เซนเซอร์แสงหลัง 7 ตัว" ใช่หรือไม่?\n\nกรุณาเตรียมวางหุ่นยนต์บนพื้นขาวและเส้นดำตามขั้นตอนบนหน้าจอหุ่นยนต์')) {
+      await sendCommand({ cmd: 'CALIB', target: 'back' });
+    }
+  });
+}
+
+if (btnCalibColor) {
+  btnCalibColor.addEventListener('click', async () => {
+    if (confirm('ต้องการเริ่มคาลิเบรต "เซนเซอร์สี TCS34725" ใช่หรือไม่?\n\nกรุณาเตรียมแผ่นสี: แดง (RED), เขียว (GREEN), น้ำเงิน (BLUE), เหลือง (YELLOW)')) {
+      await sendCommand({ cmd: 'CALIB', target: 'color' });
+    }
+  });
+}
+
+if (btnCalibIr) {
+  btnCalibIr.addEventListener('click', async () => {
+    if (confirm('ต้องการเริ่มคาลิเบรต "เซนเซอร์วัดระยะ Sharp IR" ใช่หรือไม่?\n\nกรุณาเตรียมวัตถุขวางที่ระยะ 5 ซม. และ 10 ซม.')) {
+      await sendCommand({ cmd: 'CALIB', target: 'ir' });
+    }
+  });
+}
+
+if (btnCalibMenu) {
+  btnCalibMenu.addEventListener('click', async () => {
+    await sendCommand({ cmd: 'CALIB', target: 'menu' });
   });
 }
 
