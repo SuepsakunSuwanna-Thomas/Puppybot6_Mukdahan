@@ -6,3 +6,5 @@
 backup/*.zip
 __pycache__/
 *.pyc
+ref_sisaket/
+

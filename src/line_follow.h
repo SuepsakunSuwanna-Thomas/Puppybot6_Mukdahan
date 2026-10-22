@@ -383,102 +383,158 @@ inline void Backword_Notline_by_Encoder(int speed, long target_pulses) {
 // 9. การเลี้ยวและการหมุน (Turning using sl and sr)
 // ============================================================================
 
-// turnLeft: วิ่ง PID ตามเส้น พอเจอ crossing แล้วทำการหมุนซ้าย (sl) ทันที (ไม่ต้องเดินหน้า) จนกว่าเซนเซอร์หน้าจะเจอเส้นใหม่
+// turnLeft: วิ่ง PID ตามเส้น พอเจอแยก/เส้นตัดแล้วสะบัดเลี้ยวซ้ายอย่างรวดเร็ว (Two-Stage Turn ตามแบบ Sisaket)
 inline void turnLeft(int speed) {
-  // 1. วิ่ง PID ตามเส้นจนกว่าจะเจอเส้นตัด
-  while (!isFrontCrossing()) {
+  // 1. วิ่ง PID ตามเส้นจนกว่าจะเจอเส้นตัดหรือเซนเซอร์ซ้ายสุด (ADC 0) แตะเส้น
+  while (!isFrontCrossing() && !isFrontSensorOnLine(0)) {
     lineFollow_PID_auto(speed);
   }
   stop_4w();
-  // 2. หมุนซ้าย (sl) ทันที ไม่ต้องเดินหน้า ออกจากเส้นเดิมก่อน
-  sl_4w(speed);
-  delay(140);
+  delay(40);
 
-  // 3. หมุนซ้ายต่อจนกว่าเซนเซอร์หน้าตรงกลาง (ADC 3) จะเจอเส้นใหม่
+  int fast_spin = (speed > 75) ? speed : 75; // สะบัดตัวเร็ว 75-80% เหมือน Sisaket
+  int slow_spin = 25;                         // ผ่อนความเร็วจับเส้นนุ่มนวล
+
+  // 2. จังหวะที่ 1: สะบัดตัวซ้ายอย่างเร็ว (sl) หลุดจากเส้นเดิมและกวาดหาเส้นใหม่
+  sl_4w(fast_spin);
+  delay(60); // หลุดออกจากขอบเดิมเล็กน้อย
   unsigned long timeout = millis();
-  while (!isFrontSensorOnLine(FRONT_CENTER_INDEX) && (millis() - timeout < 3500)) {
-    sl_4w(speed);
+  while (!isFrontSensorOnLine(0) && !isFrontSensorOnLine(1) && (millis() - timeout < 2500)) {
+    sl_4w(fast_spin);
+    delay(1);
+  }
+
+  // 3. จังหวะที่ 2: ผ่อนความเร็วลงเพื่อจับเส้นอย่างนุ่มนวล (หยุดเมื่อเซนเซอร์ 1 หรือ 2 เจอเส้น)
+  while (!isFrontSensorOnLine(1) && !isFrontSensorOnLine(2) && !isFrontSensorOnLine(FRONT_CENTER_INDEX) && (millis() - timeout < 2500)) {
+    sl_4w(slow_spin);
     delay(1);
   }
   stop_4w();
+  delay(30);
 }
 
-// turnRight: วิ่ง PID ตามเส้น พอเจอ crossing แล้วทำการหมุนขวา (sr) ทันที (ไม่ต้องเดินหน้า) จนกว่าเซนเซอร์หน้าจะเจอเส้นใหม่
+// turnRight: วิ่ง PID ตามเส้น พอเจอแยก/เส้นตัดแล้วสะบัดเลี้ยวขวาอย่างรวดเร็ว (Two-Stage Turn ตามแบบ Sisaket)
 inline void turnRight(int speed) {
-  while (!isFrontCrossing()) {
+  // 1. วิ่ง PID ตามเส้นจนกว่าจะเจอเส้นตัดหรือเซนเซอร์ขวาสุด (ADC 6) แตะเส้น
+  while (!isFrontCrossing() && !isFrontSensorOnLine(6)) {
     lineFollow_PID_auto(speed);
   }
   stop_4w();
-  // หมุนขวา (sr) ทันที ไม่ต้องเดินหน้า ออกจากเส้นเดิมก่อน
-  sr_4w(speed);
-  delay(140);
+  delay(40);
 
+  int fast_spin = (speed > 75) ? speed : 75; // สะบัดตัวเร็ว 75% เหมือน Sisaket
+  int slow_spin = 25;                         // ผ่อนความเร็วจับเส้นนุ่มนวล
+
+  // 2. จังหวะที่ 1: สะบัดตัวขวาอย่างเร็ว (sr) หลุดจากเส้นเดิมและกวาดหาเส้นใหม่
+  sr_4w(fast_spin);
+  delay(60); // หลุดออกจากขอบเดิมเล็กน้อย
   unsigned long timeout = millis();
-  while (!isFrontSensorOnLine(FRONT_CENTER_INDEX) && (millis() - timeout < 3500)) {
-    sr_4w(speed);
+  while (!isFrontSensorOnLine(6) && !isFrontSensorOnLine(5) && (millis() - timeout < 2500)) {
+    sr_4w(fast_spin);
+    delay(1);
+  }
+
+  // 3. จังหวะที่ 2: ผ่อนความเร็วลงเพื่อจับเส้นอย่างนุ่มนวล (หยุดเมื่อเซนเซอร์ 5 หรือ 4 เจอเส้น)
+  while (!isFrontSensorOnLine(5) && !isFrontSensorOnLine(4) && !isFrontSensorOnLine(FRONT_CENTER_INDEX) && (millis() - timeout < 2500)) {
+    sr_4w(slow_spin);
     delay(1);
   }
   stop_4w();
+  delay(30);
 }
 
-// turnLeft_B: วิ่งถอยหลัง PID ตามเส้น พอเจอเส้นแล้วหมุนขวา (sr) สลับกันทันทีจนกว่าเซนเซอร์หลังจะเจอเส้นใหม่
+// turnLeft_B: วิ่งถอยหลัง PID ตามเส้น พอเจอเส้นตัดแล้วสะบัดเลี้ยวซ้ายอย่างรวดเร็ว
 inline void turnLeft_B(int speed) {
-  while (!isBackCrossing()) {
+  while (!isBackCrossing() && !isBackSensorOnLine(0)) {
     lineFollow_PID_B_auto(speed);
   }
+  stop_4w();
+  delay(40);
 
-  // สลับทิศทางการหมุนเมื่อถอยหลัง: ใช้ sr ทันที
-  sr_4w(speed);
-  delay(140);
+  int fast_spin = (speed > 75) ? speed : 75;
+  int slow_spin = 25;
 
+  // ถอยหลังแล้วเลี้ยวซ้าย: ท้ายรถต้องเบี่ยงซ้าย หัวรถเบี่ยงขวา -> ใช้ sr_4w
+  sr_4w(fast_spin);
+  delay(60);
   unsigned long timeout = millis();
-  while (!isBackSensorOnLine(BACK_CENTER_INDEX) && (millis() - timeout < 3500)) {
-    sr_4w(speed);
+  while (!isBackSensorOnLine(0) && !isBackSensorOnLine(1) && (millis() - timeout < 2500)) {
+    sr_4w(fast_spin);
+    delay(1);
+  }
+  while (!isBackSensorOnLine(1) && !isBackSensorOnLine(2) && !isBackSensorOnLine(BACK_CENTER_INDEX) && (millis() - timeout < 2500)) {
+    sr_4w(slow_spin);
     delay(1);
   }
   stop_4w();
+  delay(30);
 }
 
-// turnRight_B: วิ่งถอยหลัง PID ตามเส้น พอเจอเส้นแล้วหมุนซ้าย (sl) สลับกันทันทีจนกว่าเซนเซอร์หลังจะเจอเส้นใหม่
+// turnRight_B: วิ่งถอยหลัง PID ตามเส้น พอเจอเส้นตัดแล้วสะบัดเลี้ยวขวาอย่างรวดเร็ว
 inline void turnRight_B(int speed) {
-  while (!isBackCrossing()) {
+  while (!isBackCrossing() && !isBackSensorOnLine(6)) {
     lineFollow_PID_B_auto(speed);
   }
+  stop_4w();
+  delay(40);
 
-  // สลับทิศทางการหมุนเมื่อถอยหลัง: ใช้ sl ทันที
-  sl_4w(speed);
-  delay(140);
+  int fast_spin = (speed > 75) ? speed : 75;
+  int slow_spin = 25;
 
+  // ถอยหลังแล้วเลี้ยวขวา: ท้ายรถต้องเบี่ยงขวา หัวรถเบี่ยงซ้าย -> ใช้ sl_4w
+  sl_4w(fast_spin);
+  delay(60);
   unsigned long timeout = millis();
-  while (!isBackSensorOnLine(BACK_CENTER_INDEX) && (millis() - timeout < 3500)) {
-    sl_4w(speed);
+  while (!isBackSensorOnLine(6) && !isBackSensorOnLine(5) && (millis() - timeout < 2500)) {
+    sl_4w(fast_spin);
+    delay(1);
+  }
+  while (!isBackSensorOnLine(5) && !isBackSensorOnLine(4) && !isBackSensorOnLine(BACK_CENTER_INDEX) && (millis() - timeout < 2500)) {
+    sl_4w(slow_spin);
     delay(1);
   }
   stop_4w();
+  delay(30);
 }
 
-// turnLeft_by_stop: หมุนไปทางซ้าย (sl) จนกว่าเซนเซอร์หน้าจะเจอเส้น แล้วหยุด
-inline void turnLeft_by_stop(int speed) {
-  sl_4w(speed);
-  delay(100); // พ้นตำแหน่งเดิม
+// turnLeft_by_stop: หมุนไปทางซ้าย (sl) จากจุดหยุดนิ่ง เข้าหาเส้นใหม่ (Two-Stage)
+inline void turnLeft_by_stop(int speed = 50) {
+  int fast_spin = (speed > 50) ? speed : 50;
+  int slow_spin = 25;
+
+  sl_4w(fast_spin);
+  delay(60); // หลุดออกจากขอบเดิมเล็กน้อย
   unsigned long timeout = millis();
-  while (!isFrontSensorOnLine(FRONT_CENTER_INDEX) && (millis() - timeout < 3500)) {
-    sl_4w(speed);
+  while (!isFrontSensorOnLine(0) && !isFrontSensorOnLine(1) && (millis() - timeout < 2500)) {
+    sl_4w(fast_spin);
+    delay(1);
+  }
+  while (!isFrontSensorOnLine(1) && !isFrontSensorOnLine(2) && !isFrontSensorOnLine(FRONT_CENTER_INDEX) && (millis() - timeout < 2500)) {
+    sl_4w(slow_spin);
     delay(1);
   }
   stop_4w();
+  delay(20);
 }
 
-// turnRight_by_stop: หมุนไปทางขวา (sr) จนกว่าเซนเซอร์หน้าจะเจอเส้น แล้วหยุด
-inline void turnRight_by_stop(int speed) {
-  sr_4w(speed);
-  delay(100);
+// turnRight_by_stop: หมุนไปทางขวา (sr) จากจุดหยุดนิ่ง เข้าหาเส้นใหม่ (Two-Stage)
+inline void turnRight_by_stop(int speed = 50) {
+  int fast_spin = (speed > 50) ? speed : 50;
+  int slow_spin = 25;
+
+  sr_4w(fast_spin);
+  delay(60); // หลุดออกจากขอบเดิมเล็กน้อย
   unsigned long timeout = millis();
-  while (!isFrontSensorOnLine(FRONT_CENTER_INDEX) && (millis() - timeout < 3500)) {
-    sr_4w(speed);
+  while (!isFrontSensorOnLine(6) && !isFrontSensorOnLine(5) && (millis() - timeout < 2500)) {
+    sr_4w(fast_spin);
+    delay(1);
+  }
+  while (!isFrontSensorOnLine(5) && !isFrontSensorOnLine(4) && !isFrontSensorOnLine(FRONT_CENTER_INDEX) && (millis() - timeout < 2500)) {
+    sr_4w(slow_spin);
     delay(1);
   }
   stop_4w();
+  delay(20);
 }
 
 // ============================================================================

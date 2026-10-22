@@ -271,6 +271,10 @@ inline void executeActiveTask() {
       turnLeft(speed);
     } else if (mode.equalsIgnoreCase("turnRight")) {
       turnRight(speed);
+    } else if (mode.equalsIgnoreCase("turnLeft_by_stop")) {
+      turnLeft_by_stop(speed);
+    } else if (mode.equalsIgnoreCase("turnRight_by_stop")) {
+      turnRight_by_stop(speed);
     } else if (mode.equalsIgnoreCase("checkLine")) {
       checkLine();
     } else if (mode.equalsIgnoreCase("phase_b")) {
