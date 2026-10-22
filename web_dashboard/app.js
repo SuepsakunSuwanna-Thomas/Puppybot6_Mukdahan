@@ -582,9 +582,12 @@ function bindSliderAndNumber(sliderId, numId, onChange) {
   const num = document.getElementById(numId);
   if (!slider || !num) return;
 
+  const isFloat = num.step && num.step.includes('.');
+  const decimals = isFloat ? num.step.split('.')[1].length : 0;
+
   slider.addEventListener('input', () => {
-    num.value = slider.value;
-    if (onChange) onChange(slider.value);
+    num.value = isFloat ? parseFloat(slider.value).toFixed(decimals) : slider.value;
+    if (onChange) onChange(num.value);
     saveSettingsDebounced();
   });
 
@@ -603,7 +606,7 @@ function bindSliderAndNumber(sliderId, numId, onChange) {
     if (!isNaN(val)) {
       if (!isNaN(min) && val < min) val = min;
       if (!isNaN(max) && val > max) val = max;
-      num.value = val;
+      num.value = isFloat ? val.toFixed(decimals) : val;
       slider.value = val;
       if (onChange) onChange(val);
       saveSettingsDebounced();
@@ -689,8 +692,8 @@ function createPresetChip(text, val) {
 btnSendPid.addEventListener('click', async () => {
   const mode = pidModeSelect.value;
   const speed = parseInt(pidSpeedSlider.value, 10);
-  const kp = parseFloat(pidKpSlider.value);
-  const kd = pidKdSlider ? parseFloat(pidKdSlider.value) : 0.0;
+  const kp = parseFloat(pidKpNum.value) || 0.40;
+  const kd = pidKdNum ? (parseFloat(pidKdNum.value) || 0.0) : 0.0;
   const val = parseFloat(pidParamInput.value) || 0;
   const waitBtn = pidWaitBtn.checked ? 1 : 0;
 

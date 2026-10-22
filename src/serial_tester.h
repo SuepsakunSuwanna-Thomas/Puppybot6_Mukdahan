@@ -158,7 +158,7 @@ inline void drawTaskReadyScreen() {
   if (activeTask.cmdType == "TEST_PID") {
     printText(4, 18, "MODE: " + activeTask.mode, 1, ST7735_YELLOW, ST7735_BLACK);
     char pBuf[32];
-    snprintf(pBuf, sizeof(pBuf), "Spd:%d Val:%.1f", activeTask.speed, activeTask.val);
+    snprintf(pBuf, sizeof(pBuf), "Spd:%d Val:%.1f P:%.2f", activeTask.speed, activeTask.val, activeTask.kp);
     printText(4, 29, pBuf, 1, ST7735_WHITE, ST7735_BLACK);
   } else if (activeTask.cmdType == "TEST_MOTOR") {
     printText(4, 18, "MODE: 4WD MOTOR TEST", 1, ST7735_YELLOW, ST7735_BLACK);
