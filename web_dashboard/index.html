@@ -305,31 +305,31 @@
             <!-- Line KP Slider & Input -->
             <div class="form-group">
               <div class="slider-header">
-                <label for="pid-kp-slider">ค่า Line KP (การตอบสนองเลี้ยว &mdash; ทศนิยม 2 ตำแหน่ง):</label>
+                <label for="pid-kp-slider">ค่า Line KP (การตอบสนองเลี้ยว &mdash; แนะนำ 0.05 - 0.20):</label>
                 <div class="val-input-group">
-                  <input type="number" id="pid-kp-num" min="0.01" max="10.00" step="0.01" value="0.40" class="custom-input num-input">
+                  <input type="number" id="pid-kp-num" min="0.00" max="2.00" step="0.01" value="0.08" class="custom-input num-input">
                 </div>
               </div>
-              <input type="range" id="pid-kp-slider" min="0.01" max="6.00" step="0.01" value="0.40" class="custom-range">
+              <input type="range" id="pid-kp-slider" min="0.00" max="2.00" step="0.01" value="0.08" class="custom-range">
             </div>
 
             <!-- Line KD Slider & Input -->
             <div class="form-group full-width">
               <div class="slider-header">
-                <label for="pid-kd-slider">ค่า Line KD (ลดการสะบัด/เพิ่มความนิ่ง &mdash; 0.00 = Auto ตารางความเร็ว):</label>
+                <label for="pid-kd-slider">ค่า Line KD (ลดการสะบัด/เพิ่มความนิ่ง &mdash; แนะนำ 0.50 - 2.00):</label>
                 <div class="val-input-group">
-                  <input type="number" id="pid-kd-num" min="0.00" max="30.00" step="0.01" value="0.00" class="custom-input num-input">
-                  <span id="pid-kd-auto-badge" class="unit-text" style="color:var(--neon-cyan); font-size:12px;">(Auto)</span>
+                  <input type="number" id="pid-kd-num" min="-1.00" max="10.00" step="0.01" value="1.00" class="custom-input num-input">
+                  <span id="pid-kd-auto-badge" class="unit-text" style="color:var(--neon-cyan); font-size:12px;"></span>
                 </div>
               </div>
               <div class="input-with-presets">
-                <input type="range" id="pid-kd-slider" min="0.00" max="25.00" step="0.01" value="0.00" class="custom-range" style="flex: 1;">
+                <input type="range" id="pid-kd-slider" min="0.00" max="10.00" step="0.01" value="1.00" class="custom-range" style="flex: 1;">
                 <div class="preset-buttons" id="kd-preset-buttons">
-                  <button type="button" class="btn-chip active" data-kd="0.00">Auto</button>
-                  <button type="button" class="btn-chip" data-kd="5.50">5.50</button>
-                  <button type="button" class="btn-chip" data-kd="7.50">7.50</button>
-                  <button type="button" class="btn-chip" data-kd="10.50">10.50</button>
-                  <button type="button" class="btn-chip" data-kd="14.50">14.50</button>
+                  <button type="button" class="btn-chip" data-kd="0.00">0.00 (ปิด D)</button>
+                  <button type="button" class="btn-chip" data-kd="0.50">0.50</button>
+                  <button type="button" class="btn-chip active" data-kd="1.00">1.00 (แนะนำ)</button>
+                  <button type="button" class="btn-chip" data-kd="1.80">1.80</button>
+                  <button type="button" class="btn-chip" data-kd="-1.00">Auto</button>
                 </div>
               </div>
             </div>

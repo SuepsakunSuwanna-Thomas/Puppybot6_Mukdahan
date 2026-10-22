@@ -640,7 +640,13 @@ bindSliderAndNumber('pid-kd-slider', 'pid-kd-num', (val) => {
 
 function updateKdAutoBadge(val) {
   if (pidKdAutoBadge) {
-    pidKdAutoBadge.textContent = (val === 0) ? '(Auto)' : '';
+    if (val < 0) {
+      pidKdAutoBadge.textContent = '(Auto)';
+    } else if (val === 0) {
+      pidKdAutoBadge.textContent = '(ปิด D)';
+    } else {
+      pidKdAutoBadge.textContent = '';
+    }
   }
 }
 

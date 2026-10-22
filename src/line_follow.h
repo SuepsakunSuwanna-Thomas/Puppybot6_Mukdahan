@@ -12,27 +12,27 @@
 // ============================================================================
 inline float get_KD_for_speed(int speed) {
   if (speed >= 100) {
-    return 12.3;
+    return 2.5f;
   } else if (speed >= 90) {
-    return 14.5;
+    return 2.2f;
   } else if (speed >= 80) {
-    return 12.9;
+    return 2.0f;
   } else if (speed >= 70) {
-    return 10.5;
+    return 1.8f;
   } else if (speed >= 60) {
-    return 8.8; // 8.8
+    return 1.5f;
   } else if (speed >= 50) {
-    return 7.5;
+    return 1.2f;
   } else if (speed >= 40) {
-    return 7.5;
+    return 1.0f;
   } else if (speed >= 30) {
-    return 5.5;
+    return 0.8f;
   } else if (speed >= 20) {
-    return 3.2;
+    return 0.5f;
   } else if (speed >= 10) {
-    return 1.0;
+    return 0.3f;
   } else {
-    return 6.10; // ค่ามาตรฐาน
+    return 1.0f; // ค่ามาตรฐาน
   }
 }
 
@@ -101,8 +101,9 @@ inline void lineFollow_PID_auto(int speed) {
   }
   last_call_time = now;
 
-  float KP = line_KP; // ดึงค่าจากตัวแปรส่วนกลาง (ค่าตั้งต้น 0.4)
-  float KD = (line_KD > 0.001f) ? line_KD : get_KD_for_speed(speed);
+  float KP = line_KP; // ดึงค่าจากตัวแปรส่วนกลาง (ค่าตั้งต้น 0.08)
+  // หาก line_KD >= 0 ให้ใช้ค่าที่ผู้ใช้ตั้งจริง (รวมถึง 0.00 ปิด D), ถ้า < 0 (-1) ถึงจะใช้ auto ตารางความเร็ว
+  float KD = (line_KD >= 0.0f) ? line_KD : get_KD_for_speed(speed);
 
   int present_position = readline();
   int setpoint = ((NUM_FRONT_SENSORS - 1) * 100) / 2; // (6 * 100) / 2 = 300
@@ -117,6 +118,10 @@ inline void lineFollow_PID_auto(int speed) {
   float deriv = err - _prev_err;
   float out = KP * err + KD * deriv;
   _prev_err = err;
+
+  // จำกัดแรงเลี้ยวสูงสุด (Max Steering Differential) เพื่อความนุ่มนวล ไม่ให้ล้อเร่งกระชากเกินพิกัด
+  int max_steering = max(35, speed);
+  out = constrain(out, (float)-max_steering, (float)max_steering);
 
   // แบบ A: เร่งข้างหนึ่ง ชะลออีกข้างหนึ่ง (ต่ำสุด 0 ไม่ติดลบ/ไม่ถอยหลัง ป้องกันการสะบัด)
   int motorL = constrain((int)(speed + out), 0, 100);
@@ -160,8 +165,8 @@ inline void lineFollow_PID_B_auto(int speed) {
   }
   last_call_time_B = now;
 
-  float KP = line_KP_B; // ดึงค่าจากตัวแปรส่วนกลาง (ค่าตั้งต้น 0.4)
-  float KD = (line_KD_B > 0.001f) ? line_KD_B : get_KD_for_speed(speed);
+  float KP = line_KP_B; // ดึงค่าจากตัวแปรส่วนกลาง (ค่าตั้งต้น 0.08)
+  float KD = (line_KD_B >= 0.0f) ? line_KD_B : get_KD_for_speed(speed);
 
   int present_position_B = readline_B();
   int setpoint_B = ((NUM_BACK_SENSORS - 1) * 100) / 2; // (6 * 100) / 2 = 300
@@ -176,6 +181,9 @@ inline void lineFollow_PID_B_auto(int speed) {
   float deriv_B = err_B - _prev_err_B;
   float out_B = KP * err_B + KD * deriv_B;
   _prev_err_B = err_B;
+
+  int max_steering = max(35, speed);
+  out_B = constrain(out_B, (float)-max_steering, (float)max_steering);
 
   // วิ่งถอยหลัง: แบบ A เร่งข้างหนึ่ง ชะลออีกข้างหนึ่ง (ต่ำสุด 0 ไม่ติดลบ)
   int motorL = -constrain((int)(speed - out_B), 0, 100);
@@ -387,7 +395,7 @@ inline void turnLeft(int speed) {
   while (!isFrontCrossing()) {
     lineFollow_PID_auto(speed);
   }
-
+ stop_4w();
   // 2. หมุนซ้าย (sl) ทันที ไม่ต้องเดินหน้า ออกจากเส้นเดิมก่อน
   sl_4w(speed);
   delay(140);

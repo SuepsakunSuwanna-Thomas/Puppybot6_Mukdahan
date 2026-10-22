@@ -29,10 +29,10 @@ struct ActiveTask {
   String mode = "";        // "phase", "pass", "time", "turnLeft", etc.
   int speed = 50;
   float val = 0.0f;
-  float kp = 0.4f;
-  float kd = 0.0f;
-  float kp_b = 0.4f;
-  float kd_b = 0.0f;
+  float kp = 0.08f;
+  float kd = 1.0f;
+  float kp_b = 0.08f;
+  float kd_b = 1.0f;
   int m1 = 0, m2 = 0, m3 = 0, m4 = 0;
   int motor_time = 1000;
   int s1 = 90, s2 = 90;
@@ -252,8 +252,8 @@ inline void executeActiveTask() {
   // ทำงานตามประเภทคำสั่ง
   if (activeTask.cmdType == "TEST_PID") {
     // ปรับตั้งค่า KP และ KD
-    if (activeTask.kp > 0.001f) line_KP = activeTask.kp;
-    if (activeTask.kp_b > 0.001f) line_KP_B = activeTask.kp_b;
+    if (activeTask.kp >= 0.0f) line_KP = activeTask.kp;
+    if (activeTask.kp_b >= 0.0f) line_KP_B = activeTask.kp_b;
     line_KD = activeTask.kd;
     line_KD_B = activeTask.kd_b;
 
