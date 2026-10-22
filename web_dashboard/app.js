@@ -357,16 +357,16 @@ function processJsonPacket(data) {
 
   if (data.type === 'STATUS') {
     if (data.state === 'WAIT_BTN') {
-      setRobotState('WAIT_BTN', data.msg);
+      setRobotState('WAIT_BTN', data.msg, data.round);
     } else if (data.state === 'RUNNING') {
-      setRobotState('RUNNING', data.msg);
+      setRobotState('RUNNING', data.msg, data.round);
     }
     return;
   }
 
   if (data.type === 'RES') {
     if (data.status === 'DONE') {
-      setRobotState('DONE', data.msg);
+      setRobotState('DONE', data.msg, data.round);
     } else if (data.status === 'STOPPED') {
       setRobotState('STOPPED', data.msg);
     } else if (data.status === 'CONFIG_SAVED') {
@@ -380,35 +380,33 @@ function processJsonPacket(data) {
   }
 }
 
-function setRobotState(state, message = '') {
+function setRobotState(state, message = '', round = null) {
   const pidExec = document.getElementById('test-exec-status');
   const motorExec = document.getElementById('motor-exec-status');
   const servoExec = document.getElementById('servo-exec-status');
+  const roundTag = (round !== null && round !== undefined) ? ` [รอบ: #${round}]` : '';
 
   if (state === 'WAIT_BTN') {
     robotStatePill.className = 'status-pill status-waiting-switch';
-    robotStateText.textContent = 'ROBOT: WAITING SWITCH ⏳';
-    instructionStepText.innerHTML = '<strong>⚠️ หุ่นยนต์กำลังรอกดสวิตช์:</strong> กรุณากดสวิตช์ (ปุ่มบนบอร์ด หรือ ADC15) เพื่อเริ่มวิ่งตามที่ตั้งค่าไว้!';
-    if (pidExec) pidExec.innerHTML = `<span style="color:#fbbf24;">⏳ หุ่นยนต์กำลังรอกดสวิตช์ที่ตัวหุ่น... (${message})</span>`;
-    if (motorExec) motorExec.innerHTML = `<span style="color:#fbbf24;">⏳ รอกดสวิตช์เพื่อหมุนมอเตอร์...</span>`;
-    if (servoExec) servoExec.innerHTML = `<span style="color:#fbbf24;">⏳ รอกดสวิตช์เพื่อหมุนเซอร์โว...</span>`;
+    robotStateText.textContent = `ROBOT: WAITING SWITCH ⏳${roundTag}`;
+    instructionStepText.innerHTML = `<strong>⚠️ หุ่นยนต์รอกดสวิตช์${roundTag}:</strong> กดสวิตช์ที่ตัวหุ่นยนต์เพื่อเริ่มวิ่ง (กดซ้ำกี่รอบก็ได้ หรือส่งคำสั่งใหม่จากเว็บ)`;
+    if (pidExec) pidExec.innerHTML = `<span style="color:#fbbf24;">⏳ รอกดสวิตช์ที่ตัวหุ่นยนต์...${roundTag} (${message})</span>`;
+    if (motorExec) motorExec.innerHTML = `<span style="color:#fbbf24;">⏳ รอกดสวิตช์เพื่อหมุนมอเตอร์...${roundTag}</span>`;
+    if (servoExec) servoExec.innerHTML = `<span style="color:#fbbf24;">⏳ รอกดสวิตช์เพื่อหมุนเซอร์โว...${roundTag}</span>`;
   } else if (state === 'RUNNING') {
     robotStatePill.className = 'status-pill status-running';
-    robotStateText.textContent = 'ROBOT: RUNNING ⚡';
-    instructionStepText.innerHTML = '<strong>▶️ หุ่นยนต์กำลังทำงานตามคำสั่ง...</strong> รอจนกว่าจะเสร็จสิ้นภารกิจ';
-    if (pidExec) pidExec.innerHTML = `<span style="color:#00f0ff;">⚡ กำลังวิ่งทดสอบ PID... (${message})</span>`;
-    if (motorExec) motorExec.innerHTML = `<span style="color:#00f0ff;">⚡ มอเตอร์กำลังหมุน...</span>`;
-    if (servoExec) servoExec.innerHTML = `<span style="color:#00f0ff;">⚡ เซอร์โวกำลังหมุน...</span>`;
+    robotStateText.textContent = `ROBOT: RUNNING ⚡${roundTag}`;
+    instructionStepText.innerHTML = `<strong>▶️ หุ่นยนต์กำลังทำงาน${roundTag}...</strong> รอจนกว่าจะเสร็จสิ้นภารกิจ`;
+    if (pidExec) pidExec.innerHTML = `<span style="color:#00f0ff;">⚡ กำลังวิ่งทดสอบ PID...${roundTag}</span>`;
+    if (motorExec) motorExec.innerHTML = `<span style="color:#00f0ff;">⚡ มอเตอร์กำลังหมุน...${roundTag}</span>`;
+    if (servoExec) servoExec.innerHTML = `<span style="color:#00f0ff;">⚡ เซอร์โวกำลังหมุน...${roundTag}</span>`;
   } else if (state === 'DONE') {
     robotStatePill.className = 'status-pill status-connected';
-    robotStateText.textContent = 'ROBOT: COMPLETED ✅';
-    instructionStepText.innerHTML = '<strong>✅ ภารกิจเสร็จสิ้น!</strong> หุ่นยนต์หยุดนิ่งและรอรับคำสั่งถัดไปจากหน้าเว็บต่อทันที';
-    if (pidExec) pidExec.innerHTML = `<span style="color:#34d399;">✅ ทดสอบ PID สำเร็จเรียบร้อย!</span>`;
-    if (motorExec) motorExec.innerHTML = `<span style="color:#34d399;">✅ ทดสอบมอเตอร์ 4 ล้อเรียบร้อย!</span>`;
-    if (servoExec) servoExec.innerHTML = `<span style="color:#34d399;">✅ ตั้งมุมเซอร์โวเรียบร้อย!</span>`;
-    setTimeout(() => {
-      setRobotState('IDLE');
-    }, 3000);
+    robotStateText.textContent = `ROBOT: READY FOR RE-RUN ✅${roundTag}`;
+    instructionStepText.innerHTML = `<strong>✅ ภารกิจสำเร็จ${roundTag}!</strong> สามารถกดสวิตช์ที่ตัวหุ่นเพื่อวิ่งซ้ำอีกรอบได้ทันที หรือส่งคำสั่งใหม่จากเว็บ`;
+    if (pidExec) pidExec.innerHTML = `<span style="color:#34d399;">✅ สำเร็จ${roundTag}! (กดสวิตช์ที่ตัวหุ่นเพื่อวิ่งซ้ำได้เรื่อยๆ หรือส่งคำสั่งใหม่)</span>`;
+    if (motorExec) motorExec.innerHTML = `<span style="color:#34d399;">✅ สำเร็จ${roundTag}! (กดสวิตช์เพื่อหมุนซ้ำได้)</span>`;
+    if (servoExec) servoExec.innerHTML = `<span style="color:#34d399;">✅ สำเร็จ${roundTag}!</span>`;
   } else if (state === 'STOPPED') {
     robotStatePill.className = 'status-pill status-disconnected';
     robotStateText.textContent = 'ROBOT: STOPPED 🛑';
@@ -420,7 +418,7 @@ function setRobotState(state, message = '') {
     // IDLE
     robotStatePill.className = 'status-pill status-idle';
     robotStateText.textContent = 'ROBOT: IDLE (พร้อมรับคำสั่ง)';
-    instructionStepText.innerHTML = '1. ตั้งค่าการทดสอบด้านล่าง &rarr; 2. กดปุ่มส่งคำสั่ง &rarr; 3. หุ่นยนต์จะส่งเสียงปี๊บและรอกดสวิตช์ &rarr; 4. กดสวิตช์ที่ตัวหุ่นยนต์เพื่อเริ่มวิ่ง!';
+    instructionStepText.innerHTML = '1. ตั้งค่าการทดสอบด้านล่าง &rarr; 2. กดปุ่มส่งคำสั่ง &rarr; 3. หุ่นยนต์จะแสดงผลบนจอและรอกดสวิตช์ &rarr; 4. กดสวิตช์ที่ตัวหุ่นยนต์เพื่อเริ่มวิ่ง (กดซ้ำกี่รอบก็ได้)!';
   }
 }
 

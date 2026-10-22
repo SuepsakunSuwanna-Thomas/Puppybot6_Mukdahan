@@ -70,18 +70,23 @@ inline void handleLineLostAlarm() {
 
 // ด้านหน้า: lineFollow_PID_auto (ขับเคลื่อน 4 ล้อพร้อม Motor Trims และ Speed Scale)
 inline void lineFollow_PID_auto(int speed) {
+  static unsigned long last_call_time = 0;
+  static int _prev_err = 0;
+
+  unsigned long now = millis();
+  // ข้อ 1: หากห่างจากการเรียกครั้งล่าสุดเกิน 100ms (เริ่มคำสั่งวิ่งใหม่) ให้เคลียร์ Error เก่า ป้องกันสะบัดตอนออกตัว
+  if (now - last_call_time > 100) {
+    _prev_err = 0;
+  }
+
   // ตรวจสอบการหลุดเส้นต่อเนื่องเกินเวลาที่กำหนด (หากตั้งเป็น -1 หรือ <= 0 จะปิดการทำงาน)
   if (line_lost_timeout_ms > 0) {
-    static unsigned long last_call_time = 0;
     static unsigned long lost_start_time = 0;
     static bool is_lost = false;
 
-    unsigned long now = millis();
-    // หากห่างจากการเรียกครั้งล่าสุดเกิน 100ms (เริ่มการเคลื่อนที่ใหม่) ให้รีเซ็ตตัวจับเวลา
     if (now - last_call_time > 100) {
       is_lost = false;
     }
-    last_call_time = now;
 
     if (isFrontLineLost()) {
       if (!is_lost) {
@@ -94,21 +99,28 @@ inline void lineFollow_PID_auto(int speed) {
       is_lost = false;
     }
   }
+  last_call_time = now;
 
   float KP = line_KP; // ดึงค่าจากตัวแปรส่วนกลาง (ค่าตั้งต้น 0.4)
   float KD = (line_KD > 0.001f) ? line_KD : get_KD_for_speed(speed);
 
   int present_position = readline();
   int setpoint = ((NUM_FRONT_SENSORS - 1) * 100) / 2; // (6 * 100) / 2 = 300
-  static int _prev_err = 0;
+
+  // หากกำลังอยู่บนเส้นตัด ป้องกันไม่ให้ตำแหน่งเพี้ยนและรีเซ็ต error เพื่อไม่ให้เกิดการส่ายกระชาก
+  if (isFrontCrossing()) {
+    present_position = setpoint;
+    _prev_err = 0;
+  }
 
   float err = present_position - setpoint;
   float deriv = err - _prev_err;
   float out = KP * err + KD * deriv;
   _prev_err = err;
 
-  int motorL = constrain((int)(speed + out), -100, 100);
-  int motorR = constrain((int)(speed - out), -100, 100);
+  // แบบ A: เร่งข้างหนึ่ง ชะลออีกข้างหนึ่ง (ต่ำสุด 0 ไม่ติดลบ/ไม่ถอยหลัง ป้องกันการสะบัด)
+  int motorL = constrain((int)(speed + out), 0, 100);
+  int motorR = constrain((int)(speed - out), 0, 100);
 
   // สั่งงานมอเตอร์ทั้ง 4 ล้อพร้อมกัน (M1, M2, M3, M4)
   drive4(motorL, motorR, motorL, motorR);
@@ -117,17 +129,23 @@ inline void lineFollow_PID_auto(int speed) {
 
 // ด้านหลัง: lineFollow_PID_B_auto (วิ่งถอยหลังตามเส้นด้วยเซนเซอร์หลัง)
 inline void lineFollow_PID_B_auto(int speed) {
+  static unsigned long last_call_time_B = 0;
+  static int _prev_err_B = 0;
+
+  unsigned long now = millis();
+  // ข้อ 1: หากห่างจากการเรียกครั้งล่าสุดเกิน 100ms (เริ่มคำสั่งวิ่งใหม่) ให้เคลียร์ Error เก่า ป้องกันสะบัดตอนออกตัว
+  if (now - last_call_time_B > 100) {
+    _prev_err_B = 0;
+  }
+
   // ตรวจสอบการหลุดเส้นต่อเนื่องด้านหลังเกินเวลาที่กำหนด (หากตั้งเป็น -1 หรือ <= 0 จะปิดการทำงาน)
   if (line_lost_timeout_ms > 0) {
-    static unsigned long last_call_time_B = 0;
     static unsigned long lost_start_time_B = 0;
     static bool is_lost_B = false;
 
-    unsigned long now = millis();
     if (now - last_call_time_B > 100) {
       is_lost_B = false;
     }
-    last_call_time_B = now;
 
     if (isBackLineLost()) {
       if (!is_lost_B) {
@@ -140,22 +158,28 @@ inline void lineFollow_PID_B_auto(int speed) {
       is_lost_B = false;
     }
   }
+  last_call_time_B = now;
 
   float KP = line_KP_B; // ดึงค่าจากตัวแปรส่วนกลาง (ค่าตั้งต้น 0.4)
   float KD = (line_KD_B > 0.001f) ? line_KD_B : get_KD_for_speed(speed);
 
   int present_position_B = readline_B();
   int setpoint_B = ((NUM_BACK_SENSORS - 1) * 100) / 2; // (6 * 100) / 2 = 300
-  static int _prev_err_B = 0;
+
+  // หากกำลังอยู่บนเส้นตัดด้านหลัง
+  if (isBackCrossing()) {
+    present_position_B = setpoint_B;
+    _prev_err_B = 0;
+  }
 
   float err_B = present_position_B - setpoint_B;
   float deriv_B = err_B - _prev_err_B;
   float out_B = KP * err_B + KD * deriv_B;
   _prev_err_B = err_B;
 
-  // วิ่งถอยหลัง: ซ้ายและขวาสลับสัญญาณ differential output
-  int motorL = -constrain((int)(speed - out_B), -100, 100);
-  int motorR = -constrain((int)(speed + out_B), -100, 100);
+  // วิ่งถอยหลัง: แบบ A เร่งข้างหนึ่ง ชะลออีกข้างหนึ่ง (ต่ำสุด 0 ไม่ติดลบ)
+  int motorL = -constrain((int)(speed - out_B), 0, 100);
+  int motorR = -constrain((int)(speed + out_B), 0, 100);
 
   drive4(motorL, motorR, motorL, motorR);
   delay(1);
@@ -168,15 +192,21 @@ inline void lineFollow_PID_B_auto(int speed) {
 // Fline_by_pass: วิ่งตามเส้นจนกว่าจะผ่านเส้นตัดครบตามจำนวนที่กำหนด
 inline void Fline_by_pass(int speed, int pass_lines) {
   for (int count = 0; count < pass_lines; count++) {
-    // วิ่งตามเส้นจนกว่าจะเจอเส้นตัด (Crossing >= ครึ่งหนึ่ง)
+    // 1. วิ่งตามเส้นจนกว่าจะเจอเส้นตัด (Crossing >= ครึ่งหนึ่ง)
     while (!isFrontCrossing()) {
       lineFollow_PID_auto(speed);
     }
 
-    // หากยังไม่ครบ ให้วิ่งพ้นเส้นตัดเพื่อป้องกันการนับซ้ำ
+    // 2. หากยังไม่ถึงเส้นสุดท้ายที่ต้องการหยุด ให้วิ่งจนกว่าเซนเซอร์จะพ้นเส้นตัดจริง
     if (count < pass_lines - 1) {
       unsigned long t_cross = millis();
-      while (isFrontCrossing() && (millis() - t_cross < 250)) {
+      // วิ่งจนกว่าจะพ้นเส้นตัดจริง (พร้อม safety timeout 1500ms)
+      while (isFrontCrossing() && (millis() - t_cross < 1500)) {
+        lineFollow_PID_auto(speed);
+      }
+      // วิ่งหน่วงอีก 40ms เพื่อป้องกันการสะท้อนขอบเส้นตัดนับซ้ำ
+      unsigned long t_clear = millis();
+      while (millis() - t_clear < 40) {
         lineFollow_PID_auto(speed);
       }
     }
@@ -193,7 +223,11 @@ inline void Fline_by_pass_B(int speed, int pass_lines) {
 
     if (count < pass_lines - 1) {
       unsigned long t_cross = millis();
-      while (isBackCrossing() && (millis() - t_cross < 250)) {
+      while (isBackCrossing() && (millis() - t_cross < 1500)) {
+        lineFollow_PID_B_auto(speed);
+      }
+      unsigned long t_clear = millis();
+      while (millis() - t_clear < 40) {
         lineFollow_PID_B_auto(speed);
       }
     }
