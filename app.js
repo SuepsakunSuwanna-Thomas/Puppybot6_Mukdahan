@@ -1,6 +1,6 @@
 /**
  * PUPPYBOT6 PRO MISSION CONTROL & DIAGNOSTICS LAB
- * Web Serial API Controller & Real-Time Telemetry Streamer
+ * Web Serial API Controller, Dynamic Inputs, Auto-Reconnect & LocalStorage Persistence
  */
 
 // Global State
@@ -9,11 +9,16 @@ let reader = null;
 let writer = null;
 let keepReading = false;
 let inputBuffer = '';
+let isConnecting = false;
 
-// DOM Elements
+const STORAGE_KEY = 'puppybot_dashboard_config_v1';
+let isAutoReconnectActive = localStorage.getItem('puppybot_auto_connect') === 'true';
+
+// DOM Elements: Connection & Header
 const baudSelect = document.getElementById('baud-select');
 const btnConnect = document.getElementById('btn-connect');
 const btnDisconnect = document.getElementById('btn-disconnect');
+const btnResetSettings = document.getElementById('btn-reset-settings');
 const btnEmergencyStop = document.getElementById('btn-emergency-stop');
 const connectionStatusPill = document.getElementById('connection-status-pill');
 const connectionStatusText = document.getElementById('connection-status-text');
@@ -31,7 +36,6 @@ const fMeterB = document.getElementById('f-meter-b');
 const fValR = document.getElementById('f-val-r');
 const fValG = document.getElementById('f-val-g');
 const fValB = document.getElementById('f-val-b');
-
 
 const frontLineStatus = document.getElementById('front-line-status');
 const backLineStatus = document.getElementById('back-line-status');
@@ -52,8 +56,47 @@ const btnSendRaw = document.getElementById('btn-send-raw');
 const btnClearTerminal = document.getElementById('btn-clear-terminal');
 const terminalAutoscroll = document.getElementById('terminal-autoscroll');
 
+// PID Lab Elements
+const pidModeSelect = document.getElementById('pid-mode-select');
+const pidSpeedSlider = document.getElementById('pid-speed-slider');
+const pidSpeedNum = document.getElementById('pid-speed-num');
+const pidKpSlider = document.getElementById('pid-kp-slider');
+const pidKpNum = document.getElementById('pid-kp-num');
+const pidKdSlider = document.getElementById('pid-kd-slider');
+const pidKdNum = document.getElementById('pid-kd-num');
+const pidKdAutoBadge = document.getElementById('pid-kd-auto-badge');
+const pidParamInput = document.getElementById('pid-param-input');
+const paramLabel = document.getElementById('param-label');
+const presetButtons = document.getElementById('preset-buttons');
+const pidWaitBtn = document.getElementById('pid-wait-btn');
+const btnSendPid = document.getElementById('btn-send-pid');
+const testExecStatus = document.getElementById('test-exec-status');
+
+// 4WD Motor Lab Elements
+const m1Slider = document.getElementById('m1-slider');
+const m1Num = document.getElementById('m1-num');
+const m2Slider = document.getElementById('m2-slider');
+const m2Num = document.getElementById('m2-num');
+const m3Slider = document.getElementById('m3-slider');
+const m3Num = document.getElementById('m3-num');
+const m4Slider = document.getElementById('m4-slider');
+const m4Num = document.getElementById('m4-num');
+const motorDurationInput = document.getElementById('motor-duration-input');
+const motorWaitBtn = document.getElementById('motor-wait-btn');
+const btnSendMotor = document.getElementById('btn-send-motor');
+const motorExecStatus = document.getElementById('motor-exec-status');
+
+// Servo Lab Elements
+const s1Slider = document.getElementById('s1-slider');
+const s1Num = document.getElementById('s1-num');
+const s2Slider = document.getElementById('s2-slider');
+const s2Num = document.getElementById('s2-num');
+const servoWaitBtn = document.getElementById('servo-wait-btn');
+const btnSendServo = document.getElementById('btn-send-servo');
+const servoExecStatus = document.getElementById('servo-exec-status');
+
 // ============================================================================
-// 1. SERIAL CONNECTION & STREAM HANDLING
+// 1. SERIAL CONNECTION, RECONNECT & STREAM HANDLING
 // ============================================================================
 
 // Check Web Serial API Support
@@ -62,57 +105,89 @@ if (!('serial' in navigator)) {
   logTerminal('[ERROR] Web Serial API not supported in this browser. Please use Chrome or Edge.', 'term-err');
 }
 
+// User clicks Connect COM Port
 btnConnect.addEventListener('click', async () => {
   try {
     const baudRate = parseInt(baudSelect.value, 10);
-    logTerminal(`[SYSTEM] Requesting Serial Port access at ${baudRate} baud...`, 'term-system');
+    logTerminal(`[SYSTEM] กำลังขอสิทธิ์เลือก Serial Port ที่ ${baudRate} baud...`, 'term-system');
 
-    serialPort = await navigator.serial.requestPort();
-    await serialPort.open({ baudRate: baudRate });
+    const port = await navigator.serial.requestPort();
+    await openAndStartPort(port, baudRate);
+    isAutoReconnectActive = true;
+    localStorage.setItem('puppybot_auto_connect', 'true');
+  } catch (err) {
+    if (err.name !== 'NotFoundError') {
+      console.error('Serial connection error:', err);
+      logTerminal(`[ERROR] การเชื่อมต่อล้มเหลว: ${err.message}`, 'term-err');
+    }
+    updateConnectionUI(false);
+  }
+});
 
+// User explicitly clicks Disconnect
+btnDisconnect.addEventListener('click', async () => {
+  isAutoReconnectActive = false;
+  localStorage.setItem('puppybot_auto_connect', 'false');
+  await cleanupPort();
+  updateConnectionUI(false);
+  logTerminal('[SYSTEM] ตัดการเชื่อมต่อด้วยตนเองแล้ว (ปิดระบบเชื่อมต่ออัตโนมัติ)', 'term-system');
+});
+
+// Helper: Open and start port
+async function openAndStartPort(port, baudRate) {
+  if (isConnecting) return;
+  isConnecting = true;
+
+  try {
+    if (serialPort) {
+      await cleanupPort();
+    }
+
+    await port.open({ baudRate: baudRate });
+    serialPort = port;
     keepReading = true;
     updateConnectionUI(true);
-    logTerminal(`[SYSTEM] Connected to Serial Port successfully!`, 'term-rx');
+    logTerminal(`[SYSTEM] เชื่อมต่อกับบอร์ดสำเร็จ (${baudRate} baud)!`, 'term-rx');
 
     // เริ่มต้นอ่านข้อมูลเข้า
     readSerialLoop();
 
     // ส่ง PING ตรวจสอบสถานะหุ่น
-    sendCommand({ cmd: 'PING' });
-  } catch (err) {
-    console.error('Serial connection error:', err);
-    logTerminal(`[ERROR] Connection failed: ${err.message}`, 'term-err');
-    updateConnectionUI(false);
+    setTimeout(() => {
+      sendCommand({ cmd: 'PING' });
+    }, 400);
+  } finally {
+    isConnecting = false;
   }
-});
+}
 
-btnDisconnect.addEventListener('click', async () => {
-  await disconnectSerial();
-});
-
-async function disconnectSerial() {
+// Helper: Safely release and close port
+async function cleanupPort() {
   keepReading = false;
   if (reader) {
-    try {
-      await reader.cancel();
-      reader.releaseLock();
-    } catch (e) {}
+    try { await reader.cancel(); } catch (e) {}
+    try { reader.releaseLock(); } catch (e) {}
     reader = null;
   }
   if (writer) {
-    try {
-      writer.releaseLock();
-    } catch (e) {}
+    try { writer.releaseLock(); } catch (e) {}
     writer = null;
   }
   if (serialPort) {
-    try {
-      await serialPort.close();
-    } catch (e) {}
+    try { await serialPort.close(); } catch (e) {}
     serialPort = null;
   }
-  updateConnectionUI(false);
-  logTerminal('[SYSTEM] Disconnected from Serial Port.', 'term-system');
+}
+
+// Device lost (e.g. cable unplugged to run the robot)
+async function handleDeviceLost() {
+  await cleanupPort();
+  if (isAutoReconnectActive) {
+    updateAutoReconnectUI();
+    logTerminal('[SYSTEM] ⚡ ถอดสายหุ่นยนต์ไปวิ่งได้เลย &mdash; เมื่อนำกลับมาเสียบ USB ระบบจะเชื่อมต่อให้อัตโนมัติทันที', 'term-system');
+  } else {
+    updateConnectionUI(false);
+  }
 }
 
 function updateConnectionUI(connected) {
@@ -132,7 +207,16 @@ function updateConnectionUI(connected) {
   }
 }
 
-// วนลูปอ่านข้อมูลทีละชิ้นจาก Serial Port
+function updateAutoReconnectUI() {
+  btnConnect.style.display = 'none';
+  btnDisconnect.style.display = 'inline-flex';
+  connectionStatusPill.className = 'status-pill status-reconnecting';
+  connectionStatusText.textContent = '⚡ รอเสียบสาย USB (Auto-Reconnecting...)';
+  baudSelect.disabled = true;
+  instructionStepText.innerHTML = '<strong>⚡ หุ่นยนต์ถูกถอดสาย:</strong> นำไปวิ่งบนสนามได้เลย! เมื่อนำกลับมาเสียบ USB บอร์ดจะเชื่อมต่อให้อัตโนมัติทันที';
+}
+
+// Read Loop with Disconnect Catching
 async function readSerialLoop() {
   const textDecoder = new TextDecoder();
   while (serialPort && serialPort.readable && keepReading) {
@@ -149,16 +233,58 @@ async function readSerialLoop() {
       }
     } catch (err) {
       if (keepReading) {
-        console.error('Read error:', err);
-        logTerminal(`[ERROR] Read stream error: ${err.message}`, 'term-err');
+        console.warn('Read stream terminated (cable unplugged):', err);
+        await handleDeviceLost();
+        break;
       }
     } finally {
       if (reader) {
-        reader.releaseLock();
+        try { reader.releaseLock(); } catch (e) {}
         reader = null;
       }
     }
   }
+}
+
+// Auto-Reconnect Listeners via Web Serial API
+if ('serial' in navigator) {
+  // When an authorized USB device is plugged in
+  navigator.serial.addEventListener('connect', async (event) => {
+    logTerminal('[SYSTEM] ตรวจพบการเสียบสาย USB กลับเข้ามา...', 'term-system');
+    if (isAutoReconnectActive && !serialPort && !isConnecting) {
+      setTimeout(async () => {
+        try {
+          const baudRate = parseInt(baudSelect.value, 10);
+          await openAndStartPort(event.target, baudRate);
+          logTerminal('[SYSTEM] ⚡ เชื่อมต่อ PuppyBot6 อัตโนมัติสำเร็จ!', 'term-rx');
+        } catch (err) {
+          console.warn('Auto-reconnect on connect event failed:', err);
+        }
+      }, 500);
+    }
+  });
+
+  // When device is unplugged
+  navigator.serial.addEventListener('disconnect', async () => {
+    logTerminal('[SYSTEM] ตรวจพบการถอดสาย USB', 'term-warn');
+    await handleDeviceLost();
+  });
+
+  // Watchdog Polling (every 1.5s) to guarantee reconnection even if connect event didn't fire
+  setInterval(async () => {
+    if (isAutoReconnectActive && !serialPort && !isConnecting) {
+      try {
+        const ports = await navigator.serial.getPorts();
+        if (ports && ports.length > 0) {
+          const baudRate = parseInt(baudSelect.value, 10);
+          await openAndStartPort(ports[0], baudRate);
+          logTerminal('[SYSTEM] ⚡ ตรวจพบบอร์ดและเชื่อมต่อให้อัตโนมัติสำเร็จ!', 'term-rx');
+        }
+      } catch (e) {
+        // Port not yet ready
+      }
+    }
+  }, 1500);
 }
 
 // แยกบรรทัดและประมวลผล JSON
@@ -176,26 +302,24 @@ function processIncomingBuffer() {
 }
 
 function handleIncomingLine(line) {
-  // บันทึกเฉพาะข้อมูลที่ไม่ใช่ TELEMETRY ถี่ๆ ลงหน้าต่าง terminal เพื่อไม่ให้รก
   if (!line.includes('"type":"TELEM"')) {
     logTerminal(`[RX] ${line}`, 'term-rx');
   }
 
-  // พยายามแยกวิเคราะห์ JSON
   try {
     if (line.startsWith('{') && line.endsWith('}')) {
       const data = JSON.parse(line);
       processJsonPacket(data);
     }
   } catch (err) {
-    // ไม่ใช่ JSON หรือ parsing ล้มเหลว แสดงเป็นข้อความธรรมดา
+    // Non-JSON line
   }
 }
 
 // ส่งข้อความ JSON ไปยังหุ่นยนต์
 async function sendCommand(obj) {
   if (!serialPort || !serialPort.writable) {
-    logTerminal('[WARN] Serial port not connected! Cannot send command.', 'term-warn');
+    logTerminal('[WARN] ยังไม่ได้เชื่อมต่อ COM Port! ไม่สามารถส่งคำสั่งได้', 'term-warn');
     alert('กรุณาเชื่อมต่อ COM Port ก่อนส่งคำสั่ง!');
     return false;
   }
@@ -214,7 +338,7 @@ async function sendCommand(obj) {
     console.error('Send error:', err);
     logTerminal(`[ERROR] Send error: ${err.message}`, 'term-err');
     if (writer) {
-      writer.releaseLock();
+      try { writer.releaseLock(); } catch (e) {}
       writer = null;
     }
     return false;
@@ -226,13 +350,11 @@ async function sendCommand(obj) {
 // ============================================================================
 
 function processJsonPacket(data) {
-  // 1. แพ็กเก็ตข้อมูล Telemetry จากเซนเซอร์
   if (data.type === 'TELEM') {
     updateTelemetrySensors(data);
     return;
   }
 
-  // 2. สถานะการทำงานของหุ่น (STATUS)
   if (data.type === 'STATUS') {
     if (data.state === 'WAIT_BTN') {
       setRobotState('WAIT_BTN', data.msg);
@@ -242,7 +364,6 @@ function processJsonPacket(data) {
     return;
   }
 
-  // 3. ผลการตอบรับคำสั่ง (RES)
   if (data.type === 'RES') {
     if (data.status === 'DONE') {
       setRobotState('DONE', data.msg);
@@ -254,7 +375,6 @@ function processJsonPacket(data) {
     return;
   }
 
-  // 4. ข้อความ PONG
   if (data.type === 'PONG') {
     setRobotState('IDLE', 'PuppyBot6 Online & Ready');
   }
@@ -322,8 +442,7 @@ function updateTelemetrySensors(data) {
     frontColorSwatch.style.backgroundColor = getCssColorFromName(data.fn, r, g, b);
   }
 
-
-  // 3. เซนเซอร์เส้นหน้า 7 ตัว (ADC 0..6)
+  // 2. เซนเซอร์เส้นหน้า 7 ตัว (ADC 0..6)
   let fOnCount = 0;
   if (data.fl && data.fl.length === 7) {
     for (let i = 0; i < 7; i++) {
@@ -340,7 +459,7 @@ function updateTelemetrySensors(data) {
     frontLineStatus.textContent = `${fOnCount}/7 เซนเซอร์เจอดำ`;
   }
 
-  // 4. เซนเซอร์เส้นหลัง 7 ตัว (ADC 7..13)
+  // 3. เซนเซอร์เส้นหลัง 7 ตัว (ADC 7..13)
   let bOnCount = 0;
   if (data.bl && data.bl.length === 7) {
     for (let i = 0; i < 7; i++) {
@@ -370,25 +489,25 @@ function updateTelemetrySensors(data) {
     crossBadge.style.color = '';
   }
 
-  // 5. ระยะห่าง IR
+  // 4. ระยะห่าง IR
   if (data.ir !== undefined) {
     valIr.textContent = data.ir.toFixed(1);
     const irPct = Math.min(100, (data.ir / 30) * 100);
     meterIr.style.width = `${irPct}%`;
   }
 
-  // 6. ระยะทาง Encoder
+  // 5. ระยะทาง Encoder
   if (data.enc !== undefined) {
     valEnc.textContent = data.enc.toFixed(0);
   }
 
-  // 7. องศาไจโร IMU Yaw
+  // 6. องศาไจโร IMU Yaw
   if (data.yaw !== undefined) {
     valYaw.textContent = data.yaw.toFixed(1);
     compassNeedle.style.transform = `rotate(${data.yaw}deg)`;
   }
 
-  // 8. สวิตช์
+  // 7. สวิตช์
   if (data.btn !== undefined) {
     if (data.btn === 1) {
       switchIndicator.classList.add('active');
@@ -429,56 +548,79 @@ tabButtons.forEach(btn => {
     const targetPaneId = btn.getAttribute('data-tab');
     const targetPane = document.getElementById(targetPaneId);
     if (targetPane) targetPane.classList.add('active');
+    saveSettingsDebounced();
   });
 });
 
 // ============================================================================
-// 4. PID & LINE FOLLOW LAB CONTROLS
+// 4. TWO-WAY BINDING: SLIDERS & NUMERIC INPUTS HELPER
 // ============================================================================
-const pidModeSelect = document.getElementById('pid-mode-select');
-const pidSpeedSlider = document.getElementById('pid-speed-slider');
-const pidSpeedVal = document.getElementById('pid-speed-val');
-const pidKpSlider = document.getElementById('pid-kp-slider');
-const pidKpVal = document.getElementById('pid-kp-val');
-const pidParamInput = document.getElementById('pid-param-input');
-const paramLabel = document.getElementById('param-label');
-const presetButtons = document.getElementById('preset-buttons');
-const pidWaitBtn = document.getElementById('pid-wait-btn');
-const btnSendPid = document.getElementById('btn-send-pid');
 
-// Speed Slider
-pidSpeedSlider.addEventListener('input', (e) => {
-  pidSpeedVal.textContent = `${e.target.value}%`;
-});
+function bindSliderAndNumber(sliderId, numId, onChange) {
+  const slider = document.getElementById(sliderId);
+  const num = document.getElementById(numId);
+  if (!slider || !num) return;
 
-// KP Slider
-pidKpSlider.addEventListener('input', (e) => {
-  pidKpVal.textContent = parseFloat(e.target.value).toFixed(2);
-});
-
-// KD Slider
-const pidKdSlider = document.getElementById('pid-kd-slider');
-const pidKdVal = document.getElementById('pid-kd-val');
-
-if (pidKdSlider) {
-  pidKdSlider.addEventListener('input', (e) => {
-    const val = parseFloat(e.target.value);
-    pidKdVal.textContent = (val === 0) ? '0.0 (Auto)' : val.toFixed(1);
+  slider.addEventListener('input', () => {
+    num.value = slider.value;
+    if (onChange) onChange(slider.value);
+    saveSettingsDebounced();
   });
 
-  document.querySelectorAll('#kd-preset-buttons .btn-chip').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const kd = parseFloat(btn.getAttribute('data-kd'));
-      pidKdSlider.value = kd;
-      pidKdVal.textContent = (kd === 0) ? '0.0 (Auto)' : kd.toFixed(1);
-      document.querySelectorAll('#kd-preset-buttons .btn-chip').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-    });
+  num.addEventListener('input', () => {
+    if (num.value !== '') {
+      slider.value = num.value;
+      if (onChange) onChange(num.value);
+      saveSettingsDebounced();
+    }
+  });
+
+  num.addEventListener('blur', () => {
+    let val = parseFloat(num.value);
+    const min = parseFloat(num.min);
+    const max = parseFloat(num.max);
+    if (!isNaN(val)) {
+      if (!isNaN(min) && val < min) val = min;
+      if (!isNaN(max) && val > max) val = max;
+      num.value = val;
+      slider.value = val;
+      if (onChange) onChange(val);
+      saveSettingsDebounced();
+    }
   });
 }
 
-// Dynamic Parameter Label & Presets based on Mode
-pidModeSelect.addEventListener('change', updatePidParamPresets);
+// Bind PID Sliders
+bindSliderAndNumber('pid-speed-slider', 'pid-speed-num');
+bindSliderAndNumber('pid-kp-slider', 'pid-kp-num');
+bindSliderAndNumber('pid-kd-slider', 'pid-kd-num', (val) => {
+  updateKdAutoBadge(parseFloat(val));
+});
+
+function updateKdAutoBadge(val) {
+  if (pidKdAutoBadge) {
+    pidKdAutoBadge.textContent = (val === 0) ? '(Auto)' : '';
+  }
+}
+
+// KD Preset Buttons
+document.querySelectorAll('#kd-preset-buttons .btn-chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const kd = parseFloat(btn.getAttribute('data-kd'));
+    if (pidKdSlider) pidKdSlider.value = kd;
+    if (pidKdNum) pidKdNum.value = kd;
+    updateKdAutoBadge(kd);
+    document.querySelectorAll('#kd-preset-buttons .btn-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    saveSettingsDebounced();
+  });
+});
+
+// Dynamic PID Parameter Presets
+pidModeSelect.addEventListener('change', () => {
+  updatePidParamPresets();
+  saveSettingsDebounced();
+});
 
 function updatePidParamPresets() {
   const mode = pidModeSelect.value;
@@ -517,12 +659,10 @@ function createPresetChip(text, val) {
     pidParamInput.value = val;
     document.querySelectorAll('#preset-buttons .btn-chip').forEach(c => c.classList.remove('active'));
     chip.classList.add('active');
+    saveSettingsDebounced();
   });
   presetButtons.appendChild(chip);
 }
-
-// Initial Call
-updatePidParamPresets();
 
 // Send PID Command
 btnSendPid.addEventListener('click', async () => {
@@ -547,28 +687,14 @@ btnSendPid.addEventListener('click', async () => {
 });
 
 // ============================================================================
-// 5. 4WD INDEPENDENT MOTOR & TRIM LAB
+// 5. 4WD MOTORS & TRIM LAB
 // ============================================================================
-const m1Slider = document.getElementById('m1-slider');
-const m2Slider = document.getElementById('m2-slider');
-const m3Slider = document.getElementById('m3-slider');
-const m4Slider = document.getElementById('m4-slider');
-const m1Val = document.getElementById('m1-val');
-const m2Val = document.getElementById('m2-val');
-const m3Val = document.getElementById('m3-val');
-const m4Val = document.getElementById('m4-val');
 
-const motorDurationInput = document.getElementById('motor-duration-input');
-const motorWaitBtn = document.getElementById('motor-wait-btn');
-const btnSendMotor = document.getElementById('btn-send-motor');
-
-// Sliders Live Update
-[m1Slider, m2Slider, m3Slider, m4Slider].forEach((slider, idx) => {
-  slider.addEventListener('input', () => {
-    const badges = [m1Val, m2Val, m3Val, m4Val];
-    badges[idx].textContent = slider.value;
-  });
-});
+// Bind 4 Motor Sliders with Numeric Inputs
+bindSliderAndNumber('m1-slider', 'm1-num');
+bindSliderAndNumber('m2-slider', 'm2-num');
+bindSliderAndNumber('m3-slider', 'm3-num');
+bindSliderAndNumber('m4-slider', 'm4-num');
 
 // Presets Motion Buttons
 document.getElementById('preset-fd').addEventListener('click', () => set4WheelSpeeds(50, 50, 50, 50));
@@ -580,10 +706,11 @@ document.getElementById('preset-tr').addEventListener('click', () => set4WheelSp
 document.getElementById('preset-stop').addEventListener('click', () => set4WheelSpeeds(0, 0, 0, 0));
 
 function set4WheelSpeeds(s1, s2, s3, s4) {
-  m1Slider.value = s1; m1Val.textContent = s1;
-  m2Slider.value = s2; m2Val.textContent = s2;
-  m3Slider.value = s3; m3Val.textContent = s3;
-  m4Slider.value = s4; m4Val.textContent = s4;
+  if (m1Slider) { m1Slider.value = s1; if (m1Num) m1Num.value = s1; }
+  if (m2Slider) { m2Slider.value = s2; if (m2Num) m2Num.value = s2; }
+  if (m3Slider) { m3Slider.value = s3; if (m3Num) m3Num.value = s3; }
+  if (m4Slider) { m4Slider.value = s4; if (m4Num) m4Num.value = s4; }
+  saveSettingsDebounced();
 }
 
 // Send Motor Command
@@ -626,32 +753,23 @@ document.getElementById('btn-save-trim').addEventListener('click', async () => {
   };
 
   await sendCommand(payload);
+  saveSettingsDebounced();
 });
 
 // ============================================================================
-// 6. DUAL SERVO LAB CONTROLS
+// 6. DUAL SERVO LAB
 // ============================================================================
-const s1Slider = document.getElementById('s1-slider');
-const s2Slider = document.getElementById('s2-slider');
-const s1Badge = document.getElementById('s1-badge');
-const s2Badge = document.getElementById('s2-badge');
-const servoWaitBtn = document.getElementById('servo-wait-btn');
-const btnSendServo = document.getElementById('btn-send-servo');
 
-s1Slider.addEventListener('input', (e) => {
-  s1Badge.textContent = `${e.target.value}°`;
-});
-
-s2Slider.addEventListener('input', (e) => {
-  s2Badge.textContent = `${e.target.value}°`;
-});
+bindSliderAndNumber('s1-slider', 's1-num');
+bindSliderAndNumber('s2-slider', 's2-num');
 
 // Servo 1 Presets
 document.querySelectorAll('.s1-preset').forEach(btn => {
   btn.addEventListener('click', () => {
     const ang = btn.getAttribute('data-ang');
-    s1Slider.value = ang;
-    s1Badge.textContent = `${ang}°`;
+    if (s1Slider) s1Slider.value = ang;
+    if (s1Num) s1Num.value = ang;
+    saveSettingsDebounced();
   });
 });
 
@@ -659,8 +777,9 @@ document.querySelectorAll('.s1-preset').forEach(btn => {
 document.querySelectorAll('.s2-preset').forEach(btn => {
   btn.addEventListener('click', () => {
     const ang = btn.getAttribute('data-ang');
-    s2Slider.value = ang;
-    s2Badge.textContent = `${ang}°`;
+    if (s2Slider) s2Slider.value = ang;
+    if (s2Num) s2Num.value = ang;
+    saveSettingsDebounced();
   });
 });
 
@@ -696,12 +815,11 @@ btnSendRaw.addEventListener('click', async () => {
       await sendCommand(obj);
       terminalInput.value = '';
     } catch (e) {
-      // ไม่ใช่ json ส่งเป็นสตริง
-      if (writer || (serialPort && serialPort.writable)) {
+      if (serialPort && serialPort.writable) {
         logTerminal(`[TX-RAW] ${text}`, 'term-tx');
-        const writer = serialPort.writable.getWriter();
-        await writer.write(new TextEncoder().encode(text + '\n'));
-        writer.releaseLock();
+        const w = serialPort.writable.getWriter();
+        await w.write(new TextEncoder().encode(text + '\n'));
+        w.releaseLock();
         terminalInput.value = '';
       }
     }
@@ -728,13 +846,167 @@ function logTerminal(message, className = '') {
 
   terminalOutput.appendChild(div);
 
-  // ควบคุม Auto-scroll
   if (terminalAutoscroll.checked) {
     terminalOutput.scrollTop = terminalOutput.scrollHeight;
   }
 
-  // ป้องกัน memory leak ตัดข้อความเก่าออกหากเกิน 300 บรรทัด
   if (terminalOutput.children.length > 300) {
     terminalOutput.removeChild(terminalOutput.firstChild);
   }
 }
+
+// ============================================================================
+// 8. PERSISTENCE (LOCALSTORAGE MEMORY ACROSS RELOADS & RESETS)
+// ============================================================================
+
+let saveDebounceTimer = null;
+function saveSettingsDebounced() {
+  clearTimeout(saveDebounceTimer);
+  saveDebounceTimer = setTimeout(saveAllSettings, 200);
+}
+
+function saveAllSettings() {
+  try {
+    const settings = {
+      baud: baudSelect ? baudSelect.value : '115200',
+      pidMode: pidModeSelect ? pidModeSelect.value : 'phase',
+      pidSpeed: pidSpeedSlider ? pidSpeedSlider.value : '50',
+      pidKp: pidKpSlider ? pidKpSlider.value : '1.8',
+      pidKd: pidKdSlider ? pidKdSlider.value : '0.0',
+      pidParam: pidParamInput ? pidParamInput.value : '30.0',
+      pidWaitBtn: pidWaitBtn ? pidWaitBtn.checked : true,
+      m1: m1Slider ? m1Slider.value : '0',
+      m2: m2Slider ? m2Slider.value : '0',
+      m3: m3Slider ? m3Slider.value : '0',
+      m4: m4Slider ? m4Slider.value : '0',
+      motorDuration: motorDurationInput ? motorDurationInput.value : '1200',
+      motorWaitBtn: motorWaitBtn ? motorWaitBtn.checked : true,
+      trimM1: document.getElementById('trim-m1')?.value || '0',
+      trimM2: document.getElementById('trim-m2')?.value || '0',
+      trimM3: document.getElementById('trim-m3')?.value || '0',
+      trimM4: document.getElementById('trim-m4')?.value || '0',
+      trimOffset: document.getElementById('trim-offset')?.value || '0',
+      s1: s1Slider ? s1Slider.value : '50',
+      s2: s2Slider ? s2Slider.value : '146',
+      servoWaitBtn: servoWaitBtn ? servoWaitBtn.checked : false,
+      terminalAutoscroll: terminalAutoscroll ? terminalAutoscroll.checked : true,
+      activeTab: document.querySelector('.tab-btn.active')?.getAttribute('data-tab') || 'tab-pid'
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  } catch (e) {
+    console.warn('saveAllSettings error:', e);
+  }
+}
+
+function loadAllSettings() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      updatePidParamPresets();
+      return;
+    }
+    const s = JSON.parse(raw);
+
+    if (s.baud && baudSelect) baudSelect.value = s.baud;
+    if (s.pidMode && pidModeSelect) {
+      pidModeSelect.value = s.pidMode;
+      updatePidParamPresets();
+    } else {
+      updatePidParamPresets();
+    }
+
+    if (s.pidSpeed !== undefined) {
+      if (pidSpeedSlider) pidSpeedSlider.value = s.pidSpeed;
+      if (pidSpeedNum) pidSpeedNum.value = s.pidSpeed;
+    }
+    if (s.pidKp !== undefined) {
+      if (pidKpSlider) pidKpSlider.value = s.pidKp;
+      if (pidKpNum) pidKpNum.value = s.pidKp;
+    }
+    if (s.pidKd !== undefined && pidKdSlider) {
+      pidKdSlider.value = s.pidKd;
+      if (pidKdNum) pidKdNum.value = s.pidKd;
+      updateKdAutoBadge(parseFloat(s.pidKd));
+    }
+    if (s.pidParam !== undefined && pidParamInput) {
+      pidParamInput.value = s.pidParam;
+    }
+    if (s.pidWaitBtn !== undefined && pidWaitBtn) {
+      pidWaitBtn.checked = s.pidWaitBtn;
+    }
+
+    if (s.m1 !== undefined) { if (m1Slider) m1Slider.value = s.m1; if (m1Num) m1Num.value = s.m1; }
+    if (s.m2 !== undefined) { if (m2Slider) m2Slider.value = s.m2; if (m2Num) m2Num.value = s.m2; }
+    if (s.m3 !== undefined) { if (m3Slider) m3Slider.value = s.m3; if (m3Num) m3Num.value = s.m3; }
+    if (s.m4 !== undefined) { if (m4Slider) m4Slider.value = s.m4; if (m4Num) m4Num.value = s.m4; }
+    if (s.motorDuration !== undefined && motorDurationInput) motorDurationInput.value = s.motorDuration;
+    if (s.motorWaitBtn !== undefined && motorWaitBtn) motorWaitBtn.checked = s.motorWaitBtn;
+
+    const tm1 = document.getElementById('trim-m1'); if (tm1 && s.trimM1 !== undefined) tm1.value = s.trimM1;
+    const tm2 = document.getElementById('trim-m2'); if (tm2 && s.trimM2 !== undefined) tm2.value = s.trimM2;
+    const tm3 = document.getElementById('trim-m3'); if (tm3 && s.trimM3 !== undefined) tm3.value = s.trimM3;
+    const tm4 = document.getElementById('trim-m4'); if (tm4 && s.trimM4 !== undefined) tm4.value = s.trimM4;
+    const toff = document.getElementById('trim-offset'); if (toff && s.trimOffset !== undefined) toff.value = s.trimOffset;
+
+    if (s.s1 !== undefined) { if (s1Slider) s1Slider.value = s.s1; if (s1Num) s1Num.value = s.s1; }
+    if (s.s2 !== undefined) { if (s2Slider) s2Slider.value = s.s2; if (s2Num) s2Num.value = s.s2; }
+    if (s.servoWaitBtn !== undefined && servoWaitBtn) servoWaitBtn.checked = s.servoWaitBtn;
+    if (s.terminalAutoscroll !== undefined && terminalAutoscroll) terminalAutoscroll.checked = s.terminalAutoscroll;
+
+    if (s.activeTab) {
+      const tabBtn = document.querySelector(`.tab-btn[data-tab="${s.activeTab}"]`);
+      if (tabBtn) tabBtn.click();
+    }
+  } catch (e) {
+    console.warn('loadAllSettings error:', e);
+    updatePidParamPresets();
+  }
+}
+
+// Reset Settings Button
+if (btnResetSettings) {
+  btnResetSettings.addEventListener('click', () => {
+    if (confirm('คุณต้องการล้างค่าการตั้งค่าทั้งหมดและคืนเป็นค่าเริ่มต้นใช่หรือไม่?')) {
+      localStorage.removeItem(STORAGE_KEY);
+      location.reload();
+    }
+  });
+}
+
+// Inputs change event listeners for saving
+[pidParamInput, pidWaitBtn, motorDurationInput, motorWaitBtn, servoWaitBtn, terminalAutoscroll, baudSelect].forEach(el => {
+  if (el) {
+    el.addEventListener('change', saveSettingsDebounced);
+  }
+});
+
+['trim-m1', 'trim-m2', 'trim-m3', 'trim-m4', 'trim-offset'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', saveSettingsDebounced);
+});
+
+// ============================================================================
+// 9. INITIALIZATION ON PAGE LOAD
+// ============================================================================
+
+window.addEventListener('DOMContentLoaded', async () => {
+  // 1. Restore all saved input parameters
+  loadAllSettings();
+
+  // 2. Check Auto-Reconnect status
+  if (isAutoReconnectActive && 'serial' in navigator) {
+    updateAutoReconnectUI();
+    try {
+      const ports = await navigator.serial.getPorts();
+      if (ports.length > 0) {
+        const baudRate = parseInt(baudSelect.value, 10);
+        logTerminal('[SYSTEM] ตรวจพบการจับคู่บอร์ดเดิม กำลังเชื่อมต่ออัตโนมัติ...', 'term-system');
+        await openAndStartPort(ports[0], baudRate);
+      } else {
+        logTerminal('[SYSTEM] ⚡ โหมดเชื่อมต่ออัตโนมัติเปิดอยู่ &mdash; รอเสียบสาย USB...', 'term-system');
+      }
+    } catch (err) {
+      console.warn('Initial auto-connect attempt failed:', err);
+    }
+  }
+});

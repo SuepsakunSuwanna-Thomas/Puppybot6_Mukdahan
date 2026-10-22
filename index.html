@@ -50,6 +50,11 @@
           </select>
         </div>
 
+        <button id="btn-reset-settings" class="btn btn-secondary" style="padding: 8px 12px; font-size: 13px;" title="ล้างค่าที่จำไว้และคืนเป็นค่าเริ่มต้น">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+          <span>คืนค่าเริ่มต้น</span>
+        </button>
+
         <button id="btn-connect" class="btn btn-primary">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v10m-6 4a6 6 0 1 0 12 0"/></svg>
           <span>เชื่อมต่อ COM Port</span>
@@ -281,29 +286,37 @@
               </select>
             </div>
 
-            <!-- Speed Slider -->
+            <!-- Speed Slider & Input -->
             <div class="form-group">
               <div class="slider-header">
                 <label for="pid-speed-slider">ความเร็ว (Speed):</label>
-                <span id="pid-speed-val" class="slider-val">50%</span>
+                <div class="val-input-group">
+                  <input type="number" id="pid-speed-num" min="10" max="100" value="50" class="custom-input num-input">
+                  <span class="unit-text">%</span>
+                </div>
               </div>
               <input type="range" id="pid-speed-slider" min="10" max="100" value="50" class="custom-range">
             </div>
 
-            <!-- Line KP Slider -->
+            <!-- Line KP Slider & Input -->
             <div class="form-group">
               <div class="slider-header">
                 <label for="pid-kp-slider">ค่า Line KP (การตอบสนองเลี้ยว):</label>
-                <span id="pid-kp-val" class="slider-val">1.80</span>
+                <div class="val-input-group">
+                  <input type="number" id="pid-kp-num" min="0.1" max="10.0" step="0.1" value="1.8" class="custom-input num-input">
+                </div>
               </div>
               <input type="range" id="pid-kp-slider" min="0.1" max="6.0" step="0.1" value="1.8" class="custom-range">
             </div>
 
-            <!-- Line KD Slider -->
+            <!-- Line KD Slider & Input -->
             <div class="form-group full-width">
               <div class="slider-header">
                 <label for="pid-kd-slider">ค่า Line KD (ลดการสะบัด/เพิ่มความนิ่ง &mdash; 0.0 = Auto ตารางความเร็ว):</label>
-                <span id="pid-kd-val" class="slider-val">0.0 (Auto)</span>
+                <div class="val-input-group">
+                  <input type="number" id="pid-kd-num" min="0.0" max="30.0" step="0.1" value="0.0" class="custom-input num-input">
+                  <span id="pid-kd-auto-badge" class="unit-text" style="color:var(--neon-cyan); font-size:12px;">(Auto)</span>
+                </div>
               </div>
               <div class="input-with-presets">
                 <input type="range" id="pid-kd-slider" min="0.0" max="25.0" step="0.1" value="0.0" class="custom-range" style="flex: 1;">
@@ -360,13 +373,16 @@
             <span class="badge-tip">ปรับความเร็วและทิศทางแยก 4 ล้อ</span>
           </div>
 
-          <!-- 4 Motors Visual Sliders -->
+          <!-- 4 Motors Visual Sliders & Numeric Inputs -->
           <div class="motors-grid">
             <div class="motor-slider-card">
               <div class="motor-header">
                 <span class="motor-tag">M1</span>
                 <span>ล้อหน้าซ้าย (Front-Left)</span>
-                <span id="m1-val" class="motor-badge">0</span>
+                <div class="motor-num-wrap">
+                  <input type="number" id="m1-num" min="-100" max="100" value="0" class="custom-input motor-num-input">
+                  <span class="unit-text">%</span>
+                </div>
               </div>
               <input type="range" id="m1-slider" min="-100" max="100" value="0" class="custom-range motor-range">
             </div>
@@ -375,7 +391,10 @@
               <div class="motor-header">
                 <span class="motor-tag">M2</span>
                 <span>ล้อหน้าขวา (Front-Right)</span>
-                <span id="m2-val" class="motor-badge">0</span>
+                <div class="motor-num-wrap">
+                  <input type="number" id="m2-num" min="-100" max="100" value="0" class="custom-input motor-num-input">
+                  <span class="unit-text">%</span>
+                </div>
               </div>
               <input type="range" id="m2-slider" min="-100" max="100" value="0" class="custom-range motor-range">
             </div>
@@ -384,7 +403,10 @@
               <div class="motor-header">
                 <span class="motor-tag">M3</span>
                 <span>ล้อหลังซ้าย (Back-Left)</span>
-                <span id="m3-val" class="motor-badge">0</span>
+                <div class="motor-num-wrap">
+                  <input type="number" id="m3-num" min="-100" max="100" value="0" class="custom-input motor-num-input">
+                  <span class="unit-text">%</span>
+                </div>
               </div>
               <input type="range" id="m3-slider" min="-100" max="100" value="0" class="custom-range motor-range">
             </div>
@@ -393,7 +415,10 @@
               <div class="motor-header">
                 <span class="motor-tag">M4</span>
                 <span>ล้อหลังขวา (Back-Right)</span>
-                <span id="m4-val" class="motor-badge">0</span>
+                <div class="motor-num-wrap">
+                  <input type="number" id="m4-num" min="-100" max="100" value="0" class="custom-input motor-num-input">
+                  <span class="unit-text">%</span>
+                </div>
               </div>
               <input type="range" id="m4-slider" min="-100" max="100" value="0" class="custom-range motor-range">
             </div>
@@ -463,7 +488,10 @@
             <div class="servo-card">
               <div class="servo-card-header">
                 <h4>เซอร์โว 1 (Servo 1 - มือจับ / หน้า)</h4>
-                <span id="s1-badge" class="servo-badge">50°</span>
+                <div class="val-input-group">
+                  <input type="number" id="s1-num" min="0" max="180" value="50" class="custom-input num-input">
+                  <span class="unit-text">°</span>
+                </div>
               </div>
               <div class="servo-gauge-wrapper">
                 <input type="range" id="s1-slider" min="0" max="180" value="50" class="custom-range">
@@ -480,7 +508,10 @@
             <div class="servo-card">
               <div class="servo-card-header">
                 <h4>เซอร์โว 2 (Servo 2 - แขนช่วย / หลัง)</h4>
-                <span id="s2-badge" class="servo-badge">146°</span>
+                <div class="val-input-group">
+                  <input type="number" id="s2-num" min="0" max="180" value="146" class="custom-input num-input">
+                  <span class="unit-text">°</span>
+                </div>
               </div>
               <div class="servo-gauge-wrapper">
                 <input type="range" id="s2-slider" min="0" max="180" value="146" class="custom-range">
