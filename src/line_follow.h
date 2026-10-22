@@ -320,8 +320,8 @@ inline void Fline_B_by_time(int speed, unsigned long duration_ms) {
 
 // Fline_by_Encoder: วิ่งตามเส้นตามระยะของ Encoder (pulse)
 inline void Fline_by_Encoder(int speed, long target_pulses) {
-  long initialPulses = abs(get_pulse_Encoder(selection_Encoder));
-  while (abs(get_pulse_Encoder(selection_Encoder)) - initialPulses < target_pulses) {
+  long initialPulses = get_pulse_Encoder(selection_Encoder);
+  while (abs(get_pulse_Encoder(selection_Encoder) - initialPulses) < target_pulses) {
     lineFollow_PID_auto(speed);
   }
   stop_4w();
@@ -329,8 +329,8 @@ inline void Fline_by_Encoder(int speed, long target_pulses) {
 
 // Fline_B_by_Encoder: วิ่งตามเส้นถอยหลังตาม Encoder (pulse)
 inline void Fline_B_by_Encoder(int speed, long target_pulses) {
-  long initialPulses = abs(get_pulse_Encoder(selection_Encoder));
-  while (abs(get_pulse_Encoder(selection_Encoder)) - initialPulses < target_pulses) {
+  long initialPulses = get_pulse_Encoder(selection_Encoder);
+  while (abs(get_pulse_Encoder(selection_Encoder) - initialPulses) < target_pulses) {
     lineFollow_PID_B_auto(speed);
   }
   stop_4w();
@@ -361,9 +361,9 @@ inline void Backword_Notline(int speed, unsigned long duration_ms) {
 
 // Follow_Notline_by_Encoder: วิ่งไปข้างหน้าแบบ ไม่ใช้ PID ตามระยะ (pulse หรือ cm)
 inline void Follow_Notline_by_Encoder(int speed, long target_pulses) {
-  long initialPulses = abs(get_pulse_Encoder(selection_Encoder));
+  long initialPulses = get_pulse_Encoder(selection_Encoder);
   fd_4w(speed);
-  while (abs(get_pulse_Encoder(selection_Encoder)) - initialPulses < target_pulses) {
+  while (abs(get_pulse_Encoder(selection_Encoder) - initialPulses) < target_pulses) {
     delay(1);
   }
   stop_4w();
@@ -371,9 +371,9 @@ inline void Follow_Notline_by_Encoder(int speed, long target_pulses) {
 
 // Backword_Notline_by_Encoder: วิ่งถอยหลังแบบ ไม่ใช้ PID ตามระยะ (pulse)
 inline void Backword_Notline_by_Encoder(int speed, long target_pulses) {
-  long initialPulses = abs(get_pulse_Encoder(selection_Encoder));
+  long initialPulses = get_pulse_Encoder(selection_Encoder);
   bk_4w(speed);
-  while (abs(get_pulse_Encoder(selection_Encoder)) - initialPulses < target_pulses) {
+  while (abs(get_pulse_Encoder(selection_Encoder) - initialPulses) < target_pulses) {
     delay(1);
   }
   stop_4w();
