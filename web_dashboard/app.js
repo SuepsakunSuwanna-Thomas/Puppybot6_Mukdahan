@@ -152,9 +152,12 @@ async function openAndStartPort(port, baudRate) {
     // เริ่มต้นอ่านข้อมูลเข้า
     readSerialLoop();
 
-    // ส่ง PING ตรวจสอบสถานะหุ่น
+    // ส่ง PING ตรวจสอบสถานะหุ่น และดึงค่า EEPROM Calibration ล่าสุด
     setTimeout(() => {
       sendCommand({ cmd: 'PING' });
+      setTimeout(() => {
+        sendCommand({ cmd: 'GET_CALIB' });
+      }, 350);
     }, 400);
   } finally {
     isConnecting = false;
@@ -355,11 +358,18 @@ function processJsonPacket(data) {
     return;
   }
 
+  if (data.type === 'CALIB_DATA') {
+    updateCalibTable(data);
+    return;
+  }
+
   if (data.type === 'STATUS') {
     if (data.state === 'WAIT_BTN') {
       setRobotState('WAIT_BTN', data.msg, data.round);
     } else if (data.state === 'RUNNING') {
       setRobotState('RUNNING', data.msg, data.round);
+    } else if (data.state === 'CALIBRATING') {
+      setRobotState('CALIBRATING', data.msg);
     }
     return;
   }
@@ -367,6 +377,8 @@ function processJsonPacket(data) {
   if (data.type === 'RES') {
     if (data.status === 'DONE') {
       setRobotState('DONE', data.msg, data.round);
+    } else if (data.status === 'CALIB_DONE') {
+      setRobotState('CALIB_DONE', data.msg);
     } else if (data.status === 'STOPPED') {
       setRobotState('STOPPED', data.msg);
     } else if (data.status === 'CONFIG_SAVED') {
@@ -400,6 +412,17 @@ function setRobotState(state, message = '', round = null) {
     if (pidExec) pidExec.innerHTML = `<span style="color:#00f0ff;">⚡ กำลังวิ่งทดสอบ PID...${roundTag}</span>`;
     if (motorExec) motorExec.innerHTML = `<span style="color:#00f0ff;">⚡ มอเตอร์กำลังหมุน...${roundTag}</span>`;
     if (servoExec) servoExec.innerHTML = `<span style="color:#00f0ff;">⚡ เซอร์โวกำลังหมุน...${roundTag}</span>`;
+  } else if (state === 'CALIBRATING') {
+    robotStatePill.className = 'status-pill status-running';
+    robotStateText.textContent = `ROBOT: CALIBRATING 🛠️`;
+    instructionStepText.innerHTML = `<strong>🛠️ กำลังคาลิเบรต:</strong> ทำตามขั้นตอนบนหน้าจอ LCD/TFT ของหุ่นยนต์ (${message})`;
+  } else if (state === 'CALIB_DONE') {
+    robotStatePill.className = 'status-pill status-connected';
+    robotStateText.textContent = `ROBOT: CALIBRATED ✅`;
+    instructionStepText.innerHTML = `<strong>✅ คาลิเบรตเสร็จสมบูรณ์และบันทึก EEPROM แล้ว!</strong> (${message})`;
+    setTimeout(() => {
+      setRobotState('IDLE');
+    }, 4000);
   } else if (state === 'DONE') {
     robotStatePill.className = 'status-pill status-connected';
     robotStateText.textContent = `ROBOT: READY FOR RE-RUN ✅${roundTag}`;
@@ -418,7 +441,7 @@ function setRobotState(state, message = '', round = null) {
     // IDLE
     robotStatePill.className = 'status-pill status-idle';
     robotStateText.textContent = 'ROBOT: IDLE (พร้อมรับคำสั่ง)';
-    instructionStepText.innerHTML = '1. ตั้งค่าการทดสอบด้านล่าง &rarr; 2. กดปุ่มส่งคำสั่ง &rarr; 3. หุ่นยนต์จะแสดงผลบนจอและรอกดสวิตช์ &rarr; 4. กดสวิตช์ที่ตัวหุ่นยนต์เพื่อเริ่มวิ่ง (กดซ้ำกี่รอบก็ได้)!';
+    instructionStepText.innerHTML = '1. ตั้งค่าการทดสอบหรือคาลิเบรต &rarr; 2. กดปุ่มส่งคำสั่งจากเว็บ &rarr; 3. หุ่นยนต์จะแสดงผลบนจอและรอกดสวิตช์ &rarr; 4. กดสวิตช์ที่ตัวหุ่นยนต์เพื่อเริ่มทำงาน!';
   }
 }
 
@@ -968,6 +991,103 @@ if (btnResetSettings) {
       localStorage.removeItem(STORAGE_KEY);
       location.reload();
     }
+  });
+}
+
+// ============================================================================
+// 8. SENSOR CALIBRATION CENTER
+// ============================================================================
+
+function updateCalibTable(data) {
+  if (data.front_min && data.front_min.length === 7) {
+    data.front_min.forEach((v, i) => {
+      const el = document.getElementById(`f-min-${i}`);
+      if (el) el.textContent = v;
+    });
+  }
+  if (data.front_max && data.front_max.length === 7) {
+    data.front_max.forEach((v, i) => {
+      const el = document.getElementById(`f-max-${i}`);
+      if (el) el.textContent = v;
+    });
+  }
+  if (data.back_min && data.back_min.length === 7) {
+    data.back_min.forEach((v, i) => {
+      const el = document.getElementById(`b-min-${i}`);
+      if (el) el.textContent = v;
+    });
+  }
+  if (data.back_max && data.back_max.length === 7) {
+    data.back_max.forEach((v, i) => {
+      const el = document.getElementById(`b-max-${i}`);
+      if (el) el.textContent = v;
+    });
+  }
+  if (data.ir_5cm !== undefined) {
+    const el = document.getElementById('eeprom-ir-5cm');
+    if (el) el.textContent = data.ir_5cm;
+  }
+  if (data.ir_10cm !== undefined) {
+    const el = document.getElementById('eeprom-ir-10cm');
+    if (el) el.textContent = data.ir_10cm;
+  }
+  const msgEl = document.getElementById('calib-status-msg');
+  if (msgEl) {
+    const now = new Date();
+    const timeStr = now.toTimeString().split(' ')[0];
+    msgEl.innerHTML = `<span style="color:#10b981;">✓ อัปเดตข้อมูลจาก EEPROM ล่าสุดเมื่อ ${timeStr}</span>`;
+  }
+  logTerminal('[EEPROM] อัปเดตตารางค่าคาลิเบรตล่าสุดสำเร็จ', 'term-rx');
+}
+
+const btnGetCalib = document.getElementById('btn-get-calib');
+const btnCalibFront = document.getElementById('btn-calib-front');
+const btnCalibBack = document.getElementById('btn-calib-back');
+const btnCalibColor = document.getElementById('btn-calib-color');
+const btnCalibIr = document.getElementById('btn-calib-ir');
+const btnCalibMenu = document.getElementById('btn-calib-menu');
+
+if (btnGetCalib) {
+  btnGetCalib.addEventListener('click', async () => {
+    await sendCommand({ cmd: 'GET_CALIB' });
+  });
+}
+
+if (btnCalibFront) {
+  btnCalibFront.addEventListener('click', async () => {
+    if (confirm('ต้องการเริ่มคาลิเบรต "เซนเซอร์แสงหน้า 7 ตัว" ใช่หรือไม่?\n\nกรุณาเตรียมวางหุ่นยนต์บนพื้นขาวและเส้นดำตามขั้นตอนบนหน้าจอหุ่นยนต์')) {
+      await sendCommand({ cmd: 'CALIB', target: 'front' });
+    }
+  });
+}
+
+if (btnCalibBack) {
+  btnCalibBack.addEventListener('click', async () => {
+    if (confirm('ต้องการเริ่มคาลิเบรต "เซนเซอร์แสงหลัง 7 ตัว" ใช่หรือไม่?\n\nกรุณาเตรียมวางหุ่นยนต์บนพื้นขาวและเส้นดำตามขั้นตอนบนหน้าจอหุ่นยนต์')) {
+      await sendCommand({ cmd: 'CALIB', target: 'back' });
+    }
+  });
+}
+
+if (btnCalibColor) {
+  btnCalibColor.addEventListener('click', async () => {
+    if (confirm('ต้องการเริ่มคาลิเบรต "เซนเซอร์สี TCS34725" ใช่หรือไม่?\n\nกรุณาเตรียมแผ่นสี: แดง (RED), เขียว (GREEN), น้ำเงิน (BLUE), เหลือง (YELLOW)')) {
+      await sendCommand({ cmd: 'CALIB', target: 'color' });
+    }
+  });
+}
+
+if (btnCalibIr) {
+  btnCalibIr.addEventListener('click', async () => {
+    if (confirm('ต้องการเริ่มคาลิเบรต "เซนเซอร์วัดระยะ Sharp IR" ใช่หรือไม่?\n\nกรุณาเตรียมวัตถุขวางที่ระยะ 5 ซม. และ 10 ซม.')) {
+      await sendCommand({ cmd: 'CALIB', target: 'ir' });
+    }
+  });
+}
+
+if (btnCalibMenu) {
+  btnCalibMenu.addEventListener('click', async () => {
+    await sendCommand({ cmd: 'CALIB', target: 'menu' });
   });
 }
 

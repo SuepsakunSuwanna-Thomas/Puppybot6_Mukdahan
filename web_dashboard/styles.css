@@ -1188,6 +1188,125 @@ body {
 }
 
 /* ==========================================================================
+   CALIBRATION LAB & EEPROM DATA TABLE
+   ========================================================================== */
+.calib-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.calib-card {
+  position: relative;
+  background: rgba(10, 16, 29, 0.7);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.25s ease;
+}
+
+.calib-card:hover {
+  border-color: var(--border-focus);
+  background: var(--bg-card-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.calib-card.highlight-card {
+  border-color: rgba(0, 240, 255, 0.35);
+  background: linear-gradient(145deg, rgba(14, 21, 37, 0.9), rgba(16, 32, 60, 0.8));
+}
+
+.calib-card-badge {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.calib-card-icon {
+  margin-bottom: 12px;
+}
+
+.calib-card h4 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 6px;
+}
+
+.calib-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-bottom: 10px;
+  flex-grow: 1;
+}
+
+.calib-steps-hint {
+  background: rgba(0, 0, 0, 0.35);
+  border-left: 2px solid var(--neon-cyan);
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text-dim);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  margin-bottom: 14px;
+  line-height: 1.4;
+}
+
+.calib-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.calib-data-table th, .calib-data-table td {
+  padding: 8px 10px;
+  text-align: center;
+  border: 1px solid var(--border-subtle);
+}
+
+.calib-data-table th {
+  background: rgba(0, 240, 255, 0.08);
+  color: var(--neon-cyan);
+  font-weight: 600;
+}
+
+.calib-data-table td.row-label {
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.calib-table-wrapper {
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+.extra-metric-pill {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 13px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ==========================================================================
    RESPONSIVE DESIGN
    ========================================================================== */
 @media (max-width: 900px) {

@@ -6,6 +6,7 @@
 #include "config.h"
 #include "motor_drive.h"
 #include "sensor_system.h"
+#include "eeprom_calib.h"
 #include "line_follow.h"
 
 // ============================================================================
@@ -397,6 +398,97 @@ inline void processCommand(const String& cmdLine) {
     Serial.println("{\"type\":\"STATUS\",\"state\":\"WAIT_BTN\",\"round\":0,\"msg\":\"New Servo task received. Press button on robot to run.\"}");
 
     drawTaskReadyScreen();
+    return;
+  }
+
+  // 7. CALIB คำสั่งเรียกใช้งานการคาลิเบรตแต่ละระบบ
+  if (cmd.equalsIgnoreCase("CALIB")) {
+    String target = getJsonStr(cmdLine, "target");
+    target.trim();
+
+    buzzer(1800, 120);
+    Serial.println("{\"type\":\"STATUS\",\"state\":\"CALIBRATING\",\"target\":\"" + target + "\",\"msg\":\"Starting calibration on robot...\"}");
+
+    if (target.equalsIgnoreCase("front")) {
+      calibrateFrontSensors();
+    } else if (target.equalsIgnoreCase("back")) {
+      calibrateBackSensors();
+    } else if (target.equalsIgnoreCase("color")) {
+      calibrateTCSColors();
+    } else if (target.equalsIgnoreCase("ir")) {
+      calibrateIRDistance();
+    } else if (target.equalsIgnoreCase("menu")) {
+      runCalibrationMenu();
+    } else {
+      runCalibrationMenu();
+    }
+
+    buzzer(2200, 120);
+    delay(80);
+    buzzer(2500, 150);
+
+    Serial.println("{\"type\":\"RES\",\"status\":\"CALIB_DONE\",\"target\":\"" + target + "\",\"msg\":\"Calibration finished & saved to EEPROM!\"}");
+
+    // ส่งข้อมูล EEPROM ล่าสุดกลับไปอัปเดตหน้าเว็บทันที
+    Serial.print("{\"type\":\"CALIB_DATA\"");
+    Serial.print(",\"front_min\":[");
+    for (int i = 0; i < NUM_FRONT_SENSORS; i++) {
+      Serial.print(calib.front_min[i]);
+      if (i < NUM_FRONT_SENSORS - 1) Serial.print(",");
+    }
+    Serial.print("],\"front_max\":[");
+    for (int i = 0; i < NUM_FRONT_SENSORS; i++) {
+      Serial.print(calib.front_max[i]);
+      if (i < NUM_FRONT_SENSORS - 1) Serial.print(",");
+    }
+    Serial.print("],\"back_min\":[");
+    for (int i = 0; i < NUM_BACK_SENSORS; i++) {
+      Serial.print(calib.back_min[i]);
+      if (i < NUM_BACK_SENSORS - 1) Serial.print(",");
+    }
+    Serial.print("],\"back_max\":[");
+    for (int i = 0; i < NUM_BACK_SENSORS; i++) {
+      Serial.print(calib.back_max[i]);
+      if (i < NUM_BACK_SENSORS - 1) Serial.print(",");
+    }
+    Serial.print("],\"ir_5cm\":"); Serial.print(calib.ir_raw_5cm);
+    Serial.print(",\"ir_10cm\":"); Serial.print(calib.ir_raw_10cm);
+    Serial.println("}");
+
+    if (activeTask.hasCommand) {
+      drawTaskReadyScreen();
+    } else {
+      drawIdleScreen();
+    }
+    return;
+  }
+
+  // 8. GET_CALIB ดึงค่า Calibrate ที่บันทึกอยู่ใน EEPROM
+  if (cmd.equalsIgnoreCase("GET_CALIB")) {
+    Serial.print("{\"type\":\"CALIB_DATA\"");
+    Serial.print(",\"front_min\":[");
+    for (int i = 0; i < NUM_FRONT_SENSORS; i++) {
+      Serial.print(calib.front_min[i]);
+      if (i < NUM_FRONT_SENSORS - 1) Serial.print(",");
+    }
+    Serial.print("],\"front_max\":[");
+    for (int i = 0; i < NUM_FRONT_SENSORS; i++) {
+      Serial.print(calib.front_max[i]);
+      if (i < NUM_FRONT_SENSORS - 1) Serial.print(",");
+    }
+    Serial.print("],\"back_min\":[");
+    for (int i = 0; i < NUM_BACK_SENSORS; i++) {
+      Serial.print(calib.back_min[i]);
+      if (i < NUM_BACK_SENSORS - 1) Serial.print(",");
+    }
+    Serial.print("],\"back_max\":[");
+    for (int i = 0; i < NUM_BACK_SENSORS; i++) {
+      Serial.print(calib.back_max[i]);
+      if (i < NUM_BACK_SENSORS - 1) Serial.print(",");
+    }
+    Serial.print("],\"ir_5cm\":"); Serial.print(calib.ir_raw_5cm);
+    Serial.print(",\"ir_10cm\":"); Serial.print(calib.ir_raw_10cm);
+    Serial.println("}");
     return;
   }
 
