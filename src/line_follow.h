@@ -12,27 +12,27 @@
 // ============================================================================
 inline float get_KD_for_speed(int speed) {
   if (speed >= 100) {
-    return 2.5f;
+    return 12.3f;
   } else if (speed >= 90) {
-    return 2.2f;
+    return 14.5f;
   } else if (speed >= 80) {
-    return 2.0f;
+    return 12.9f;
   } else if (speed >= 70) {
-    return 1.8f;
+    return 10.5f;
   } else if (speed >= 60) {
-    return 1.5f;
+    return 8.8f;
   } else if (speed >= 50) {
-    return 1.2f;
+    return 7.5f;
   } else if (speed >= 40) {
-    return 1.0f;
+    return 7.5f;
   } else if (speed >= 30) {
-    return 0.8f;
+    return 5.5f;
   } else if (speed >= 20) {
-    return 0.5f;
+    return 3.2f;
   } else if (speed >= 10) {
-    return 0.3f;
+    return 1.0f;
   } else {
-    return 1.0f; // ค่ามาตรฐาน
+    return 6.10f; // ค่ามาตรฐาน
   }
 }
 
@@ -119,13 +119,10 @@ inline void lineFollow_PID_auto(int speed) {
   float out = KP * err + KD * deriv;
   _prev_err = err;
 
-  // จำกัดแรงเลี้ยวสูงสุด (Max Steering Differential) เพื่อความนุ่มนวล ไม่ให้ล้อเร่งกระชากเกินพิกัด
-  int max_steering = max(35, speed);
-  out = constrain(out, (float)-max_steering, (float)max_steering);
-
-  // แบบ A: เร่งข้างหนึ่ง ชะลออีกข้างหนึ่ง (ต่ำสุด 0 ไม่ติดลบ/ไม่ถอยหลัง ป้องกันการสะบัด)
-  int motorL = constrain((int)(speed + out), 0, 100);
-  int motorR = constrain((int)(speed - out), 0, 100);
+  // สูตรขับเคลื่อน: ล้อด้านนอกถูกบล็อกไว้ไม่เกิน speed (ไม่เร่งเกินสปีด)
+  // ล้อด้านในหมุนถอยหลังช่วยเลี้ยวได้ถึง -speed (ที่ speed 100 ถอยหลังได้ถึง -100 เลี้ยววงแคบได้คมมาก)
+  int motorL = constrain((int)(speed + out), -speed, speed);
+  int motorR = constrain((int)(speed - out), -speed, speed);
 
   // สั่งงานมอเตอร์ทั้ง 4 ล้อพร้อมกัน (M1, M2, M3, M4)
   drive4(motorL, motorR, motorL, motorR);
@@ -165,7 +162,7 @@ inline void lineFollow_PID_B_auto(int speed) {
   }
   last_call_time_B = now;
 
-  float KP = line_KP_B; // ดึงค่าจากตัวแปรส่วนกลาง (ค่าตั้งต้น 0.08)
+  float KP = line_KP_B; // ดึงค่าจากตัวแปรส่วนกลาง (ค่าตั้งต้น 0.40)
   float KD = (line_KD_B >= 0.0f) ? line_KD_B : get_KD_for_speed(speed);
 
   int present_position_B = readline_B();
@@ -182,12 +179,9 @@ inline void lineFollow_PID_B_auto(int speed) {
   float out_B = KP * err_B + KD * deriv_B;
   _prev_err_B = err_B;
 
-  int max_steering = max(35, speed);
-  out_B = constrain(out_B, (float)-max_steering, (float)max_steering);
-
-  // วิ่งถอยหลัง: แบบ A เร่งข้างหนึ่ง ชะลออีกข้างหนึ่ง (ต่ำสุด 0 ไม่ติดลบ)
-  int motorL = -constrain((int)(speed - out_B), 0, 100);
-  int motorR = -constrain((int)(speed + out_B), 0, 100);
+  // วิ่งถอยหลัง: ล้อด้านนอกถูกบล็อกไม่เกิน speed, ล้อด้านในหมุนกลับทิศทางช่วยเลี้ยวได้ถึง -speed
+  int motorL = -constrain((int)(speed - out_B), -speed, speed);
+  int motorR = -constrain((int)(speed + out_B), -speed, speed);
 
   drive4(motorL, motorR, motorL, motorR);
   delay(1);
@@ -395,7 +389,7 @@ inline void turnLeft(int speed) {
   while (!isFrontCrossing()) {
     lineFollow_PID_auto(speed);
   }
- stop_4w();
+  stop_4w();
   // 2. หมุนซ้าย (sl) ทันที ไม่ต้องเดินหน้า ออกจากเส้นเดิมก่อน
   sl_4w(speed);
   delay(140);
@@ -414,7 +408,7 @@ inline void turnRight(int speed) {
   while (!isFrontCrossing()) {
     lineFollow_PID_auto(speed);
   }
-
+  stop_4w();
   // หมุนขวา (sr) ทันที ไม่ต้องเดินหน้า ออกจากเส้นเดิมก่อน
   sr_4w(speed);
   delay(140);

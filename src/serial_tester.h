@@ -29,10 +29,10 @@ struct ActiveTask {
   String mode = "";        // "phase", "pass", "time", "turnLeft", etc.
   int speed = 50;
   float val = 0.0f;
-  float kp = 0.08f;
-  float kd = 1.0f;
-  float kp_b = 0.08f;
-  float kd_b = 1.0f;
+  float kp = 0.40f;
+  float kd = -1.0f;
+  float kp_b = 0.40f;
+  float kd_b = -1.0f;
   int m1 = 0, m2 = 0, m3 = 0, m4 = 0;
   int motor_time = 1000;
   int s1 = 90, s2 = 90;
