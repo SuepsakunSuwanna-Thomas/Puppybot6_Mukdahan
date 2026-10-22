@@ -133,10 +133,23 @@ struct RobotCalibration {
   
   // TCS Color Reference (R, G, B ratios 0-100)
   // [0]=RED, [1]=GREEN, [2]=BLUE, [3]=YELLOW, [4]=WHITE, [5]=BLACK
-  int tcs_front_rgb[NUM_CALIB_COLORS][3];
-  int tcs_back_rgb[NUM_CALIB_COLORS][3];
+  int tcs_front_rgb[NUM_CALIB_COLORS][3]; // เซนเซอร์สีพื้นหน้า (Floor Ground)
+  int tcs_back_rgb[NUM_CALIB_COLORS][3];  // เซนเซอร์สียื่นด้านข้าง (Side Object/Cans)
+
+  // Encoder Pulses Per CM (การแปลงระยะ Encoder เป็น ซม.)
+  float encoder_pulses_per_cm;
 };
 
 extern RobotCalibration calib;
+
+// ฟังก์ชันตั้งค่าและดึงค่า Encoder Scale
+inline void setEncoderPulsesPerCm(float val) {
+  if (val > 0.001f) {
+    ENCODER_PULSES_PER_CM = val;
+  }
+}
+inline float getEncoderPulsesPerCm() {
+  return ENCODER_PULSES_PER_CM;
+}
 
 #endif // PUPPYBOT6_CONFIG_H

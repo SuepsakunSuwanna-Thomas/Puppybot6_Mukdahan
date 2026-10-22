@@ -81,14 +81,25 @@ inline void sendTelemetry() {
 
   Serial.print("{\"type\":\"TELEM\"");
   
-  // สีหน้า
+  // สีหน้า (Floor Ground)
   Serial.print(",\"fc\":"); Serial.print((int)colF);
   Serial.print(",\"fn\":\""); Serial.print(getColorName(colF)); Serial.print("\"");
   Serial.print(",\"frgb\":["); Serial.print(rF); Serial.print(","); Serial.print(gF); Serial.print(","); Serial.print(bF); Serial.print("]");
 
+  // สีข้าง (Side Object/Cans)
+  int rS = Read_Color_TCS_B(0);
+  int gS = Read_Color_TCS_B(1);
+  int bS = Read_Color_TCS_B(2);
+  RobotColor colS = detectColorBack();
+  Serial.print(",\"sc\":"); Serial.print((int)colS);
+  Serial.print(",\"sn\":\""); Serial.print(getColorName(colS)); Serial.print("\"");
+  Serial.print(",\"srgb\":["); Serial.print(rS); Serial.print(","); Serial.print(gS); Serial.print(","); Serial.print(bS); Serial.print("]");
+
   // ระยะทางและไจโร
   Serial.print(",\"ir\":"); Serial.print(irDist, 1);
   Serial.print(",\"enc\":"); Serial.print(encDist, 1);
+  Serial.print(",\"enc_raw\":"); Serial.print(get_pulse_Encoder(selection_Encoder));
+  Serial.print(",\"enc_scale\":"); Serial.print(ENCODER_PULSES_PER_CM, 1);
   Serial.print(",\"yaw\":"); Serial.print(yaw_loop1, 1);
   Serial.print(",\"btn\":"); Serial.print(btnPressed);
 
@@ -375,6 +386,29 @@ inline void processCommand(const String& cmdLine) {
     return;
   }
 
+  // 3.1 SET_ENC_SCALE ตั้งค่าสเกล Encoder pulses ต่อ เซนติเมตร
+  if (cmd.equalsIgnoreCase("SET_ENC_SCALE")) {
+    float val = getJsonFloat(cmdLine, "val", ENCODER_PULSES_PER_CM);
+    if (val > 1.0f) {
+      calib.encoder_pulses_per_cm = val;
+      ENCODER_PULSES_PER_CM = val;
+      saveCalibrationToEEPROM();
+      buzzer(2000, 100);
+      Serial.print("{\"type\":\"RES\",\"status\":\"ENC_SAVED\",\"val\":");
+      Serial.print(val, 2);
+      Serial.println(",\"msg\":\"Encoder scale saved to EEPROM\"}");
+    }
+    return;
+  }
+
+  // 3.2 RESET_ENC รีเซ็ตตัวนับพัลส์ Encoder เป็น 0
+  if (cmd.equalsIgnoreCase("RESET_ENC")) {
+    resetEncoder(selection_Encoder);
+    buzzer(1500, 60);
+    Serial.println("{\"type\":\"RES\",\"status\":\"ENC_RESET\",\"msg\":\"Encoder reset to 0\"}");
+    return;
+  }
+
   // 4. TEST_PID ทดสอบการวิ่งตามเส้น PID หรือการเลี้ยวต่างๆ
   if (cmd.equalsIgnoreCase("TEST_PID")) {
     activeTask.hasCommand = true;
@@ -450,8 +484,12 @@ inline void processCommand(const String& cmdLine) {
       calibrateFrontSensors();
     } else if (target.equalsIgnoreCase("back")) {
       calibrateBackSensors();
-    } else if (target.equalsIgnoreCase("color")) {
-      calibrateTCSColors();
+    } else if (target.equalsIgnoreCase("color") || target.equalsIgnoreCase("color_floor")) {
+      calibrateTCSColorsFloor();
+    } else if (target.equalsIgnoreCase("color_side")) {
+      calibrateTCSColorsSide();
+    } else if (target.equalsIgnoreCase("encoder") || target.equalsIgnoreCase("enc")) {
+      calibrateEncoderDistance();
     } else if (target.equalsIgnoreCase("ir")) {
       calibrateIRDistance();
     } else if (target.equalsIgnoreCase("menu")) {
@@ -490,6 +528,7 @@ inline void processCommand(const String& cmdLine) {
     }
     Serial.print("],\"ir_5cm\":"); Serial.print(calib.ir_raw_5cm);
     Serial.print(",\"ir_10cm\":"); Serial.print(calib.ir_raw_10cm);
+    Serial.print(",\"enc_scale\":"); Serial.print(calib.encoder_pulses_per_cm, 2);
     Serial.println("}");
 
     if (activeTask.hasCommand) {
@@ -525,6 +564,7 @@ inline void processCommand(const String& cmdLine) {
     }
     Serial.print("],\"ir_5cm\":"); Serial.print(calib.ir_raw_5cm);
     Serial.print(",\"ir_10cm\":"); Serial.print(calib.ir_raw_10cm);
+    Serial.print(",\"enc_scale\":"); Serial.print(calib.encoder_pulses_per_cm, 2);
     Serial.println("}");
     return;
   }

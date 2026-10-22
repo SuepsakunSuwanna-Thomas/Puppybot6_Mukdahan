@@ -27,7 +27,7 @@ const robotStateText = document.getElementById('robot-state-text');
 const instructionBanner = document.getElementById('instruction-banner');
 const instructionStepText = document.getElementById('instruction-step-text');
 
-// Telemetry Elements
+// Telemetry Elements - Color Sensors (Floor & Side)
 const frontColorName = document.getElementById('front-color-name');
 const frontColorSwatch = document.getElementById('front-color-swatch');
 const fMeterR = document.getElementById('f-meter-r');
@@ -37,6 +37,15 @@ const fValR = document.getElementById('f-val-r');
 const fValG = document.getElementById('f-val-g');
 const fValB = document.getElementById('f-val-b');
 
+const sideColorName = document.getElementById('side-color-name');
+const sideColorSwatch = document.getElementById('side-color-swatch');
+const sMeterR = document.getElementById('s-meter-r');
+const sMeterG = document.getElementById('s-meter-g');
+const sMeterB = document.getElementById('s-meter-b');
+const sValR = document.getElementById('s-val-r');
+const sValG = document.getElementById('s-val-g');
+const sValB = document.getElementById('s-val-b');
+
 const frontLineStatus = document.getElementById('front-line-status');
 const backLineStatus = document.getElementById('back-line-status');
 const crossBadge = document.getElementById('cross-badge');
@@ -44,6 +53,15 @@ const crossBadge = document.getElementById('cross-badge');
 const valIr = document.getElementById('val-ir');
 const meterIr = document.getElementById('meter-ir');
 const valEnc = document.getElementById('val-enc');
+const valEncRaw = document.getElementById('val-enc-raw');
+const valEncScale = document.getElementById('val-enc-scale');
+const btnResetEnc = document.getElementById('btn-reset-enc');
+const inputEncScale = document.getElementById('input-enc-scale');
+const btnSaveEncScale = document.getElementById('btn-save-enc-scale');
+const btnCalibEncGuide = document.getElementById('btn-calib-enc-guide');
+const btnCalibColorSide = document.getElementById('btn-calib-color-side');
+const eepromEncScale = document.getElementById('eeprom-enc-scale');
+
 const valYaw = document.getElementById('val-yaw');
 const compassNeedle = document.getElementById('compass-needle');
 const switchIndicator = document.getElementById('switch-indicator');
@@ -464,20 +482,36 @@ function setRobotState(state, message = '', round = null, time_ms = null) {
 
 // อัปเดตการแสดงผลเซนเซอร์ทั้งหมดในหน้าเว็บ
 function updateTelemetrySensors(data) {
-  // 1. สีหน้า (Front Color)
-  if (data.fn) {
+  // 1.1 สีพื้นสนาม (Floor Color)
+  if (data.fn && frontColorName) {
     frontColorName.textContent = data.fn;
     frontColorName.className = `color-badge badge-${data.fn.toLowerCase()}`;
   }
-  if (data.frgb && data.frgb.length === 3) {
+  if (data.frgb && data.frgb.length === 3 && frontColorSwatch) {
     const [r, g, b] = data.frgb;
-    fValR.textContent = r;
-    fValG.textContent = g;
-    fValB.textContent = b;
-    fMeterR.style.width = `${Math.min(100, (r / 200) * 100)}%`;
-    fMeterG.style.width = `${Math.min(100, (g / 200) * 100)}%`;
-    fMeterB.style.width = `${Math.min(100, (b / 200) * 100)}%`;
+    if (fValR) fValR.textContent = r;
+    if (fValG) fValG.textContent = g;
+    if (fValB) fValB.textContent = b;
+    if (fMeterR) fMeterR.style.width = `${Math.min(100, (r / 200) * 100)}%`;
+    if (fMeterG) fMeterG.style.width = `${Math.min(100, (g / 200) * 100)}%`;
+    if (fMeterB) fMeterB.style.width = `${Math.min(100, (b / 200) * 100)}%`;
     frontColorSwatch.style.backgroundColor = getCssColorFromName(data.fn, r, g, b);
+  }
+
+  // 1.2 สียื่นด้านข้าง (Side Can Color)
+  if (data.sn && sideColorName) {
+    sideColorName.textContent = data.sn;
+    sideColorName.className = `color-badge badge-${data.sn.toLowerCase()}`;
+  }
+  if (data.srgb && data.srgb.length === 3 && sideColorSwatch) {
+    const [sr, sg, sb] = data.srgb;
+    if (sValR) sValR.textContent = sr;
+    if (sValG) sValG.textContent = sg;
+    if (sValB) sValB.textContent = sb;
+    if (sMeterR) sMeterR.style.width = `${Math.min(100, (sr / 200) * 100)}%`;
+    if (sMeterG) sMeterG.style.width = `${Math.min(100, (sg / 200) * 100)}%`;
+    if (sMeterB) sMeterB.style.width = `${Math.min(100, (sb / 200) * 100)}%`;
+    sideColorSwatch.style.backgroundColor = getCssColorFromName(data.sn, sr, sg, sb);
   }
 
   // 2. เซนเซอร์เส้นหน้า 7 ตัว (ADC 0..6)
@@ -534,9 +568,18 @@ function updateTelemetrySensors(data) {
     meterIr.style.width = `${irPct}%`;
   }
 
-  // 5. ระยะทาง Encoder
-  if (data.enc !== undefined) {
+  // 5. ระยะทาง Encoder & Raw Pulses
+  if (data.enc !== undefined && valEnc) {
     valEnc.textContent = data.enc.toFixed(0);
+  }
+  if (data.enc_raw !== undefined && valEncRaw) {
+    valEncRaw.textContent = data.enc_raw;
+  }
+  if (data.enc_scale !== undefined) {
+    if (valEncScale) valEncScale.textContent = data.enc_scale.toFixed(1);
+    if (inputEncScale && document.activeElement !== inputEncScale) {
+      inputEncScale.value = data.enc_scale.toFixed(1);
+    }
   }
 
   // 6. องศาไจโร IMU Yaw
@@ -1057,6 +1100,12 @@ function updateCalibTable(data) {
     const el = document.getElementById('eeprom-ir-10cm');
     if (el) el.textContent = data.ir_10cm;
   }
+  if (data.enc_scale !== undefined) {
+    const el = document.getElementById('eeprom-enc-scale');
+    if (el) el.textContent = `${data.enc_scale.toFixed(1)} p/cm`;
+    if (inputEncScale) inputEncScale.value = data.enc_scale.toFixed(1);
+    if (valEncScale) valEncScale.textContent = data.enc_scale.toFixed(1);
+  }
   const msgEl = document.getElementById('calib-status-msg');
   if (msgEl) {
     const now = new Date();
@@ -1097,9 +1146,44 @@ if (btnCalibBack) {
 
 if (btnCalibColor) {
   btnCalibColor.addEventListener('click', async () => {
-    if (confirm('ต้องการเริ่มคาลิเบรต "เซนเซอร์สี TCS34725" ใช่หรือไม่?\n\nกรุณาเตรียมแผ่นสี: แดง (RED), เขียว (GREEN), น้ำเงิน (BLUE), เหลือง (YELLOW)')) {
-      await sendCommand({ cmd: 'CALIB', target: 'color' });
+    if (confirm('ต้องการเริ่มคาลิเบรต "เซนเซอร์สีพื้นสนาม TCS34725 ด้านหน้า" ใช่หรือไม่?\n\nกรุณาเตรียมวางหุ่นเหนือสีพื้น: แดง (RED), เขียว (GREEN), น้ำเงิน (BLUE), เหลือง (YELLOW)')) {
+      await sendCommand({ cmd: 'CALIB', target: 'color_floor' });
     }
+  });
+}
+
+if (btnCalibColorSide) {
+  btnCalibColorSide.addEventListener('click', async () => {
+    if (confirm('ต้องการเริ่มคาลิเบรต "เซนเซอร์สีกระป๋อง/วัตถุด้านข้าง (Side TCS)" ใช่หรือไม่?\n\nกรุณาเตรียมสีกระป๋อง: แดง (RED), เขียว (GREEN), น้ำเงิน (BLUE), เหลือง (YELLOW)')) {
+      await sendCommand({ cmd: 'CALIB', target: 'color_side' });
+    }
+  });
+}
+
+if (btnSaveEncScale) {
+  btnSaveEncScale.addEventListener('click', async () => {
+    const scale = parseFloat(inputEncScale.value);
+    if (isNaN(scale) || scale <= 0) {
+      alert('กรุณากรอกค่า Pulses/cm ที่ถูกต้อง (> 0)');
+      return;
+    }
+    await sendCommand({ cmd: 'SET_ENC_SCALE', val: scale });
+    logTerminal(`[COMMAND] ส่งตั้งค่าอัตราทด Encoder: ${scale.toFixed(2)} pulses/cm`, 'term-tx');
+  });
+}
+
+if (btnCalibEncGuide) {
+  btnCalibEncGuide.addEventListener('click', async () => {
+    if (confirm('เริ่มโหมดคาลิเบรต Encoder หมุนล้อ 20 ซม. บนหน้าจอหุ่นยนต์?\n\n1. วางหุ่นยนต์ตรงจุดเริ่มต้น\n2. กดสวิตช์ SW บนหุ่นเพื่อ Reset Pulse เป็น 0\n3. เข็นหุ่นไปข้างหน้าตรงๆ เป็นระยะทาง 20 ซม. พอดี\n4. กดสวิตช์ SW บนหุ่นอีกครั้งเพื่อคำนวณและบันทึกลง EEPROM')) {
+      await sendCommand({ cmd: 'CALIB', target: 'encoder' });
+    }
+  });
+}
+
+if (btnResetEnc) {
+  btnResetEnc.addEventListener('click', async () => {
+    await sendCommand({ cmd: 'RESET_ENC' });
+    logTerminal('[COMMAND] รีเซ็ตค่าพัลส์ Encoder เป็น 0', 'term-tx');
   });
 }
 
@@ -1116,6 +1200,7 @@ if (btnCalibMenu) {
     await sendCommand({ cmd: 'CALIB', target: 'menu' });
   });
 }
+
 
 // Inputs change event listeners for saving
 [pidParamInput, pidWaitBtn, motorDurationInput, motorWaitBtn, servoWaitBtn, terminalAutoscroll, baudSelect].forEach(el => {

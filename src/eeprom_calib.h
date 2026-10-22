@@ -94,6 +94,10 @@ inline void loadCalibrationFromEEPROM() {
       }
     }
 
+    // ค่าตั้งต้น Encoder Pulses per CM
+    calib.encoder_pulses_per_cm = 50.0f;
+    ENCODER_PULSES_PER_CM = 50.0f;
+
     saveCalibrationToEEPROM();
   } else {
     Serial.println(">> Loaded valid Calibration data from EEPROM!");
@@ -113,6 +117,14 @@ inline void loadCalibrationFromEEPROM() {
       }
       saveCalibrationToEEPROM();
     }
+
+    // ตรวจสอบค่า Encoder Pulses per CM
+    if (calib.encoder_pulses_per_cm <= 1.0f || isnan(calib.encoder_pulses_per_cm)) {
+      calib.encoder_pulses_per_cm = 50.0f;
+      saveCalibrationToEEPROM();
+    }
+    ENCODER_PULSES_PER_CM = calib.encoder_pulses_per_cm;
+
     setSensorMin(calib.front_min);
     setSensorMax(calib.front_max);
     setSensorMin_B(calib.back_min);
@@ -375,9 +387,9 @@ inline void calibrateBackSensors() {
 }
 
 // ============================================================================
-// 3. คาลิเบรตเซนเซอร์สี TCS34725 (หน้าและหลัง)
+// 3. คาลิเบรตเซนเซอร์สี TCS34725 (แยกเป็น: สีพื้นสนาม FLOOR และ สียื่นด้านข้าง SIDE)
 // ============================================================================
-inline void calibrateTCSColors() {
+inline void calibrateTCSColorSensor(bool isSideSensor) {
   const char* colorNames[NUM_CALIB_COLORS] = {
     "RED", "GREEN", "BLUE", "YELLOW", "WHITE", "BLACK"
   };
@@ -385,13 +397,16 @@ inline void calibrateTCSColors() {
     ST7735_RED, ST7735_GREEN, ST7735_BLUE, ST7735_YELLOW, ST7735_WHITE, ST7735_MAGENTA
   };
 
+  const char* headerTitle = isSideSensor ? "CALIB TCS SIDE (CANS)" : "CALIB TCS FLOOR (FLD)";
+  const char* placeHint   = isSideSensor ? "SIDE OBJECT/CAN" : "FLOOR SURFACE";
+
   for (int c = 0; c < NUM_CALIB_COLORS; c++) {
     tft_.fillScreen(ST7735_BLACK);
-    drawHeaderBar("[3/4] CALIB TCS COLOR", ST7735_CYAN, ST7735_CYAN);
+    drawHeaderBar(headerTitle, isSideSensor ? ST7735_YELLOW : ST7735_CYAN, ST7735_WHITE);
 
     // Color Swatch Badge
-    char titleBuf[24];
-    snprintf(titleBuf, sizeof(titleBuf), "COLOR %d/6: %s", c + 1, colorNames[c]);
+    char titleBuf[32];
+    snprintf(titleBuf, sizeof(titleBuf), "%s: %s", colorNames[c], placeHint);
     drawStepBadge(titleBuf, colorThemes[c], (c == 4 || c == 3) ? ST7735_BLACK : ST7735_WHITE, ST7735_WHITE);
     drawFooterBar("PRESS [B3/OK] TO CAPTURE", 0x0A22, ST7735_WHITE, ST7735_GREEN);
 
@@ -399,9 +414,9 @@ inline void calibrateTCSColors() {
     tft_.drawRoundRect(6, 34, 148, 72, 3, 0x2965);
 
     while (!isButtonPressed()) {
-      int r = Read_Color_TCS(0);
-      int g = Read_Color_TCS(1);
-      int b = Read_Color_TCS(2);
+      int r = isSideSensor ? Read_Color_TCS_B(0) : Read_Color_TCS(0);
+      int g = isSideSensor ? Read_Color_TCS_B(1) : Read_Color_TCS(1);
+      int b = isSideSensor ? Read_Color_TCS_B(2) : Read_Color_TCS(2);
 
       // แถบค่า R, G, B สด
       char rBuf[16], gBuf[16], bBuf[16];
@@ -437,22 +452,30 @@ inline void calibrateTCSColors() {
     while (isButtonPressed()) delay(10);
     delay(80);
 
-    calib.tcs_front_rgb[c][0] = Read_Color_TCS(0);
-    calib.tcs_front_rgb[c][1] = Read_Color_TCS(1);
-    calib.tcs_front_rgb[c][2] = Read_Color_TCS(2);
+    if (isSideSensor) {
+      calib.tcs_back_rgb[c][0] = Read_Color_TCS_B(0);
+      calib.tcs_back_rgb[c][1] = Read_Color_TCS_B(1);
+      calib.tcs_back_rgb[c][2] = Read_Color_TCS_B(2);
+    } else {
+      calib.tcs_front_rgb[c][0] = Read_Color_TCS(0);
+      calib.tcs_front_rgb[c][1] = Read_Color_TCS(1);
+      calib.tcs_front_rgb[c][2] = Read_Color_TCS(2);
+    }
   }
 
   saveCalibrationToEEPROM();
 
   tft_.fillScreen(ST7735_BLACK);
-  drawHeaderBar("TCS SAVED (EEPROM)", ST7735_GREEN, ST7735_GREEN);
+  drawHeaderBar(isSideSensor ? "TCS SIDE SAVED!" : "TCS FLOOR SAVED!", ST7735_GREEN, ST7735_GREEN);
 
   tft_.drawRoundRect(2, 17, 156, 92, 3, 0x03EF);
   for (int c = 0; c < NUM_CALIB_COLORS; c++) {
     int y = 20 + (c * 14);
     char buf[32];
-    snprintf(buf, sizeof(buf), "%-7s R:%2d G:%2d B:%2d", colorNames[c],
-             calib.tcs_front_rgb[c][0], calib.tcs_front_rgb[c][1], calib.tcs_front_rgb[c][2]);
+    int r = isSideSensor ? calib.tcs_back_rgb[c][0] : calib.tcs_front_rgb[c][0];
+    int g = isSideSensor ? calib.tcs_back_rgb[c][1] : calib.tcs_front_rgb[c][1];
+    int b = isSideSensor ? calib.tcs_back_rgb[c][2] : calib.tcs_front_rgb[c][2];
+    snprintf(buf, sizeof(buf), "%-7s R:%2d G:%2d B:%2d", colorNames[c], r, g, b);
     printText(8, y, buf, 1, colorThemes[c], ST7735_BLACK);
   }
 
@@ -465,13 +488,261 @@ inline void calibrateTCSColors() {
   delay(120);
 }
 
+// คาลิเบรตเซนเซอร์สีพื้นสนาม (Floor Ground)
+inline void calibrateTCSColorsFloor() {
+  calibrateTCSColorSensor(false);
+}
+
+// คาลิเบรตเซนเซอร์สียื่นด้านข้าง (Side Objects/Cans)
+inline void calibrateTCSColorsSide() {
+  calibrateTCSColorSensor(true);
+}
+
+// เพื่อความเข้ากันได้ย้อนหลัง
+inline void calibrateTCSColors() {
+  calibrateTCSColorsFloor();
+}
+
+// เมนูย่อยเลือกคาลิเบรตเซนเซอร์สี (Floor หรือ Side)
+inline void selectTCSColorSubmenu() {
+  int currentOption = 1;
+  const int totalOptions = 3;
+  const char* menuLabels[3] = {
+    "1. FLOOR COLOR (พื้น)",
+    "2. SIDE COLOR (ข้าง)",
+    "3. BACK TO MENU"
+  };
+
+  tft_.fillScreen(ST7735_BLACK);
+  drawHeaderBar("SELECT COLOR SENSOR", ST7735_CYAN, ST7735_WHITE);
+  if (button_mode == 3) {
+    drawFooterBar("[B2]:UP  [B4]:DN  [B3]:OK", 0x0841, ST7735_WHITE, 0x39E7);
+  } else {
+    drawFooterBar("[Click]:Next  [Hold]:OK", 0x0841, ST7735_WHITE, 0x39E7);
+  }
+
+  for (int i = 1; i <= totalOptions; i++) {
+    int y = 25 + ((i - 1) * 26);
+    if (i == currentOption) {
+      tft_.fillRoundRect(4, y, 152, 22, 3, 0x028F);
+      tft_.drawRoundRect(4, y, 152, 22, 3, ST7735_CYAN);
+      char buf[32]; snprintf(buf, sizeof(buf), "> %s", menuLabels[i - 1]);
+      printText(10, y + 6, buf, 1, ST7735_WHITE, 0x028F);
+    } else {
+      tft_.fillRoundRect(4, y, 152, 22, 3, ST7735_BLACK);
+      tft_.drawRoundRect(4, y, 152, 22, 3, 0x2124);
+      char buf[32]; snprintf(buf, sizeof(buf), "  %s", menuLabels[i - 1]);
+      printText(10, y + 6, buf, 1, 0x94B2, ST7735_BLACK);
+    }
+  }
+
+  while (true) {
+    if (button_mode == 3) {
+      if (isBtnUpPressed()) {
+        buzzer(800, 30);
+        while (isBtnUpPressed()) delay(10);
+        currentOption--;
+        if (currentOption < 1) currentOption = totalOptions;
+        for (int i = 1; i <= totalOptions; i++) {
+          int y = 25 + ((i - 1) * 26);
+          if (i == currentOption) {
+            tft_.fillRoundRect(4, y, 152, 22, 3, 0x028F);
+            tft_.drawRoundRect(4, y, 152, 22, 3, ST7735_CYAN);
+            char buf[32]; snprintf(buf, sizeof(buf), "> %s", menuLabels[i - 1]);
+            printText(10, y + 6, buf, 1, ST7735_WHITE, 0x028F);
+          } else {
+            tft_.fillRoundRect(4, y, 152, 22, 3, ST7735_BLACK);
+            tft_.drawRoundRect(4, y, 152, 22, 3, 0x2124);
+            char buf[32]; snprintf(buf, sizeof(buf), "  %s", menuLabels[i - 1]);
+            printText(10, y + 6, buf, 1, 0x94B2, ST7735_BLACK);
+          }
+        }
+        delay(60);
+      }
+      if (isBtnDownPressed()) {
+        buzzer(800, 30);
+        while (isBtnDownPressed()) delay(10);
+        currentOption++;
+        if (currentOption > totalOptions) currentOption = 1;
+        for (int i = 1; i <= totalOptions; i++) {
+          int y = 25 + ((i - 1) * 26);
+          if (i == currentOption) {
+            tft_.fillRoundRect(4, y, 152, 22, 3, 0x028F);
+            tft_.drawRoundRect(4, y, 152, 22, 3, ST7735_CYAN);
+            char buf[32]; snprintf(buf, sizeof(buf), "> %s", menuLabels[i - 1]);
+            printText(10, y + 6, buf, 1, ST7735_WHITE, 0x028F);
+          } else {
+            tft_.fillRoundRect(4, y, 152, 22, 3, ST7735_BLACK);
+            tft_.drawRoundRect(4, y, 152, 22, 3, 0x2124);
+            char buf[32]; snprintf(buf, sizeof(buf), "  %s", menuLabels[i - 1]);
+            printText(10, y + 6, buf, 1, 0x94B2, ST7735_BLACK);
+          }
+        }
+        delay(60);
+      }
+      if (isBtnOkPressed()) {
+        buzzer(2200, 120);
+        while (isBtnOkPressed()) delay(10);
+        delay(80);
+        if (currentOption == 1) {
+          calibrateTCSColorsFloor();
+        } else if (currentOption == 2) {
+          calibrateTCSColorsSide();
+        }
+        return;
+      }
+      delay(10);
+    } else {
+      if (isButtonPressed()) {
+        unsigned long pressStart = millis();
+        bool isLong = false;
+        while (isButtonPressed()) {
+          if (!isLong && (millis() - pressStart >= 600)) {
+            isLong = true;
+            buzzer(1800, 100);
+          }
+          delay(10);
+        }
+        delay(80);
+
+        if (!isLong) {
+          currentOption++;
+          if (currentOption > totalOptions) currentOption = 1;
+          buzzer(800, 30);
+          for (int i = 1; i <= totalOptions; i++) {
+            int y = 25 + ((i - 1) * 26);
+            if (i == currentOption) {
+              tft_.fillRoundRect(4, y, 152, 22, 3, 0x028F);
+              tft_.drawRoundRect(4, y, 152, 22, 3, ST7735_CYAN);
+              char buf[32]; snprintf(buf, sizeof(buf), "> %s", menuLabels[i - 1]);
+              printText(10, y + 6, buf, 1, ST7735_WHITE, 0x028F);
+            } else {
+              tft_.fillRoundRect(4, y, 152, 22, 3, ST7735_BLACK);
+              tft_.drawRoundRect(4, y, 152, 22, 3, 0x2124);
+              char buf[32]; snprintf(buf, sizeof(buf), "  %s", menuLabels[i - 1]);
+              printText(10, y + 6, buf, 1, 0x94B2, ST7735_BLACK);
+            }
+          }
+        } else {
+          buzzer(2200, 120);
+          if (currentOption == 1) {
+            calibrateTCSColorsFloor();
+          } else if (currentOption == 2) {
+            calibrateTCSColorsSide();
+          }
+          return;
+        }
+      }
+      delay(10);
+    }
+  }
+}
 // ============================================================================
-// 4. คาลิเบรตเซนเซอร์วัดระยะห่าง Infrared GP2Y0A41SK0F (ADC 14)
+// 4. คาลิเบรตตัวเอ็นโค้ดเดอร์ (Encoder Distance Calibration)
+// ============================================================================
+inline void calibrateEncoderDistance() {
+  tft_.fillScreen(ST7735_BLACK);
+  drawHeaderBar("[4] ENCODER CALIB", ST7735_GREEN, ST7735_GREEN);
+
+  // คำแนะนำขั้นตอนที่ 1
+  tft_.drawRoundRect(4, 18, 152, 90, 3, 0x028F);
+  printText(8, 22, "1. PLACE ROBOT AT", 1, ST7735_WHITE, 0x028F);
+  printText(8, 34, "   START MARK (0 cm)", 1, ST7735_YELLOW, 0x028F);
+  printText(8, 48, "2. PRESS [OK] TO ZERO", 1, ST7735_WHITE, 0x028F);
+  printText(8, 60, "   & ROLL 20 CM", 1, ST7735_CYAN, 0x028F);
+
+  char curScaleBuf[32];
+  snprintf(curScaleBuf, sizeof(curScaleBuf), "Current: %.1f p/cm", ENCODER_PULSES_PER_CM);
+  printText(8, 86, curScaleBuf, 1, 0x94B2, 0x028F);
+
+  drawFooterBar("PRESS [B3/OK] TO ZERO", 0x0A22, ST7735_WHITE, ST7735_GREEN);
+  buzzer(1500, 100);
+
+  while (!isButtonPressed()) delay(10);
+  buzzer(2000, 120);
+  while (isButtonPressed()) delay(10);
+  delay(120);
+
+  // เคลียร์ค่าเริ่มต้น
+  resetEncoder(selection_Encoder);
+  delay(60);
+
+  // ขั้นตอนที่ 2: เข็นหุ่นยนต์ไปข้างหน้า 20 cm
+  tft_.fillScreen(ST7735_BLACK);
+  drawHeaderBar("ROLL FORWARD 20 CM", ST7735_YELLOW, ST7735_YELLOW);
+  drawFooterBar("PRESS [OK] AT 20 CM", 0x0A22, ST7735_WHITE, ST7735_GREEN);
+
+  tft_.drawRoundRect(4, 18, 152, 90, 3, 0x2965);
+  printText(8, 22, "TARGET: 20.0 cm", 1, ST7735_YELLOW, ST7735_BLACK);
+
+  long lastPulses = -999999;
+  long pulses = 0;
+
+  while (!isButtonPressed()) {
+    pulses = abs(get_pulse_Encoder(selection_Encoder));
+    if (pulses != lastPulses) {
+      lastPulses = pulses;
+
+      char pBuf[32];
+      snprintf(pBuf, sizeof(pBuf), "Pulse: %-6ld", pulses);
+      printText(8, 38, pBuf, 2, ST7735_GREEN, ST7735_BLACK);
+
+      float calcRatio = (float)pulses / 20.0f;
+      char rBuf[32];
+      snprintf(rBuf, sizeof(rBuf), "Scale: %.2f p/cm ", calcRatio);
+      printText(8, 60, rBuf, 1, ST7735_CYAN, ST7735_BLACK);
+
+      // บาร์กราฟิกความคืบหน้า (ประมาณ 1000 pulse)
+      int barW = map(constrain((int)pulses, 0, 1500), 0, 1500, 0, 140);
+      tft_.fillRect(8, 76, barW, 6, ST7735_CYAN);
+      tft_.fillRect(8 + barW, 76, 140 - barW, 6, ST7735_BLACK);
+      tft_.drawRect(7, 75, 142, 8, 0x2965);
+
+      printText(8, 90, "ROLL -> REACH 20 CM", 1, 0x94B2, ST7735_BLACK);
+    }
+    delay(30);
+  }
+
+  buzzer(2200, 150);
+  while (isButtonPressed()) delay(10);
+  delay(100);
+
+  // บันทึก Scale ใหม่
+  if (pulses > 10) {
+    float newScale = (float)pulses / 20.0f;
+    calib.encoder_pulses_per_cm = newScale;
+    ENCODER_PULSES_PER_CM = newScale;
+    saveCalibrationToEEPROM();
+
+    tft_.fillScreen(ST7735_BLACK);
+    drawHeaderBar("ENCODER SAVED!", ST7735_GREEN, ST7735_GREEN);
+    tft_.drawRoundRect(4, 20, 152, 88, 3, 0x0A22);
+
+    printText(10, 26, "CALIBRATION SUCCESS!", 1, ST7735_GREEN, 0x0A22);
+    char res1[32], res2[32];
+    snprintf(res1, sizeof(res1), "Total: %ld pulses", pulses);
+    snprintf(res2, sizeof(res2), "Scale: %.2f p/cm", newScale);
+    printText(10, 44, res1, 1, ST7735_WHITE, 0x0A22);
+    printText(10, 60, res2, 1, ST7735_YELLOW, 0x0A22);
+    printText(10, 78, "Saved to EEPROM!", 1, ST7735_CYAN, 0x0A22);
+
+    buzzer(1800, 100);
+    delay(100);
+    buzzer(2400, 150);
+
+    drawFooterBar("PRESS [B3/OK] -> MENU", 0x18C3, ST7735_YELLOW, ST7735_YELLOW);
+    while (!isButtonPressed()) delay(10);
+    while (isButtonPressed()) delay(10);
+    delay(120);
+  }
+}
+
+// ============================================================================
+// 5. คาลิเบรตเซนเซอร์วัดระยะห่าง Infrared GP2Y0A41SK0F (ADC 14)
 // ============================================================================
 inline void calibrateIRDistance() {
-  // ขั้นที่ 1: วางวัตถุที่ระยะ 5 ซม.
   tft_.fillScreen(ST7735_BLACK);
-  drawHeaderBar("[4/4] CALIB IR DISTANCE", ST7735_CYAN, ST7735_CYAN);
+  drawHeaderBar("[5] CALIB IR DISTANCE", ST7735_CYAN, ST7735_CYAN);
   drawStepBadge("STEP 1/2: OBJECT AT 5CM", 0x2104, ST7735_YELLOW, ST7735_YELLOW);
   drawFooterBar("PRESS [B3/OK] TO READ 5CM", 0x0A22, ST7735_WHITE, ST7735_GREEN);
 
@@ -489,7 +760,7 @@ inline void calibrateIRDistance() {
 
   // ขั้นที่ 2: วางวัตถุที่ระยะ 10 ซม.
   tft_.fillScreen(ST7735_BLACK);
-  drawHeaderBar("[4/4] CALIB IR DISTANCE", ST7735_CYAN, ST7735_CYAN);
+  drawHeaderBar("[5] CALIB IR DISTANCE", ST7735_CYAN, ST7735_CYAN);
   drawStepBadge("STEP 2/2: OBJECT AT 10CM", 0x2104, ST7735_YELLOW, ST7735_YELLOW);
   drawFooterBar("PRESS [B3/OK] TO READ 10CM", 0x0A22, ST7735_WHITE, ST7735_GREEN);
 
@@ -510,7 +781,7 @@ inline void calibrateIRDistance() {
   tft_.fillScreen(ST7735_BLACK);
   drawHeaderBar("IR DISTANCE SAVED", ST7735_GREEN, ST7735_GREEN);
   tft_.drawRoundRect(2, 17, 156, 92, 3, 0x03EF);
-  
+
   char buf1[30], buf2[30], buf3[30];
   snprintf(buf1, sizeof(buf1), "Raw @ 5cm  = %d", calib.ir_raw_5cm);
   snprintf(buf2, sizeof(buf2), "Raw @ 10cm = %d", calib.ir_raw_10cm);
@@ -531,41 +802,42 @@ inline void calibrateIRDistance() {
 }
 
 // ============================================================================
-// เมนูคาลิเบรตหลัก (Interactive Calibration Menu Dashboard)
+// เมนูคาลิเบรตหลัก (Interactive Calibration Menu Dashboard 6 Options)
 // ============================================================================
 inline void renderMenuItem(int index, const char* label, bool isSelected) {
-  int y = 18 + ((index - 1) * 18);
+  int y = 16 + ((index - 1) * 16);
   if (isSelected) {
-    uint16_t borderCol = (index == 5) ? ST7735_GREEN : ST7735_CYAN;
-    uint16_t textCol = (index == 5) ? ST7735_GREEN : ST7735_WHITE;
-    tft_.fillRoundRect(3, y, 154, 16, 3, 0x028F); // พื้นหลังการ์ดสีน้ำเงินเงางาม
-    tft_.drawRoundRect(3, y, 154, 16, 3, borderCol);
+    uint16_t borderCol = (index == 6) ? ST7735_GREEN : ST7735_CYAN;
+    uint16_t textCol   = (index == 6) ? ST7735_GREEN : ST7735_WHITE;
+    tft_.fillRoundRect(3, y, 154, 14, 2, 0x028F); // พื้นหลังการ์ดสีน้ำเงินเงางาม
+    tft_.drawRoundRect(3, y, 154, 14, 2, borderCol);
     char buf[32];
     snprintf(buf, sizeof(buf), "> %s", label);
-    printText(8, y + 4, buf, 1, textCol, 0x028F);
+    printText(6, y + 3, buf, 1, textCol, 0x028F);
   } else {
-    tft_.fillRoundRect(3, y, 154, 16, 3, ST7735_BLACK);
-    tft_.drawRoundRect(3, y, 154, 16, 3, 0x2124); // ขอบการ์ดบางสีเทา
+    tft_.fillRoundRect(3, y, 154, 14, 2, ST7735_BLACK);
+    tft_.drawRoundRect(3, y, 154, 14, 2, 0x2124); // ขอบการ์ดบางสีเทา
     char buf[32];
     snprintf(buf, sizeof(buf), "  %s", label);
-    printText(8, y + 4, buf, 1, 0x94B2, ST7735_BLACK);
+    printText(6, y + 3, buf, 1, 0x94B2, ST7735_BLACK);
   }
 }
 
 inline void runCalibrationMenu() {
   int currentOption = 1;
-  const int totalOptions = 5;
-  const char* menuLabels[5] = {
+  const int totalOptions = 6;
+  const char* menuLabels[6] = {
     "1. FRONT SENSORS",
     "2. BACK SENSORS",
-    "3. TCS COLOR SENSOR",
-    "4. IR DISTANCE",
-    "5. EXIT & START ROBOT"
+    "3. TCS COLOR (FLR/SIDE)",
+    "4. ENCODER CALIB",
+    "5. IR DISTANCE SENSOR",
+    "6. EXIT & START ROBOT"
   };
 
   tft_.fillScreen(ST7735_BLACK);
   drawHeaderBar("CALIBRATION MENU", ST7735_CYAN, ST7735_WHITE);
-  
+
   if (button_mode == 3) {
     drawFooterBar("[B2]:UP  [B4]:DN  [B3]:OK", 0x0841, ST7735_WHITE, 0x39E7);
   } else {
@@ -614,10 +886,12 @@ inline void runCalibrationMenu() {
           } else if (currentOption == 2) {
             calibrateBackSensors();
           } else if (currentOption == 3) {
-            calibrateTCSColors();
+            selectTCSColorSubmenu();
           } else if (currentOption == 4) {
-            calibrateIRDistance();
+            calibrateEncoderDistance();
           } else if (currentOption == 5) {
+            calibrateIRDistance();
+          } else if (currentOption == 6) {
             tft_.fillScreen(ST7735_BLACK);
             tft_.fillRoundRect(8, 42, 144, 44, 4, 0x0A22);
             tft_.drawRoundRect(8, 42, 144, 44, 4, ST7735_GREEN);
@@ -670,10 +944,12 @@ inline void runCalibrationMenu() {
         } else if (currentOption == 2) {
           calibrateBackSensors();
         } else if (currentOption == 3) {
-          calibrateTCSColors();
+          selectTCSColorSubmenu();
         } else if (currentOption == 4) {
-          calibrateIRDistance();
+          calibrateEncoderDistance();
         } else if (currentOption == 5) {
+          calibrateIRDistance();
+        } else if (currentOption == 6) {
           tft_.fillScreen(ST7735_BLACK);
           tft_.fillRoundRect(8, 42, 144, 44, 4, 0x0A22);
           tft_.drawRoundRect(8, 42, 144, 44, 4, ST7735_GREEN);

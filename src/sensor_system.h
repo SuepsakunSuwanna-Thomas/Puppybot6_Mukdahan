@@ -472,6 +472,15 @@ inline RobotColor detectColorBack() {
   return (RobotColor)bestColor;
 }
 
+// ============================================================================
+// ชื่อฟังก์ชันระบุตำแหน่งชัดเจน: Floor (พื้นสนาม) และ Side (ยื่นด้านข้าง)
+// ============================================================================
+inline RobotColor detectColorFloor() { return detectColorFront(); }
+inline RobotColor detectColorSide()  { return detectColorBack(); }
+
+inline int Read_Color_TCS_Floor(int ch) { return Read_Color_TCS(ch); }
+inline int Read_Color_TCS_Side(int ch)  { return Read_Color_TCS_B(ch); }
+
 inline const char* getColorName(RobotColor c) {
   switch (c) {
     case COLOR_RED:     return "RED";
