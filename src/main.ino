@@ -29,14 +29,14 @@ void setup() {
   set_data_for_turnDirection(1, 20, 70, 3, 5);
 
   // 4. สั่งเซอร์โวเข้าตำแหน่งเริ่มต้น
-  servoRun(1, 50);
-  servoRun(2, 146);
+  servoRun(1, 145);
+  servoRun(2, 62);
 
   // ==========================================================================
   // [NEW] โหมดทดสอบผ่านหน้าเว็บ (WEB TEST LAB):
   // หากต้องการทดสอบคำสั่งต่างๆ (PID, 4WD Motor, Servo) ผ่านหน้าเว็บ Web Dashboard
   // ให้ยกเลิกคอมเมนต์บรรทัดด้านล่างนี้ (เมื่อเข้าไปแล้วจะวนลูปรับคำสั่งไม่มีที่สิ้นสุด):
-  // runSerialTestMode();
+  runSerialTestMode();
   // ==========================================================================
 
   // 5. แสดงหน้าจอเริ่มต้น และตรวจจับการกดปุ่ม:
@@ -66,21 +66,25 @@ void loop() {
   static bool screen_init = false;
   if (!screen_init) {
     tft_.fillScreen(ST7735_BLACK);
-    printText(5, 4, "--- COLOR MONITOR ---", 1, ST7735_YELLOW);
-    tft_.drawFastHLine(0, 16, 160, ST7735_BLUE);
+    if (button_mode == 3) {
+      printText(5, 4, "MONITOR: [B3]=CALIB", 1, ST7735_YELLOW, ST7735_BLACK);
+    } else {
+      printText(5, 4, "MONITOR: [Hold]=CALIB", 1, ST7735_YELLOW, ST7735_BLACK);
+    }
+    tft_.drawFastHLine(0, 15, 160, ST7735_BLUE);
     screen_init = true;
   }
 
-  // แสดงผลเฉพาะค่าสีเซนเซอร์หน้าและหลัง (Front & Back TCS)
-  displayColorSensorsOnly();
+  // แสดงผลค่าแสงเซนเซอร์หน้าและหลังแบบ Real-time บนหน้าจอ
+  displayLightSensorsFrontAndBack();
 
-  // หากกดปุ่มค้างในขณะ loop() จะเข้าสู่เมนูคาลิเบรตได้ทันที
+  // หากกดปุ่มจะเข้าสู่เมนูคาลิเบรตได้ทันที
   if (checkLongPress(1200)) {
     runCalibrationMenu();
     screen_init = false; // หลังออกจากเมนู ให้วาดหัวข้อหน้าจอใหม่
   }
 
-  delay(120);
+  delay(100);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -72,6 +72,26 @@ uint8_t status_resetYaw = 0;
 
 int TCS_R,TCS_G,TCS_B,TCS_T,TCS_L = 0;
 
+// TCS3472 / TCS34725 I2C Addresses (Auto-detected)
+uint8_t tcs_front_addr = 0x29;
+uint8_t tcs_back_addr = 0x29;
+bool tcs_front_found = false;
+bool tcs_back_found = false;
+
+// ฟังก์ชันสแกนหา I2C Address อัตโนมัติสำหรับ TCS3472 / TCS34725
+// ฟังก์ชันสแกนหาและเชื่อมต่อ TCS3472 / TCS34725 แบบปลอดภัย (เฉพาะแอดเดรสที่ถูกต้อง)
+inline uint8_t init_TCS_sensor(Adafruit_TCS34725 &sensor, TwoWire &wireBus, bool &foundFlag) {
+  // แอดเดรสมาตรฐานทั้งหมดของตระกูล TCS3472 / TCS34725
+  const uint8_t validAddrs[] = {0x29, 0x39, 0x49, 0x10};
+  for (uint8_t addr : validAddrs) {
+    if (sensor.begin(addr, &wireBus)) {
+      foundFlag = true;
+      return addr;
+    }
+  }
+  foundFlag = false;
+  return 0x29; // default fallback
+}
 
 void puppybot6_setup() {
   adc.begin(10, 11, 12, 14);
@@ -79,7 +99,7 @@ void puppybot6_setup() {
   analogWriteRange(1023);
   tft_.initR(INITR_BLACKTAB);
   // tft_.init();
-  tft_.setRotation(1);
+  tft_.setRotation(3); // กลับหน้าจอ 180 องศาเป็นฝั่งตรงข้าม
   tft_.fillScreen(ST7735_BLACK);
   pinMode(motor1A,OUTPUT);
   pinMode(motor2A,OUTPUT);
@@ -87,70 +107,92 @@ void puppybot6_setup() {
   pinMode(motor4A,OUTPUT);
   pinMode(motor5A,OUTPUT);
   pinMode(motor6A,OUTPUT);
+
   Wire.setSDA(4);
   Wire.setSCL(5);
   Wire.begin();
-  if (tcs.begin(0x29,&Wire)) {
-    Serial.println("Found sensor");
-  }
-  
+  delay(15); // รอเซนเซอร์ TCS บูตระบบ
 
+  // ตรวจจับและเชื่อมต่อเซนเซอร์สี TCS3472 ด้านหน้า (SDA=4, SCL=5)
+  tcs_front_addr = init_TCS_sensor(tcs, Wire, tcs_front_found);
+  if (tcs_front_found) {
+    Serial.printf("[TCS Front] Found & initialized TCS3472 at I2C: 0x%02X (SDA=4, SCL=5)\n", tcs_front_addr);
+  } else {
+    Serial.printf("[TCS Front] Warning: TCS3472 not detected on Wire (SDA=4, SCL=5)\n");
+  }
 }
+
 void set_TCS_back(){
-	Wire1.setSDA(6);
-    Wire1.setSCL(7);
-    Wire1.begin();
-    if (tcsB.begin(0x29,&Wire1)) {
-    Serial.println("Found sensor");
+  Wire1.setSDA(6);
+  Wire1.setSCL(7);
+  Wire1.begin();
+  delay(15);
+
+  // ตรวจสอบเซนเซอร์สีด้านหลัง (SDA=6, SCL=7)
+  tcs_back_addr = init_TCS_sensor(tcsB, Wire1, tcs_back_found);
+  if (tcs_back_found) {
+    Serial.printf("[TCS Back] Found & initialized TCS3472 at I2C: 0x%02X (SDA=6, SCL=7)\n", tcs_back_addr);
+  } else {
+    Serial.println("[TCS Back] No TCS detected on Wire1 - Back color reader safely disabled");
   }
 }
 
-bool isConnected(uint8_t addr) {
+bool isConnected(uint8_t addr = 0) {
+  if (!tcs_front_found) return false;
+  if (addr == 0) addr = tcs_front_addr;
   Wire.beginTransmission(addr);
   return (Wire.endTransmission() == 0);
 }
-bool isConnected_B(uint8_t addr) {
+
+bool isConnected_B(uint8_t addr = 0) {
+  if (!tcs_back_found) return false;
+  if (addr == 0) addr = tcs_back_addr;
   Wire1.beginTransmission(addr);
   return (Wire1.endTransmission() == 0);
 }
 
+// แคชผลการอ่านค่าสี เพื่อให้ R, G, B และ Lux เป็นข้อมูลเฟรมเดียวกันเป๊ะ และไม่สแปมบัส I2C
+static unsigned long _tcs_f_last_read = 0;
+static long _tcs_f_cached_r = 0;
+static long _tcs_f_cached_g = 0;
+static long _tcs_f_cached_b = 0;
+static long _tcs_f_cached_temp = 0;
+static long _tcs_f_cached_lux = 0;
+
 long Read_Color_TCS(int color_of_sensor)
 {
-  float average_lib, r_lib, g_lib, b_lib;
-  long data_color = 0.00;
-  uint16_t clearcol_lib, red_lib, green_lib, blue_lib,lux,colorTemp;
- //delay(100); // Farbmessung dauert c. 50ms 
+  if (!tcs_front_found) return 0;
 
-	if(isConnected(0x29)){
-		 tcs.getRawData(&red_lib, &green_lib, &blue_lib, &clearcol_lib);
-		 colorTemp = tcs.calculateColorTemperature(red_lib, green_lib, blue_lib);
-		  lux = tcs.calculateLux(red_lib, green_lib, blue_lib);
+  unsigned long now = millis();
+  // อัปเดตเฟรมใหม่เมื่อผ่านไปอย่างน้อย 15ms หรือการอ่านครั้งแรก
+  if (now - _tcs_f_last_read >= 15 || _tcs_f_last_read == 0) {
+    if (isConnected(tcs_front_addr)) {
+      uint16_t clearcol_lib = 0, red_lib = 0, green_lib = 0, blue_lib = 0, lux = 0, colorTemp = 0;
+      tcs.getRawData(&red_lib, &green_lib, &blue_lib, &clearcol_lib);
+      colorTemp = tcs.calculateColorTemperature(red_lib, green_lib, blue_lib);
+      lux = tcs.calculateLux(red_lib, green_lib, blue_lib);
 
-		 average_lib = (red_lib+green_lib+blue_lib)/3;
-		 r_lib = red_lib/average_lib;
-		 g_lib = green_lib/average_lib;
-		 b_lib = blue_lib/average_lib;
-		 
-		 if(color_of_sensor == 0){
-		  data_color =  r_lib*100;
-		 }
-		 else if(color_of_sensor == 1){
-		  data_color =  g_lib*100;
-		 }
-		  else if(color_of_sensor == 2){
-		  data_color =  b_lib*100;
-		 }
-		 else if(color_of_sensor == 3){
-		  data_color =  colorTemp;
-		 }
-		 else if(color_of_sensor == 4){
-		  data_color =  lux;
-		}
- 	}
-  
-  
-  return data_color;
+      float average_lib = ((float)red_lib + (float)green_lib + (float)blue_lib) / 3.0f;
+      if (average_lib < 1.0f) average_lib = 1.0f; // ป้องกันการหารด้วยศูนย์
+
+      _tcs_f_cached_r = (long)(((float)red_lib / average_lib) * 100.0f);
+      _tcs_f_cached_g = (long)(((float)green_lib / average_lib) * 100.0f);
+      _tcs_f_cached_b = (long)(((float)blue_lib / average_lib) * 100.0f);
+      _tcs_f_cached_temp = colorTemp;
+      _tcs_f_cached_lux = (long)lux;
+      _tcs_f_last_read = now;
+    }
+  }
+
+  if (color_of_sensor == 0) return _tcs_f_cached_r;
+  if (color_of_sensor == 1) return _tcs_f_cached_g;
+  if (color_of_sensor == 2) return _tcs_f_cached_b;
+  if (color_of_sensor == 3) return _tcs_f_cached_temp;
+  if (color_of_sensor == 4) return _tcs_f_cached_lux;
+
+  return 0;
 }
+
 int Read_Color_TCS_B(int color_of_sensor)
 {
   long data_color = 0.00;
@@ -175,16 +217,19 @@ int Read_Color_TCS_B(int color_of_sensor)
 
 int Read_Color_TCS_B_Raw(int color_of_sensor)
 {
+  // หากไม่มีเซนเซอร์หลัง ให้คืนค่า 0 ทันที เพื่อไม่ให้ Core 1 แย่งบัส I2C กับ Core 0
+  if (!tcs_back_found) return 0;
+
   uint16_t clearcol_lib, red_lib, green_lib, blue_lib,lux,colorTemp;
   float average_lib, r_lib, g_lib, b_lib;
   long data_color = 0.00;
-  if(isConnected_B(0x29)){
- //delay(100); // Farbmessung dauert c. 50ms 
+  if(isConnected_B(tcs_back_addr)){
 	 tcsB.getRawData(&red_lib, &green_lib, &blue_lib, &clearcol_lib);
 	 colorTemp = tcsB.calculateColorTemperature(red_lib, green_lib, blue_lib);
-	  lux = tcsB.calculateLux(red_lib, green_lib, blue_lib);
+	 lux = tcsB.calculateLux(red_lib, green_lib, blue_lib);
 
-	 average_lib = (red_lib+green_lib+blue_lib)/3;
+	 average_lib = ((float)red_lib + (float)green_lib + (float)blue_lib) / 3.0f;
+   if (average_lib < 1.0f) average_lib = 1.0f;
 	 r_lib = red_lib/average_lib;
 	 g_lib = green_lib/average_lib;
 	 b_lib = blue_lib/average_lib;
@@ -203,7 +248,7 @@ int Read_Color_TCS_B_Raw(int color_of_sensor)
 	 else if(color_of_sensor == 4){
 	  data_color =  lux;
 	 }
- }
+  }
 
   return data_color;
 }
@@ -249,21 +294,21 @@ void printText(uint8_t x,uint8_t y,String text,uint8_t size,uint16_t  color){
 	tft_.setCursor(x, y);
 	tft_.setTextSize(size);
   tft_.setTextColor(color);
-  tft_.setTextWrap(true);
-  tft_.println(text);
+  tft_.setTextWrap(false);
+  tft_.print(text);
 }
 void printText(uint8_t x,uint8_t y,String text,uint8_t size,uint16_t  color1,uint16_t  color2){
   tft_.setCursor(x, y);
   tft_.setTextSize(size);
   tft_.setTextColor(color1,color2);
-  tft_.setTextWrap(true);
-  tft_.println(text);
+  tft_.setTextWrap(false);
+  tft_.print(text);
 }
 void printNumber(uint8_t x,uint8_t y,long text,uint8_t size,uint16_t  color1,uint16_t  color2){
   tft_.setCursor(x, y);
   tft_.setTextSize(size);
   tft_.setTextColor(color1,color2);
-  tft_.setTextWrap(true);
+  tft_.setTextWrap(false);
   String text_ ;
   if(text <9){
     text_ = String(text) + " "+ " "+ " "; 
@@ -602,6 +647,11 @@ void servoRun(uint8_t servo_ch, int16_t angle) {
   }
   if (servo_ch == 4)
   {
+    extern int button_mode;
+    if (button_mode == 3) {
+      servo4.detach();
+      return; // ป้องกันขา 37 ชนกับปุ่มกดภายนอกใน button_mode = 3
+    }
     if(angle == -1){servo4.detach();}
     servo4.attach(_servo4,300,2500,angle);
   }

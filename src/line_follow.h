@@ -45,8 +45,56 @@ inline void setLineKPB(float kp) { line_KP_B = kp; }
 inline void setLineKD(float kd) { line_KD = kd; }
 inline void setLineKDB(float kd) { line_KD_B = kd; }
 
+// ============================================================================
+// ฟังก์ชันแจ้งเตือนเมื่อหุ่นยนต์หลุดเส้นเกินเวลาที่กำหนด (Line Lost Alarm)
+// เมื่อหลุดออกจากเส้นประมาณ 3 วินาที หุ่นยนต์จะหยุดวิ่ง
+// บัซเซอร์จะดัง แล้วหยุด ดัง แล้วหยุด วนไปเรื่อยๆ ไม่มีที่สิ้นสุด
+// ============================================================================
+inline void handleLineLostAlarm() {
+  stop_4w();
+  Serial.print(F("[ALARM] Line lost > "));
+  Serial.print((float)line_lost_timeout_ms / 1000.0f, 1);
+  Serial.println(F("s! Robot stopped."));
+
+  tft_.fillScreen(ST7735_BLACK);
+  printText(10, 35, "LINE LOST!", 2, ST7735_RED);
+  printText(15, 65, "STOPPED", 2, ST7735_YELLOW);
+  String timeMsg = "Time > " + String((float)line_lost_timeout_ms / 1000.0f, 1) + "s";
+  printText(15, 95, timeMsg, 1, ST7735_WHITE);
+
+  while (true) {
+    buzzer(1500, 200); // บัซเซอร์ส่งเสียงดัง 200 มิลลิวินาที
+    delay(200);        // หยุดเงียบ 200 มิลลิวินาที
+  }
+}
+
 // ด้านหน้า: lineFollow_PID_auto (ขับเคลื่อน 4 ล้อพร้อม Motor Trims และ Speed Scale)
 inline void lineFollow_PID_auto(int speed) {
+  // ตรวจสอบการหลุดเส้นต่อเนื่องเกินเวลาที่กำหนด (หากตั้งเป็น -1 หรือ <= 0 จะปิดการทำงาน)
+  if (line_lost_timeout_ms > 0) {
+    static unsigned long last_call_time = 0;
+    static unsigned long lost_start_time = 0;
+    static bool is_lost = false;
+
+    unsigned long now = millis();
+    // หากห่างจากการเรียกครั้งล่าสุดเกิน 100ms (เริ่มการเคลื่อนที่ใหม่) ให้รีเซ็ตตัวจับเวลา
+    if (now - last_call_time > 100) {
+      is_lost = false;
+    }
+    last_call_time = now;
+
+    if (isFrontLineLost()) {
+      if (!is_lost) {
+        is_lost = true;
+        lost_start_time = now;
+      } else if (now - lost_start_time >= (unsigned long)line_lost_timeout_ms) {
+        handleLineLostAlarm();
+      }
+    } else {
+      is_lost = false;
+    }
+  }
+
   float KP = line_KP; // ดึงค่าจากตัวแปรส่วนกลาง (ค่าตั้งต้น 0.4)
   float KD = (line_KD > 0.001f) ? line_KD : get_KD_for_speed(speed);
 
@@ -69,6 +117,30 @@ inline void lineFollow_PID_auto(int speed) {
 
 // ด้านหลัง: lineFollow_PID_B_auto (วิ่งถอยหลังตามเส้นด้วยเซนเซอร์หลัง)
 inline void lineFollow_PID_B_auto(int speed) {
+  // ตรวจสอบการหลุดเส้นต่อเนื่องด้านหลังเกินเวลาที่กำหนด (หากตั้งเป็น -1 หรือ <= 0 จะปิดการทำงาน)
+  if (line_lost_timeout_ms > 0) {
+    static unsigned long last_call_time_B = 0;
+    static unsigned long lost_start_time_B = 0;
+    static bool is_lost_B = false;
+
+    unsigned long now = millis();
+    if (now - last_call_time_B > 100) {
+      is_lost_B = false;
+    }
+    last_call_time_B = now;
+
+    if (isBackLineLost()) {
+      if (!is_lost_B) {
+        is_lost_B = true;
+        lost_start_time_B = now;
+      } else if (now - lost_start_time_B >= (unsigned long)line_lost_timeout_ms) {
+        handleLineLostAlarm();
+      }
+    } else {
+      is_lost_B = false;
+    }
+  }
+
   float KP = line_KP_B; // ดึงค่าจากตัวแปรส่วนกลาง (ค่าตั้งต้น 0.4)
   float KD = (line_KD_B > 0.001f) ? line_KD_B : get_KD_for_speed(speed);
 

@@ -19,18 +19,58 @@ inline void setup_sensors() {
 
   // กำหนดโหมดปุ่มบนบอร์ด
   pinMode(ONBOARD_BUTTON_PIN, INPUT_PULLUP);
+
+  // กรณีเป็น button_mode 3 (ปุ่มภายนอก 4 ตัว: 1=ADC15, 2=37, 3=38, 4=39)
+  // ปลด Servo 4 เพื่อป้องกันไม่ให้สัญญาณชนกับปุ่มกดขา 37, 38, 39
+  if (button_mode == 3) {
+    servo4.detach();
+    pinMode(BTN_UP_PIN, INPUT_PULLUP);   // ขา 37 = เลื่อนเมนูขึ้น
+    pinMode(BTN_OK_PIN, INPUT_PULLUP);   // ขา 38 = เข้าคาลิเบรต / ตกลง
+    pinMode(BTN_DOWN_PIN, INPUT_PULLUP); // ขา 39 = เลื่อนเมนูลง
+  }
 }
 
 // ============================================================================
 // 2. การจัดการปุ่มกด (Button Management)
 // ============================================================================
-// button_mode: 0 = ปุ่มบนบอร์ด (pin 3), 1 = ปุ่มภายนอก ADC(15) < 500
-inline bool isButtonPressed() {
-  if (button_mode == 1) {
-    // อ่านจากภายนอก ADC(15)
+// ตรวจสอบสถานะการกดของแต่ละปุ่ม:
+inline bool isBtnStartPressed() {
+  if (button_mode == 3 || button_mode == 1) {
     return (ADC(EXTERNAL_BUTTON_PIN) < EXTERNAL_BUTTON_PRESS_THRESHOLD);
   } else {
-    // อ่านจากบนบอร์ด
+    return (digitalRead(ONBOARD_BUTTON_PIN) == LOW);
+  }
+}
+
+inline bool isBtnUpPressed() {
+  if (button_mode == 3) {
+    return (digitalRead(BTN_UP_PIN) == LOW);
+  }
+  return false;
+}
+
+inline bool isBtnOkPressed() {
+  if (button_mode == 3) {
+    return (digitalRead(BTN_OK_PIN) == LOW);
+  }
+  return isBtnStartPressed();
+}
+
+inline bool isBtnDownPressed() {
+  if (button_mode == 3) {
+    return (digitalRead(BTN_DOWN_PIN) == LOW);
+  }
+  return false;
+}
+
+// button_mode: 0 = ปุ่มบนบอร์ด (pin 3), 1 = ปุ่มภายนอก ADC(15) < 500, 3 = ปุ่มภายนอก 4 ตัว
+inline bool isButtonPressed() {
+  if (button_mode == 3) {
+    // ในโหมด 4 ปุ่ม: ปุ่มตกลง (ขา 38) หรือปุ่มเริ่ม (ADC 15)
+    return (digitalRead(BTN_OK_PIN) == LOW) || (ADC(EXTERNAL_BUTTON_PIN) < EXTERNAL_BUTTON_PRESS_THRESHOLD);
+  } else if (button_mode == 1) {
+    return (ADC(EXTERNAL_BUTTON_PIN) < EXTERNAL_BUTTON_PRESS_THRESHOLD);
+  } else {
     return (digitalRead(ONBOARD_BUTTON_PIN) == LOW);
   }
 }
@@ -41,7 +81,9 @@ inline void waitForButton(const char* promptText = "Press Button") {
   printText(5, 50, promptText, 2, ST7735_WHITE);
   
   // แสดงสถานะว่าใช้ปุ่มไหน
-  if (button_mode == 1) {
+  if (button_mode == 3) {
+    printText(5, 80, "OK: PIN 38 / B1", 1, ST7735_YELLOW);
+  } else if (button_mode == 1) {
     printText(5, 80, "EXT: ADC15", 1, ST7735_YELLOW);
   } else {
     printText(5, 80, "BOARD: PIN 3", 1, ST7735_YELLOW);
@@ -61,6 +103,10 @@ inline void waitForButton(const char* promptText = "Press Button") {
 }
 
 // Forward declarations
+inline bool isFrontSensorOnLine(int index);
+inline bool isBackSensorOnLine(int index);
+inline int countFrontSensorsOnLine();
+inline int countBackSensorsOnLine();
 inline float readDistanceIR();
 inline RobotColor detectColorFront();
 inline RobotColor detectColorBack();
@@ -68,66 +114,138 @@ inline const char* getColorName(RobotColor c);
 inline void displayColorSensorsOnly();
 
 // ============================================================================
-// แสดงผลเฉพาะค่าสีเซนเซอร์หน้า (Front TCS34725) แบบสดๆ
+// แสดงผลค่าแสงเซนเซอร์หน้า 7 ตัว (A0-A6) และหลัง 7 ตัว (A7-A13) แบบ Real-time
+// แสดงค่าตัวเลข (0-100) พร้อมแถบกราฟิกสวยงาม ชัดเจน ไม่มีข้อความซ้อนทับ
 // ============================================================================
-inline void displayColorSensorsOnly() {
-  int rF = Read_Color_TCS(0);
-  int gF = Read_Color_TCS(1);
-  int bF = Read_Color_TCS(2);
-  RobotColor colF = detectColorFront();
-  
-  printText(5, 26, "FRONT COLOR SENSOR:", 1, ST7735_CYAN, ST7735_BLACK);
-  String fColName = String(getColorName(colF)) + "        ";
-  printText(5, 45, fColName, 2, ST7735_GREEN, ST7735_BLACK);
-  String fRgb = "R:" + String(rF) + " G:" + String(gF) + " B:" + String(bF) + "       ";
-  printText(5, 75, fRgb, 1, ST7735_WHITE, ST7735_BLACK);
+inline void displayLightSensorsFrontAndBack() {
+  // หัวข้อคอลัมน์เซนเซอร์หน้าและหลัง
+  printText(4, 18,  "FRONT (A0-A6)", 1, ST7735_CYAN, ST7735_BLACK);
+  printText(84, 18, "BACK (A7-A13)", 1, ST7735_MAGENTA, ST7735_BLACK);
+  tft_.drawFastHLine(0, 27, 160, ST7735_BLUE);
+
+  // วาดค่าและบาร์กราฟิกของเซนเซอร์หน้า 7 ตัว และหลัง 7 ตัว
+  for (int i = 0; i < NUM_FRONT_SENSORS; i++) {
+    int y = 29 + (i * 12);
+
+    // --- ด้านหน้า (Front ADC 0 ถึง 6) ---
+    int valF = ReadLightSensor(i); // ค่าคำนวณ 0-100%
+    bool onF = isFrontSensorOnLine(i);
+    char bufF[10];
+    snprintf(bufF, sizeof(bufF), "A%d:%3d", i, valF);
+    printText(2, y, bufF, 1, onF ? ST7735_GREEN : ST7735_WHITE, ST7735_BLACK);
+
+    int barW_F = map(valF, 0, 100, 0, 26);
+    barW_F = constrain(barW_F, 0, 26);
+    tft_.fillRect(45, y + 1, barW_F, 6, onF ? ST7735_GREEN : ST7735_CYAN);
+    tft_.fillRect(45 + barW_F, y + 1, 26 - barW_F, 6, ST7735_BLACK);
+    tft_.drawRect(44, y, 28, 8, ST7735_BLUE);
+
+    // --- ด้านหลัง (Back ADC 7 ถึง 13) ---
+    int valB = ReadLightSensor_B(i);
+    bool onB = isBackSensorOnLine(i);
+    char bufB[10];
+    snprintf(bufB, sizeof(bufB), "A%d:%3d", i + 7, valB);
+    printText(82, y, bufB, 1, onB ? ST7735_YELLOW : ST7735_WHITE, ST7735_BLACK);
+
+    int barW_B = map(valB, 0, 100, 0, 26);
+    barW_B = constrain(barW_B, 0, 26);
+    tft_.fillRect(128, y + 1, barW_B, 6, onB ? ST7735_YELLOW : ST7735_MAGENTA);
+    tft_.fillRect(128 + barW_B, y + 1, 26 - barW_B, 6, ST7735_BLACK);
+    tft_.drawRect(127, y, 28, 8, ST7735_BLUE);
+  }
+
+  // เส้นแบ่งแนวตั้งระหว่างเซนเซอร์หน้าและหลัง
+  tft_.drawFastVLine(78, 18, 97, ST7735_BLUE);
+
+  // แถบสรุปสถานะด้านล่างสุด
+  tft_.drawFastHLine(0, 115, 160, ST7735_BLUE);
+  int cntF = countFrontSensorsOnLine();
+  int cntB = countBackSensorsOnLine();
+  char statusBuf[32];
+  snprintf(statusBuf, sizeof(statusBuf), "OnLine F:%d/7  B:%d/7 ", cntF, cntB);
+  printText(5, 118, statusBuf, 1, ST7735_YELLOW, ST7735_BLACK);
 }
 
 // ============================================================================
-// รอเริ่มการทำงาน พร้อมแสดงผลค่าสีเซ็นเซอร์หน้าและหลังแบบ Real-time บนหน้าจอ
-// - หากไม่มีการกดปุ่มใดๆ: แสดงเฉพาะค่าสีหน้า/หลังไปเรื่อยๆ
-// - หากกดสั้น (< 700ms): เริ่มวิ่งภารกิจทันทีด้วยค่าเดิมที่จำไว้ใน EEPROM
-// - หากกดค้าง (>= 700ms): เข้าสู่หน้าเมนูเลือกคาลิเบรต
+// รอเริ่มการทำงาน พร้อมแสดงผลค่าแสงเซ็นเซอร์หน้าและหลังแบบ Real-time บนหน้าจอ
+// - โหมด 3 (4 ปุ่ม): ปุ่ม 1 (ADC 15) = เริ่มวิ่งทันที | ปุ่ม 3 (ขา 38) = เข้าเมนูคาลิเบรต
+// - โหมด 0/1 (ปุ่มเดี่ยว): กดสั้น (< 700ms) = เริ่มวิ่ง | กดค้าง (>= 700ms) = เข้าเมนูคาลิเบต
 // ============================================================================
 inline bool waitForStartOrCalibration() {
   tft_.fillScreen(ST7735_BLACK);
-  printText(5, 4, "[Hold]=CALIB  [Click]=START", 1, ST7735_YELLOW);
-  tft_.drawFastHLine(0, 16, 160, ST7735_BLUE);
+  if (button_mode == 3) {
+    printText(10, 4, "[B1]=START  [B3]=CALIB", 1, ST7735_YELLOW, ST7735_BLACK);
+  } else {
+    printText(8, 4, "[Click]=RUN  [Hold]=CALIB", 1, ST7735_YELLOW, ST7735_BLACK);
+  }
+  tft_.drawFastHLine(0, 15, 160, ST7735_BLUE);
 
   unsigned long lastUpdate = 0;
 
-  // วนลูปแสดงผลเฉพาะค่าสีเซนเซอร์หน้าและหลังแบบสดๆ จนกว่าจะมีการกดปุ่ม
-  while (!isButtonPressed()) {
+  // วนลูปแสดงผลค่าแสงเซนเซอร์หน้าและหลังแบบสดๆ จนกว่าจะมีการกดปุ่ม
+  while (true) {
     unsigned long now = millis();
-    if (now - lastUpdate >= 120) {
+    if (now - lastUpdate >= 100) {
       lastUpdate = now;
-      displayColorSensorsOnly();
+      displayLightSensorsFrontAndBack();
     }
-    delay(10);
-  }
 
-  // ผู้ใช้เริ่มกดปุ่ม -> ตรวจจับระยะเวลาที่กด
-  unsigned long startPress = millis();
-  bool isLong = false;
-  while (isButtonPressed()) {
-    if (!isLong && (millis() - startPress >= 700)) {
-      isLong = true;
-      buzzer(2000, 150); // ส่งเสียงปี๊บเตือนว่าเข้าสู่โหมดกดค้างแล้ว
+    if (button_mode == 3) {
+      // 1. ปุ่ม 1 (ADC 15): เริ่มทำงานของหุ่นยนต์อย่างเดียว ไม่เกี่ยวกับคาลิเบรต
+      if (isBtnStartPressed()) {
+        buzzer(1200, 100);
+        while (isBtnStartPressed()) delay(10); // รอปล่อยปุ่ม
+        delay(80);
+        return false; // เริ่มวิ่งภารกิจทันที!
+      }
+
+      // 2. ปุ่ม 3 (ขา 38): กดเข้าหน้าคาลิเบรต
+      if (isBtnOkPressed()) {
+        buzzer(2000, 150);
+        while (isBtnOkPressed()) delay(10); // รอปล่อยปุ่ม
+        delay(80);
+        return true; // เข้าสู่หน้าเมนูคาลิเบรตทันที!
+      }
+    } else {
+      // โหมด 0 หรือ 1: ทำตามโค้ดเดิม (กดสั้น = วิ่ง, กดค้าง >= 700ms = คาลิเบรต)
+      if (isButtonPressed()) {
+        unsigned long startPress = millis();
+        bool isLong = false;
+        while (isButtonPressed()) {
+          if (!isLong && (millis() - startPress >= 700)) {
+            isLong = true;
+            buzzer(2000, 150);
+          }
+          delay(10);
+        }
+        delay(80);
+
+        if (isLong) {
+          return true; // ผู้ใช้กดค้าง -> เข้าสู่เมนูคาลิเบรต
+        } else {
+          buzzer(1200, 100);
+          return false; // ผู้ใช้กดสั้น -> เริ่มวิ่งภารกิจทันที
+        }
+      }
     }
-    delay(10);
-  }
-  delay(80);
 
-  if (isLong) {
-    return true; // ผู้ใช้กดค้าง -> เข้าสู่เมนูคาลิเบรต
-  } else {
-    buzzer(1200, 100);
-    return false; // ผู้ใช้กดสั้น -> เริ่มวิ่งภารกิจทันทีด้วยค่าเดิม
+    delay(10);
   }
 }
 
-// ตรวจสอบการกดปุ่มค้าง (Long Press) เพื่อเข้าเมนูคาลิเบรต
+// ตรวจสอบการกดปุ่มเพื่อเข้าเมนูคาลิเบรตใน loop()
 inline bool checkLongPress(unsigned long hold_ms = 1500) {
+  if (button_mode == 3) {
+    // โหมด 3: ปุ่ม 3 (ขา 38) คือปุ่มเข้าหน้าคาลิเบรตโดยตรง
+    if (isBtnOkPressed()) {
+      buzzer(2000, 200);
+      while (isBtnOkPressed()) delay(10);
+      return true;
+    }
+    return false;
+  }
+
+  // โหมด 0 และ 1: ต้องกดปุ่มค้าง
   if (!isButtonPressed()) return false;
 
   unsigned long startPress = millis();
@@ -183,6 +301,15 @@ inline bool isFrontCrossing() {
 
 inline bool isBackCrossing() {
   return (countBackSensorsOnLine() >= 4);
+}
+
+// ตรวจสอบว่าหลุดออกจากเส้นหรือไม่ (เซนเซอร์ไม่เจอเส้นเลยสักตัว = 0)
+inline bool isFrontLineLost() {
+  return (countFrontSensorsOnLine() == 0);
+}
+
+inline bool isBackLineLost() {
+  return (countBackSensorsOnLine() == 0);
 }
 
 // ============================================================================
@@ -276,11 +403,30 @@ inline RobotColor detectColorFront() {
   int r = Read_Color_TCS(0);
   int g = Read_Color_TCS(1);
   int b = Read_Color_TCS(2);
+  int lux = Read_Color_TCS(4);
 
+  // หากไม่ได้เชื่อมต่อเซนเซอร์
+  if (!tcs_front_found || (r == 0 && g == 0 && b == 0)) {
+    return COLOR_UNKNOWN;
+  }
+
+  // 1. แยกแยะสีดำ: แสงสะท้อนมืดมาก
+  if (lux < 30) {
+    return COLOR_BLACK;
+  }
+
+  // 2. แยกแยะสีขาว: สว่างสูง และสัดส่วน R, G, B สมดุลใกล้เคียงกัน (ไม่เอียงไปทางสีใด)
+  if (lux >= 60 && abs(r - g) <= 25 && abs(g - b) <= 25 && abs(r - b) <= 25) {
+    return COLOR_WHITE;
+  }
+
+  // 3. ตรวจจับแม่สี (RED, GREEN, BLUE, YELLOW) ด้วยระยะ Euclidean Distance
   int bestColor = COLOR_UNKNOWN;
   long minDiff = 1000000;
 
   for (int c = 0; c < NUM_CALIB_COLORS; c++) {
+    // ข้าม White และ Black เพื่อไม่ให้ค่าสมดุลดูดสีแม่สีไป
+    if (c == 4 || c == 5) continue;
     long dr = r - calib.tcs_front_rgb[c][0];
     long dg = g - calib.tcs_front_rgb[c][1];
     long db = b - calib.tcs_front_rgb[c][2];
@@ -290,18 +436,30 @@ inline RobotColor detectColorFront() {
       bestColor = c + 1; // 1-based enum
     }
   }
+
+  // ถ้าสีไม่ชัดเจนและสว่างพอ ให้เป็นสีขาว
+  if (minDiff > 12000 && lux >= 60) {
+    return COLOR_WHITE;
+  }
+
   return (RobotColor)bestColor;
 }
 
 inline RobotColor detectColorBack() {
+  if (!tcs_back_found) return COLOR_UNKNOWN;
   int r = Read_Color_TCS_B(0);
   int g = Read_Color_TCS_B(1);
   int b = Read_Color_TCS_B(2);
+  int lux = Read_Color_TCS_B(4);
+
+  if (lux < 30) return COLOR_BLACK;
+  if (lux >= 60 && abs(r - g) <= 25 && abs(g - b) <= 25 && abs(r - b) <= 25) return COLOR_WHITE;
 
   int bestColor = COLOR_UNKNOWN;
   long minDiff = 1000000;
 
   for (int c = 0; c < NUM_CALIB_COLORS; c++) {
+    if (c == 4 || c == 5) continue;
     long dr = r - calib.tcs_back_rgb[c][0];
     long dg = g - calib.tcs_back_rgb[c][1];
     long db = b - calib.tcs_back_rgb[c][2];

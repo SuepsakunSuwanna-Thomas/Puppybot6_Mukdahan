@@ -4,3 +4,5 @@
 .vscode/launch.json
 .vscode/ipch
 backup/*.zip
+__pycache__/
+*.pyc

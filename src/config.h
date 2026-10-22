@@ -29,17 +29,51 @@ extern float line_KP_B; // ค่า KP วิ่งตามเส้นถอ�
 extern float line_KD;   // ค่า KD วิ่งตามเส้นเดินหน้า (0.0f = auto ตามความเร็ว หรือตั้งค่าเอง เช่น 7.5)
 extern float line_KD_B; // ค่า KD วิ่งตามเส้นถอยหลัง (0.0f = auto ตามความเร็ว หรือตั้งค่าเอง เช่น 7.5)
 
+// เวลาตรวจจับการหลุดเส้นขณะวิ่ง PID (มิลลิวินาที) หากหลุดเกินเวลานี้จะหยุดและส่งเสียงเตือน
+// - ตั้งค่าเป็นมิลลิวินาที เช่น 3000 = ประมาณ 3 วินาที
+// - หากตั้งค่าเป็น -1 (หรือค่าน้อยกว่าหรือเท่ากับ 0) จะเป็นการ "ปิดการทำงาน" (Disable)
+extern long line_lost_timeout_ms;
+
+// ฟังก์ชันตั้งค่าเวลาตรวจจับการหลุดเส้น (เป็นวินาที):
+// เช่น setLineLostTimeout(3.0);  // ตั้ง 3 วินาที
+//     setLineLostTimeout(-1);   // ปิดระบบตรวจจับ
+inline void setLineLostTimeout(float seconds) {
+  if (seconds < 0) {
+    line_lost_timeout_ms = -1;
+  } else {
+    line_lost_timeout_ms = (long)(seconds * 1000.0f);
+  }
+}
+
+// ฟังก์ชันตั้งค่าเวลาตรวจจับการหลุดเส้น (เป็นมิลลิวินาที):
+// เช่น setLineLostTimeoutMs(3000); // 3 วินาที
+//     setLineLostTimeoutMs(-1);   // ปิดระบบตรวจจับ
+inline void setLineLostTimeoutMs(long ms) {
+  line_lost_timeout_ms = ms;
+}
+
 // ============================================================================
 // 2. Button Selection (สวิตช์ / ปุ่มกด)
 // ============================================================================
 // button_mode:
 //   0 = ใช้ปุ่มบนบอร์ด (Pin 3)
-//   1 = ใช้ปุ่มภายนอก ADC(15) < 500
+//   1 = ใช้ปุ่มภายนอก 1 ปุ่ม ADC(15) < 500 (กดสั้น=Start, กดค้าง=Calib)
+//   3 = ใช้ปุ่มภายนอก 4 ปุ่ม:
+//       - ปุ่ม 1 (ขา ADC 15): เริ่มทำงานอย่างเดียว ไม่เกี่ยวกับคาลิเบรต
+//       - ปุ่ม 2 (ขา GPIO 37): เลื่อนเมนูขึ้น (Menu UP)
+//       - ปุ่ม 3 (ขา GPIO 38): กดเข้าหน้าคาลิเบรต และปุ่มตกลง (Calib / OK)
+//       - ปุ่ม 4 (ขา GPIO 39): เลื่อนเมนูลง (Menu DOWN)
 extern int button_mode;
 
-#define EXTERNAL_BUTTON_PIN             15
-#define EXTERNAL_BUTTON_PRESS_THRESHOLD 500  // ต่ำกว่า 500 คือกดปุ่ม
 #define ONBOARD_BUTTON_PIN              3
+#define EXTERNAL_BUTTON_PIN             15
+#define EXTERNAL_BUTTON_PRESS_THRESHOLD 500  // ต่ำกว่า 500 คือกดปุ่ม (ADC 15)
+
+// พินสำหรับโหมด 4 ปุ่ม (button_mode = 3)
+#define BTN_START_PIN                   15   // ปุ่ม 1: เริ่มทำงาน (ADC 15)
+#define BTN_UP_PIN                      37   // ปุ่ม 2: เลื่อนขึ้น (GPIO 37)
+#define BTN_OK_PIN                      38   // ปุ่ม 3: คาลิเบรต / ตกลง (GPIO 38)
+#define BTN_DOWN_PIN                    39   // ปุ่ม 4: เลื่อนลง (GPIO 39)
 
 // ============================================================================
 // 3. Sensor Layout (เซนเซอร์หน้า และ เซนเซอร์หลัง)
