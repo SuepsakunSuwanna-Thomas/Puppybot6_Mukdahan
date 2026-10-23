@@ -12,10 +12,12 @@ inline void setup_sensors() {
   // ตั้งค่าเซนเซอร์หน้า 7 ตัว (ADC 0 ถึง 6)
   setSensorPins(FRONT_PINS, NUM_FRONT_SENSORS);
   setFrontLineColor(0); // 0 = เส้นดำ พื้นขาว (Black line on white floor, map ADC min->100, max->0)
+  _Sensitive = 50;
 
   // ตั้งค่าเซนเซอร์หลัง 7 ตัว (ADC 7 ถึง 13)
   setSensorPins_B(BACK_PINS, NUM_BACK_SENSORS);
   setBackLineColor(0); // 0 = เส้นดำ พื้นขาว (Black line on white floor, map ADC min->100, max->0)
+  _Sensitive_B = 50;   // ปรับเกณฑ์ความไวเซนเซอร์หลังให้เท่ากับด้านหน้า ป้องกันการเกิด False Cross Detection
 
   // กำหนดโหมดปุ่มบนบอร์ด
   pinMode(ONBOARD_BUTTON_PIN, INPUT_PULLUP);

@@ -179,9 +179,9 @@ inline void lineFollow_PID_B_auto(int speed) {
   float out_B = KP * err_B + KD * deriv_B;
   _prev_err_B = err_B;
 
-  // วิ่งถอยหลัง: ล้อด้านนอกถูกบล็อกไม่เกิน speed, ล้อด้านในหมุนกลับทิศทางช่วยเลี้ยวได้ถึง -speed
-  int motorL = -constrain((int)(speed - out_B), -speed, speed);
-  int motorR = -constrain((int)(speed + out_B), -speed, speed);
+  // วิ่งถอยหลัง: เมื่อเส้นอยู่ขวา (out_B > 0) ล้อซ้ายต้องหมุนถอยหลังเร็วกว่าล้อขวา เพื่อดึงท้ายหุ่นยนต์ไปทางขวาเข้าหาเส้น
+  int motorL = -constrain((int)(speed + out_B), -speed, speed);
+  int motorR = -constrain((int)(speed - out_B), -speed, speed);
 
   drive4(motorL, motorR, motorL, motorR);
   delay(1);
@@ -194,6 +194,18 @@ inline void lineFollow_PID_B_auto(int speed) {
 // Fline_by_pass: วิ่งตามเส้นจนกว่าจะผ่านเส้นตัดครบตามจำนวนที่กำหนด
 inline void Fline_by_pass(int speed, int pass_lines) {
   for (int count = 0; count < pass_lines; count++) {
+    // หากเริ่มคำสั่งขณะที่ตัวหุ่นอยู่บนเส้นตัดอยู่แล้ว ให้วิ่งพ้นเส้นตัดเดิมออกไปก่อน
+    if (count == 0 && isFrontCrossing()) {
+      unsigned long t_cross = millis();
+      while (isFrontCrossing() && (millis() - t_cross < 1500)) {
+        lineFollow_PID_auto(speed);
+      }
+      unsigned long t_clear = millis();
+      while (millis() - t_clear < 40) {
+        lineFollow_PID_auto(speed);
+      }
+    }
+
     // 1. วิ่งตามเส้นจนกว่าจะเจอเส้นตัด (Crossing >= ครึ่งหนึ่ง)
     while (!isFrontCrossing()) {
       lineFollow_PID_auto(speed);
@@ -219,6 +231,18 @@ inline void Fline_by_pass(int speed, int pass_lines) {
 // Fline_by_pass_B: วิ่งตามเส้นถอยหลังจนกว่าจะผ่านเส้นตัดครบตามจำนวน
 inline void Fline_by_pass_B(int speed, int pass_lines) {
   for (int count = 0; count < pass_lines; count++) {
+    // หากเริ่มคำสั่งขณะที่ตัวหุ่นอยู่บนเส้นตัดด้านหลังอยู่แล้ว ให้วิ่งพ้นเส้นตัดเดิมออกไปก่อน
+    if (count == 0 && isBackCrossing()) {
+      unsigned long t_cross = millis();
+      while (isBackCrossing() && (millis() - t_cross < 1500)) {
+        lineFollow_PID_B_auto(speed);
+      }
+      unsigned long t_clear = millis();
+      while (millis() - t_clear < 40) {
+        lineFollow_PID_B_auto(speed);
+      }
+    }
+
     while (!isBackCrossing()) {
       lineFollow_PID_B_auto(speed);
     }
@@ -581,13 +605,15 @@ inline void checkLine_B(int speed = 30) {
 
   unsigned long startT = millis();
   if (lineLeft) {
+    // เส้นอยู่ซ้ายของเซนเซอร์หลัง -> ท้ายต้องเบี่ยงซ้าย หัวต้องเบี่ยงขวา -> ล้อซ้ายเดินหน้า (tr_4w)
     while (!isBackSensorOnLine(BACK_CENTER_INDEX) && (millis() - startT < 1500)) {
-      tl_4w(speed);
+      tr_4w(speed);
       delay(2);
     }
   } else if (lineRight) {
+    // เส้นอยู่ขวาของเซนเซอร์หลัง -> ท้ายต้องเบี่ยงขวา หัวต้องเบี่ยงซ้าย -> ล้อขวาเดินหน้า (tl_4w)
     while (!isBackSensorOnLine(BACK_CENTER_INDEX) && (millis() - startT < 1500)) {
-      tr_4w(speed);
+      tl_4w(speed);
       delay(2);
     }
   }
