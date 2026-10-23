@@ -343,15 +343,25 @@ export const PidTuner: React.FC<PidTunerProps> = ({ robotState, isConnected }) =
       {/* Line KD Slider, Direct Input, and Preset Chips */}
       <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 space-y-2">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="font-semibold text-slate-300">
               Line KD (ลดการสะบัด/เพิ่มความนิ่ง &mdash; Auto หรือ 5.50 - 14.50):
             </span>
             {kd < 0 ? (
-              <span className="text-cyan-400 font-mono font-bold text-xs">(Auto คำนวณอัตโนมัติ)</span>
+              <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-cyan-950/40 text-cyan-400 border border-cyan-800/40">
+                โหมด Auto (คำนวณตาม Kp)
+              </span>
             ) : kd === 0 ? (
-              <span className="text-slate-400 font-mono text-xs">(0.00 ปิดระบบ D)</span>
-            ) : null}
+              <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                0.00 (ปิดระบบ D)
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-emerald-950/50 text-emerald-300 border border-emerald-500/50 flex items-center gap-1">
+                <span>⚡ ใช้งานค่าที่กรอกเอง:</span>
+                <strong className="text-white">{kd.toFixed(2)}</strong>
+                <span>(หุ่นวิ่งด้วยค่านี้)</span>
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-slate-400 text-[11px]">พิมพ์ค่าเอง:</span>
@@ -419,7 +429,11 @@ export const PidTuner: React.FC<PidTunerProps> = ({ robotState, isConnected }) =
             <button
               type="button"
               onClick={() => setKd(-1.00)}
-              className={`px-2.5 py-1 rounded text-xs font-mono transition-colors ${kd < 0 ? 'bg-cyan-500 text-slate-950 font-bold shadow-glow-cyan' : 'bg-cyan-950/40 text-cyan-300 border border-cyan-500/40'}`}
+              className={`px-2.5 py-1 rounded text-xs font-mono transition-colors ${
+                kd < 0
+                  ? 'bg-cyan-500 text-slate-950 font-bold shadow-glow-cyan'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+              }`}
             >
               Auto (คำนวณตาม Kp)
             </button>
@@ -496,7 +510,7 @@ export const PidTuner: React.FC<PidTunerProps> = ({ robotState, isConnected }) =
       {/* Action Footer Button */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
         <div className="text-xs text-slate-400">
-          คำสั่งที่จะส่ง: <span className="font-mono text-cyan-300 font-bold">TEST_PID ({mode})</span> Spd: <span className="font-mono text-cyan-300">{speed}%</span> Kp: <span className="font-mono text-indigo-300">{kp.toFixed(2)}</span> Kd: <span className="font-mono text-cyan-300">{kd < 0 ? 'Auto' : kd.toFixed(2)}</span> Val: <span className="font-mono text-emerald-300">{val}</span>
+          คำสั่งที่จะส่ง: <span className="font-mono text-cyan-300 font-bold">TEST_PID ({mode})</span> | Spd: <span className="font-mono text-cyan-300 font-bold">{speed}%</span> | Kp: <span className="font-mono text-indigo-300 font-bold">{kp.toFixed(2)}</span> | Kd: <span className={`font-mono font-bold px-1.5 py-0.5 rounded ${kd < 0 ? 'bg-cyan-950/60 text-cyan-300 border border-cyan-800/40' : 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/50'}`}>{kd < 0 ? 'Auto' : `${kd.toFixed(2)} (ค่าที่กรอกเอง)`}</span> | Val: <span className="font-mono text-emerald-300">{val}</span>
         </div>
 
         <button

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { serial } from './services/serialService';
 import { TelemetryData, CalibData, RobotState, LapLog } from './types';
 import { Header } from './components/Header';
@@ -32,6 +32,9 @@ export const App: React.FC = () => {
 
   const [telem, setTelem] = useState<TelemetryData | null>(null);
   const [calib, setCalib] = useState<CalibData | null>(null);
+  const telemRef = useRef<TelemetryData | null>(null);
+  telemRef.current = telem;
+
   const [lapHistory, setLapHistory] = useState<LapLog[]>(() => {
     const saved = localStorage.getItem('puppybot_lap_history');
     if (saved) {
@@ -66,8 +69,8 @@ export const App: React.FC = () => {
           timestamp: timeStr,
           round: round ?? 1,
           timeMs,
-          cmd: telem?.task?.cmd || 'TEST_PID',
-          mode: telem?.task?.mode || 'phase',
+          cmd: telemRef.current?.task?.cmd || 'TEST_PID',
+          mode: telemRef.current?.task?.mode || 'phase',
           speed: 60,
         };
 
@@ -93,7 +96,7 @@ export const App: React.FC = () => {
       unsubTelem();
       unsubCalib();
     };
-  }, [telem]);
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#070b14] text-slate-100 flex flex-col font-sans relative overflow-x-hidden">

@@ -177,7 +177,7 @@ class SerialService {
           const { value, done } = await this.reader.read();
           if (done) break;
           if (value) {
-            this.inputBuffer += textDecoder.decode(value);
+            this.inputBuffer += textDecoder.decode(value, { stream: true });
             this.processBuffer();
           }
         }
@@ -209,13 +209,19 @@ class SerialService {
   }
 
   private handleLine(line: string) {
-    if (!line.includes('"type":"TELEM"')) {
-      this.notifyLog(`[RX] ${line}`, 'rx');
+    const trimmed = line.trim();
+    if (!trimmed) return;
+
+    if (!trimmed.includes('"type":"TELEM"')) {
+      this.notifyLog(`[RX] ${trimmed}`, 'rx');
     }
 
     try {
-      if (line.startsWith('{') && line.endsWith('}')) {
-        const data = JSON.parse(line);
+      const firstBrace = trimmed.indexOf('{');
+      const lastBrace = trimmed.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace > firstBrace) {
+        const jsonStr = trimmed.substring(firstBrace, lastBrace + 1);
+        const data = JSON.parse(jsonStr);
         this.processPacket(data);
       }
     } catch {}
