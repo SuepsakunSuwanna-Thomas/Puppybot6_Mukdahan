@@ -1,0 +1,9 @@
+{
+  "name": "puppybot6",
+  "private": true,
+  "version": "2.0.0",
+  "scripts": {
+    "build": "cd dashboard && npm install && npm run build && copy ..\\dist\\index.html ..\\index.html 2>nul || cp ../dist/index.html ../index.html 2>/dev/null || true",
+    "dev": "cd dashboard && npm run dev"
+  }
+}

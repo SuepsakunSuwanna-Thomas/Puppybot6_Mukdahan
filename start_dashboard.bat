@@ -1,17 +1,30 @@
 @echo off
-title PuppyBot6 Web Serial Dashboard
+title PuppyBot6 Mission Control & Sequence Studio
 echo ========================================================
-echo   Launching PuppyBot6 Web Serial Mission Control Lab...
+echo   Launching PuppyBot6 React + Tailwind + shadcn/ui Lab
 echo ========================================================
 echo.
 
-:: Check if Python is installed
-python --version >nul 2>&1
+:: Check if Node is available to run dev server
+where npm >nul 2>&1
 if %ERRORLEVEL% EQU 0 (
-    echo Starting local server with Python...
-    python "%~dp0server.py"
-) else (
-    echo Python not detected. Opening index.html directly in browser...
-    start "" "%~dp0index.html"
+    echo [1] Starting Vite Hot-Reload Dev Server (Recommended for development)...
+    cd "%~dp0dashboard"
+    start "" http://localhost:5173
+    npm run dev
+    goto :end
 )
+
+:: Fallback to Python server serving dist/
+where python >nul 2>&1
+if %ERRORLEVEL% EQU 0 (
+    echo [2] Node not found. Starting local Python server...
+    python "%~dp0server.py"
+    goto :end
+)
+
+echo Opening dist/index.html directly...
+start "" "%~dp0dist\index.html"
+
+:end
 pause

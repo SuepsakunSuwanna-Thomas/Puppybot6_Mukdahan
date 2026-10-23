@@ -7,4 +7,6 @@ backup/*.zip
 __pycache__/
 *.pyc
 ref_sisaket/
-
+node_modules/
+dashboard/node_modules/
+.vite/

@@ -5,7 +5,16 @@ import os
 import sys
 
 PORT = 8000
-DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DIST_DIR = os.path.join(BASE_DIR, "dist")
+
+# If production build (dist) exists, serve from dist
+if os.path.exists(os.path.join(DIST_DIR, "index.html")):
+    DIRECTORY = DIST_DIR
+    INDEX_URL = f"http://localhost:{PORT}/"
+else:
+    DIRECTORY = BASE_DIR
+    INDEX_URL = f"http://localhost:{PORT}/index.html"
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -14,15 +23,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 def run():
     os.chdir(DIRECTORY)
     with socketserver.TCPServer(("", PORT), Handler) as httpd:
-        url = f"http://localhost:{PORT}/index.html"
         print("=" * 60)
-        print("  PUPPYBOT6 PRO MISSION CONTROL & DIAGNOSTICS LAB")
-        print(f"  Server running at: {url}")
+        print("  PUPPYBOT6 PRO MISSION CONTROL & SEQUENCE STUDIO")
+        print(f"  Serving from: {DIRECTORY}")
+        print(f"  URL: {INDEX_URL}")
         print("  Opening browser automatically...")
         print("  Press Ctrl+C to stop the server.")
         print("=" * 60)
         try:
-            webbrowser.open(url)
+            webbrowser.open(INDEX_URL)
         except Exception:
             pass
         try:
