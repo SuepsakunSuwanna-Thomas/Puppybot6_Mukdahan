@@ -34,6 +34,10 @@ class SerialService {
     return this.port !== null && this.port.readable !== null;
   }
 
+  public isAutoReconnectActive(): boolean {
+    return this.isAutoReconnect;
+  }
+
   public subscribeLog(cb: LogCallback) {
     this.logListeners.add(cb);
     return () => { this.logListeners.delete(cb); };
@@ -291,6 +295,27 @@ class SerialService {
   private initAutoReconnect() {
     if (!this.isSupported()) return;
 
+    // Check saved state
+    const savedAuto = localStorage.getItem('puppybot_auto_connect');
+    this.isAutoReconnect = savedAuto !== 'false';
+
+    // Immediate check on startup (when refreshing or opening page)
+    setTimeout(async () => {
+      if (this.isAutoReconnect && !this.port && !this.isConnecting) {
+        try {
+          // @ts-ignore
+          const ports = await navigator.serial.getPorts();
+          if (ports && ports.length > 0) {
+            await this.openPort(ports[0], this.baudRate);
+            this.notifyLog('[SYSTEM] ⚡ ตรวจพบบอร์ดเดิมที่เคยจับคู่ไว้ เชื่อมต่ออัตโนมัติสำเร็จ!', 'rx');
+          }
+        } catch (e) {
+          console.warn('Initial auto-connect attempt failed:', e);
+        }
+      }
+    }, 200);
+
+    // When an authorized USB device is plugged in
     // @ts-ignore
     navigator.serial.addEventListener('connect', async (event: any) => {
       this.notifyLog('[SYSTEM] ตรวจพบการเสียบสาย USB กลับเข้ามา...', 'system');
@@ -298,21 +323,22 @@ class SerialService {
         setTimeout(async () => {
           try {
             await this.openPort(event.target, this.baudRate);
-            this.notifyLog('[SYSTEM] ⚡ เชื่อมต่อ PuppyBot6 อัตโนมัติสำเร็จ!', 'rx');
+            this.notifyLog('[SYSTEM] ⚡ ตรวจพบสาย USB เชื่อมต่อ PuppyBot6 อัตโนมัติสำเร็จ!', 'rx');
           } catch (e) {
             console.warn(e);
           }
-        }, 500);
+        }, 300);
       }
     });
 
+    // When device is unplugged
     // @ts-ignore
     navigator.serial.addEventListener('disconnect', async () => {
-      this.notifyLog('[SYSTEM] ตรวจพบการถอดสาย USB', 'warn');
+      this.notifyLog('[SYSTEM] ⚡ ตรวจพบการถอดสาย USB (นำไปวิ่งบนสนามได้เลย — เมื่อนำกลับมาเสียบ USB ระบบจะเชื่อมต่อให้อัตโนมัติ)', 'warn');
       await this.handleDeviceLost();
     });
 
-    // Watchdog
+    // Watchdog Polling (every 1.2s)
     setInterval(async () => {
       if (this.isAutoReconnect && !this.port && !this.isConnecting) {
         try {
@@ -324,7 +350,7 @@ class SerialService {
           }
         } catch {}
       }
-    }, 1500);
+    }, 1200);
   }
 }
 

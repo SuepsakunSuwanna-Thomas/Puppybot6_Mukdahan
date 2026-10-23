@@ -133,15 +133,27 @@ export const Header: React.FC<HeaderProps> = ({
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
               isConnected
                 ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-400'
+                : serial.isAutoReconnectActive()
+                ? 'bg-amber-950/30 border-amber-500/40 text-amber-300'
                 : 'bg-slate-900 border-slate-800 text-slate-400'
             }`}
           >
             <span
               className={`w-2 h-2 rounded-full ${
-                isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'
+                isConnected
+                  ? 'bg-emerald-400 animate-pulse'
+                  : serial.isAutoReconnectActive()
+                  ? 'bg-amber-400 animate-pulse'
+                  : 'bg-slate-600'
               }`}
             />
-            <span>{isConnected ? 'ONLINE' : 'OFFLINE'}</span>
+            <span>
+              {isConnected
+                ? 'ONLINE'
+                : serial.isAutoReconnectActive()
+                ? 'รอเสียบสาย USB (AUTO)'
+                : 'OFFLINE'}
+            </span>
           </div>
 
           {/* Robot State Badge */}
