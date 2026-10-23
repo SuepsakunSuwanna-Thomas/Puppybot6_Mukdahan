@@ -19,7 +19,7 @@
     },
     {
       "type": "shell",
-      "command": "pio run",
+      "command": "pio run -j 8",
       "label": "PlatformIO: Build",
       "group": {
         "kind": "build",

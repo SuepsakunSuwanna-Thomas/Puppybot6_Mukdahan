@@ -10,9 +10,37 @@
 // ============================================================================
 // 1. ตาราง KD แยกตามความเร็ว (ตามข้อกำหนดของผู้ใช้)
 // ============================================================================
+// ตาราง KD ด้านหน้า
 inline float get_KD_for_speed(int speed) {
   if (speed >= 100) {
-    return 12.3f;
+    return 16.5f;
+  } else if (speed >= 90) {
+    return 14.5f;
+  } else if (speed >= 80) {
+    return 12.9f;
+  } else if (speed >= 70) {
+    return 10.5f;
+  } else if (speed >= 60) {
+    return 8.8f;
+  } else if (speed >= 50) {
+    return 7.5f;
+  } else if (speed >= 40) {
+    return 7.5f;
+  } else if (speed >= 30) {
+    return 5.5f;
+  } else if (speed >= 20) {
+    return 3.2f;
+  } else if (speed >= 10) {
+    return 1.0f;
+  } else {
+    return 6.10f; // ค่ามาตรฐาน
+  }
+}
+
+// ตาราง KD ด้านหลัง (เซนเซอร์หลัง / วิ่งถอยหลัง)
+inline float get_KD_for_speed_B(int speed) {
+  if (speed >= 100) {
+    return 1.5f;
   } else if (speed >= 90) {
     return 14.5f;
   } else if (speed >= 80) {
@@ -68,122 +96,60 @@ inline void handleLineLostAlarm() {
   }
 }
 
-// ด้านหน้า: lineFollow_PID_auto (ขับเคลื่อน 4 ล้อพร้อม Motor Trims และ Speed Scale)
+// ด้านหน้า: lineFollow_PID_auto (โครงสร้าง PID ดั้งเดิมจาก rp2350-ide _V1 เพื่อใช้ค่า KP=0.40 และตาราง KD เดิมได้ 100%)
 inline void lineFollow_PID_auto(int speed) {
-  static unsigned long last_call_time = 0;
   static int _prev_err = 0;
 
-  unsigned long now = millis();
-  // ข้อ 1: หากห่างจากการเรียกครั้งล่าสุดเกิน 100ms (เริ่มคำสั่งวิ่งใหม่) ให้เคลียร์ Error เก่า ป้องกันสะบัดตอนออกตัว
-  if (now - last_call_time > 100) {
-    _prev_err = 0;
-  }
-
-  // ตรวจสอบการหลุดเส้นต่อเนื่องเกินเวลาที่กำหนด (หากตั้งเป็น -1 หรือ <= 0 จะปิดการทำงาน)
-  if (line_lost_timeout_ms > 0) {
-    static unsigned long lost_start_time = 0;
-    static bool is_lost = false;
-
-    if (now - last_call_time > 100) {
-      is_lost = false;
-    }
-
-    if (isFrontLineLost()) {
-      if (!is_lost) {
-        is_lost = true;
-        lost_start_time = now;
-      } else if (now - lost_start_time >= (unsigned long)line_lost_timeout_ms) {
-        handleLineLostAlarm();
-      }
-    } else {
-      is_lost = false;
-    }
-  }
-  last_call_time = now;
-
-  float KP = line_KP; // ดึงค่าจากตัวแปรส่วนกลาง (ค่าตั้งต้น 0.08)
-  // หาก line_KD >= 0 ให้ใช้ค่าที่ผู้ใช้ตั้งจริง (รวมถึง 0.00 ปิด D), ถ้า < 0 (-1) ถึงจะใช้ auto ตารางความเร็ว
+  float KP = line_KP; // ค่าเริ่มต้น 0.40f ตามสูตร Sisaket เดิม
+  // หาก line_KD >= 0 ให้ใช้ค่าที่ผู้ใช้ตั้งจริง, ถ้า < 0 (-1) จะดึงจากตารางความเร็วอัตโนมัติ (1.0 - 14.5)
   float KD = (line_KD >= 0.0f) ? line_KD : get_KD_for_speed(speed);
 
+  // อ่านค่าตำแหน่งเส้นครั้งเดียว (7 เซนเซอร์) เพื่อรักษา Loop Timing ให้เร็วเท่ากับโค้ดเดิมเป๊ะๆ
   int present_position = readline();
   int setpoint = ((NUM_FRONT_SENSORS - 1) * 100) / 2; // (6 * 100) / 2 = 300
 
-  // หากกำลังอยู่บนเส้นตัด ป้องกันไม่ให้ตำแหน่งเพี้ยนและรีเซ็ต error เพื่อไม่ให้เกิดการส่ายกระชาก
-  if (isFrontCrossing()) {
-    present_position = setpoint;
-    _prev_err = 0;
-  }
-
+  // คำนวณ PD ตามสูตรเดิมอย่างต่อเนื่อง ไม่มีอะไรมาดักแทรกแซง
   float err = present_position - setpoint;
   float deriv = err - _prev_err;
   float out = KP * err + KD * deriv;
   _prev_err = err;
 
-  // สูตรขับเคลื่อน: ล้อด้านนอกถูกบล็อกไว้ไม่เกิน speed (ไม่เร่งเกินสปีด)
-  // ล้อด้านในหมุนถอยหลังช่วยเลี้ยวได้ถึง -speed (ที่ speed 100 ถอยหลังได้ถึง -100 เลี้ยววงแคบได้คมมาก)
+  // จำกัดความเร็วล้อซ้าย-ขวา (-speed ถึง speed เพื่อให้ล้อในถอยหลังช่วยเลี้ยวตามสูตรเดิม)
   int motorL = constrain((int)(speed + out), -speed, speed);
   int motorR = constrain((int)(speed - out), -speed, speed);
 
-  // สั่งงานมอเตอร์ทั้ง 4 ล้อพร้อมกัน (M1, M2, M3, M4)
-  drive4(motorL, motorR, motorL, motorR);
+  // สั่งงานมอเตอร์ทั้ง 4 ล้อโดยตรงตามโครงสร้างเดิม (พร้อมหักลบ Trim ถ้ามี)
+  motor(1, motorL - motor_trim_M1);
+  motor(2, motorR - motor_trim_M2);
+  motor(3, motorL - motor_trim_M3);
+  motor(4, motorR - motor_trim_M4);
   delay(1);
 }
 
-// ด้านหลัง: lineFollow_PID_B_auto (วิ่งถอยหลังตามเส้นด้วยเซนเซอร์หลัง)
+// ด้านหลัง: lineFollow_PID_B_auto (วิ่งถอยหลังตามเส้นด้วยเซนเซอร์หลัง ตามโครงสร้างเดิม)
 inline void lineFollow_PID_B_auto(int speed) {
-  static unsigned long last_call_time_B = 0;
   static int _prev_err_B = 0;
 
-  unsigned long now = millis();
-  // ข้อ 1: หากห่างจากการเรียกครั้งล่าสุดเกิน 100ms (เริ่มคำสั่งวิ่งใหม่) ให้เคลียร์ Error เก่า ป้องกันสะบัดตอนออกตัว
-  if (now - last_call_time_B > 100) {
-    _prev_err_B = 0;
-  }
-
-  // ตรวจสอบการหลุดเส้นต่อเนื่องด้านหลังเกินเวลาที่กำหนด (หากตั้งเป็น -1 หรือ <= 0 จะปิดการทำงาน)
-  if (line_lost_timeout_ms > 0) {
-    static unsigned long lost_start_time_B = 0;
-    static bool is_lost_B = false;
-
-    if (now - last_call_time_B > 100) {
-      is_lost_B = false;
-    }
-
-    if (isBackLineLost()) {
-      if (!is_lost_B) {
-        is_lost_B = true;
-        lost_start_time_B = now;
-      } else if (now - lost_start_time_B >= (unsigned long)line_lost_timeout_ms) {
-        handleLineLostAlarm();
-      }
-    } else {
-      is_lost_B = false;
-    }
-  }
-  last_call_time_B = now;
-
-  float KP = line_KP_B; // ดึงค่าจากตัวแปรส่วนกลาง (ค่าตั้งต้น 0.40)
-  float KD = (line_KD_B >= 0.0f) ? line_KD_B : get_KD_for_speed(speed);
+  float KP = line_KP_B; // ค่าเริ่มต้น 0.40f
+  float KD = (line_KD_B >= 0.0f) ? line_KD_B : get_KD_for_speed_B(speed);
 
   int present_position_B = readline_B();
   int setpoint_B = ((NUM_BACK_SENSORS - 1) * 100) / 2; // (6 * 100) / 2 = 300
-
-  // หากกำลังอยู่บนเส้นตัดด้านหลัง
-  if (isBackCrossing()) {
-    present_position_B = setpoint_B;
-    _prev_err_B = 0;
-  }
 
   float err_B = present_position_B - setpoint_B;
   float deriv_B = err_B - _prev_err_B;
   float out_B = KP * err_B + KD * deriv_B;
   _prev_err_B = err_B;
 
-  // วิ่งถอยหลัง: เมื่อเส้นอยู่ขวา (out_B > 0) ล้อซ้ายต้องหมุนถอยหลังเร็วกว่าล้อขวา เพื่อดึงท้ายหุ่นยนต์ไปทางขวาเข้าหาเส้น
-  int motorL = -constrain((int)(speed + out_B), -speed, speed);
-  int motorR = -constrain((int)(speed - out_B), -speed, speed);
+  // คำนวณความเร็วมอเตอร์ถอยหลังตามสูตร rp2350-ide _V1 (ล้อซ้าย -out_B, ล้อขวา +out_B)
+  int m1Speed = constrain((int)(speed - out_B), -speed, speed); // ล้อซ้าย (M1, M3)
+  int m2Speed = constrain((int)(speed + out_B), -speed, speed); // ล้อขวา (M2, M4)
 
-  drive4(motorL, motorR, motorL, motorR);
+  // สั่งงานมอเตอร์ถอยหลัง (ทิศทางติดลบ) พร้อมชดเชยค่า Trim
+  motor(1, -m1Speed + motor_trim_M1);
+  motor(2, -m2Speed + motor_trim_M2);
+  motor(3, -m1Speed + motor_trim_M3);
+  motor(4, -m2Speed + motor_trim_M4);
   delay(1);
 }
 

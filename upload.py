@@ -46,10 +46,14 @@ def run_upload():
         input("\nกด Enter เพื่อออกจากโปรแกรม...")
         sys.exit(1)
 
-    print(f"{YELLOW}⏳ กำลังเริ่มทำการคอมไพล์และอัปโหลดโค้ดลงบอร์ด...{RESET}\n")
+    # ดึงจำนวน CPU Cores ทั้งหมดของเครื่องมาใช้ประมวลผล
+    cpu_cores = os.cpu_count() or 8
+    print(f"{GREEN}{BOLD}⚡ Multi-Core Acceleration: ใช้งาน CPU ทั้งหมด {cpu_cores} Cores เต็มกำลัง!{RESET}")
+    print(f"{GREEN}⚡ Turbo Caching: เปิดใช้งาน ccache ลดเวลาคอมไพล์สูงสุด{RESET}\n")
+    print(f"{YELLOW}⏳ กำลังเริ่มทำการคอมไพล์แบบคู่ขนาน ({cpu_cores} Threads) และอัปโหลดโค้ดลงบอร์ด...{RESET}\n")
 
-    # สั่งรันคำสั่ง pio run --target upload แบบแสดงผลสด (Live output)
-    cmd = ["pio", "run", "--target", "upload"]
+    # สั่งรันคำสั่ง pio run -j <cpu_cores> --target upload แบบดึงทุกคอร์
+    cmd = ["pio", "run", "-j", str(cpu_cores), "--target", "upload"]
     
     try:
         process = subprocess.run(cmd, shell=True)

@@ -10,9 +10,9 @@
 // M3: ซ้ายหลัง (Left Back)
 // M4: ขวาหลัง (Right Back)
 int motor_trim_M1 = 0;
-int motor_trim_M2 = 0;
+int motor_trim_M2 = -1;
 int motor_trim_M3 = 0;
-int motor_trim_M4 = 0;
+int motor_trim_M4 = -1;
 
 // เปอร์เซ็นต์ปรับเพิ่ม/ลดความเร็วมอเตอร์ทั้งหมด (Battery Compensation)
 // เช่น ใส่ 5 คือเพิ่มความเร็วขึ้น 5%, ใส่ -10 คือลดความเร็วลง 10%
@@ -21,9 +21,9 @@ int speed_offset_pct = 0;
 
 // ค่า KP และ KD สำหรับการวิ่งตามเส้น (เปลี่ยนที่นี่ค่าเดียว มีผลกับทุกฟังก์ชันวิ่งเส้น)
 float line_KP = 0.40f;   // KP วิ่งเดินหน้า (สูตร Sisaket: 0.40 - 0.45)
-float line_KP_B = 0.40f; // KP วิ่งถอยหลัง
+float line_KP_B = 1.0f; // KP วิ่งถอยหลัง
 float line_KD = -1.0f;   // KD วิ่งเดินหน้า (-1 = Auto ตามตารางความเร็ว Sisaket 12.3 ที่สปีด 100, หรือตั้งค่าตัวเลขตรงๆ)
-float line_KD_B = -1.0f; // KD วิ่งถอยหลัง
+float line_KD_B = 0.0f; // KD วิ่งถอยหลัง
 
 // เวลาตรวจจับการหลุดเส้นขณะวิ่ง PID (3000 ms = ประมาณ 3 วินาที, ตั้งเป็น -1 เพื่อปิดการทำงาน)
 long line_lost_timeout_ms = 3000;
