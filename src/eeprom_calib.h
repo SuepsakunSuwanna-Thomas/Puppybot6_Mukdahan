@@ -84,9 +84,9 @@ inline void loadCalibrationFromEEPROM() {
     // YELLOW
     calib.tcs_front_rgb[3][0] = 135; calib.tcs_front_rgb[3][1] = 135; calib.tcs_front_rgb[3][2] = 30;
     // WHITE
-    calib.tcs_front_rgb[4][0] = 100; calib.tcs_front_rgb[4][1] = 100; calib.tcs_front_rgb[4][2] = 100;
+    calib.tcs_front_rgb[4][0] = 95;  calib.tcs_front_rgb[4][1] = 115; calib.tcs_front_rgb[4][2] = 90;
     // BLACK
-    calib.tcs_front_rgb[5][0] = 95;  calib.tcs_front_rgb[5][1] = 105; calib.tcs_front_rgb[5][2] = 100;
+    calib.tcs_front_rgb[5][0] = 100; calib.tcs_front_rgb[5][1] = 100; calib.tcs_front_rgb[5][2] = 100;
 
     for (int i = 0; i < NUM_CALIB_COLORS; i++) {
       for (int k = 0; k < 3; k++) {

@@ -55,6 +55,32 @@ export const TelemetryBar: React.FC<TelemetryBarProps> = ({ telem }) => {
     await serial.sendCommand({ cmd: 'RESET_ENC' });
   };
 
+  const getColorBadgeClass = (name: string) => {
+    switch (name.toUpperCase()) {
+      case 'RED': return 'bg-rose-950/80 text-rose-300 border border-rose-600/60 shadow-[0_0_8px_rgba(244,63,94,0.3)]';
+      case 'GREEN': return 'bg-emerald-950/80 text-emerald-300 border border-emerald-600/60 shadow-[0_0_8px_rgba(16,185,129,0.3)]';
+      case 'BLUE': return 'bg-blue-950/80 text-blue-300 border border-blue-600/60 shadow-[0_0_8px_rgba(59,130,246,0.3)]';
+      case 'YELLOW': return 'bg-amber-950/80 text-amber-300 border border-amber-600/60 shadow-[0_0_8px_rgba(245,158,11,0.3)]';
+      case 'WHITE': return 'bg-white text-slate-900 border border-slate-200 shadow-[0_0_8px_rgba(255,255,255,0.4)] font-black';
+      case 'BLACK': return 'bg-slate-950 text-slate-400 border border-slate-800';
+      default: return 'bg-slate-800 text-slate-400 border border-slate-700';
+    }
+  };
+
+  const getDisplaySwatchBg = (name: string, r: number, g: number, b: number) => {
+    switch (name.toUpperCase()) {
+      case 'RED': return '#ef4444';
+      case 'GREEN': return '#10b981';
+      case 'BLUE': return '#3b82f6';
+      case 'YELLOW': return '#eab308';
+      case 'WHITE': return '#ffffff';
+      case 'BLACK': return '#18181b';
+      default:
+        if (r === 0 && g === 0 && b === 0) return '#334155';
+        return `rgb(${Math.min(255, Math.round(r * 2.2))}, ${Math.min(255, Math.round(g * 2.2))}, ${Math.min(255, Math.round(b * 2.2))})`;
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 mb-6">
       {/* 1. Dual Color Sensors (Floor & Side Can) */}
@@ -74,35 +100,35 @@ export const TelemetryBar: React.FC<TelemetryBarProps> = ({ telem }) => {
           <div className="bg-slate-900/60 rounded-lg p-2.5 border border-slate-800/60 flex flex-col justify-between">
             <div className="flex items-center justify-between text-[11px] mb-1.5">
               <span className="text-slate-400">1. สีพื้นสนาม</span>
-              <span className="font-bold text-xs px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300">
+              <span className={`font-bold text-xs px-2 py-0.5 rounded transition-all ${getColorBadgeClass(frontColorName)}`}>
                 {frontColorName}
               </span>
             </div>
             <div className="flex items-center gap-2">
               <div 
-                className="w-8 h-8 rounded-md border border-slate-700 shadow-sm flex-shrink-0 transition-colors"
-                style={{ backgroundColor: `rgb(${frontR}, ${frontG}, ${frontB})` }}
-                title={`RGB: ${frontR}, ${frontG}, ${frontB}`}
+                className="w-8 h-8 rounded-md border border-slate-700 shadow-sm flex-shrink-0 transition-all duration-200"
+                style={{ backgroundColor: getDisplaySwatchBg(frontColorName, frontR, frontG, frontB) }}
+                title={`Detected: ${frontColorName} | RGB: ${frontR}, ${frontG}, ${frontB}`}
               />
               <div className="flex-1 space-y-1">
                 <div className="flex items-center gap-1 text-[10px] font-mono text-slate-400">
                   <span className="text-rose-400 font-bold w-2.5">R</span>
                   <div className="flex-1 bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-rose-500 h-full transition-all" style={{ width: `${Math.min(100, (frontR / 255) * 100)}%` }} />
+                    <div className="bg-rose-500 h-full transition-all" style={{ width: `${Math.min(100, (frontR / 200) * 100)}%` }} />
                   </div>
                   <span className="w-6 text-right">{frontR}</span>
                 </div>
                 <div className="flex items-center gap-1 text-[10px] font-mono text-slate-400">
                   <span className="text-emerald-400 font-bold w-2.5">G</span>
                   <div className="flex-1 bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-emerald-500 h-full transition-all" style={{ width: `${Math.min(100, (frontG / 255) * 100)}%` }} />
+                    <div className="bg-emerald-500 h-full transition-all" style={{ width: `${Math.min(100, (frontG / 200) * 100)}%` }} />
                   </div>
                   <span className="w-6 text-right">{frontG}</span>
                 </div>
                 <div className="flex items-center gap-1 text-[10px] font-mono text-slate-400">
                   <span className="text-blue-400 font-bold w-2.5">B</span>
                   <div className="flex-1 bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-blue-500 h-full transition-all" style={{ width: `${Math.min(100, (frontB / 255) * 100)}%` }} />
+                    <div className="bg-blue-500 h-full transition-all" style={{ width: `${Math.min(100, (frontB / 200) * 100)}%` }} />
                   </div>
                   <span className="w-6 text-right">{frontB}</span>
                 </div>
@@ -114,35 +140,35 @@ export const TelemetryBar: React.FC<TelemetryBarProps> = ({ telem }) => {
           <div className="bg-slate-900/60 rounded-lg p-2.5 border border-slate-800/60 flex flex-col justify-between">
             <div className="flex items-center justify-between text-[11px] mb-1.5">
               <span className="text-slate-400">2. สีกระป๋องข้าง</span>
-              <span className="font-bold text-xs px-1.5 py-0.5 rounded bg-slate-800 text-indigo-300">
+              <span className={`font-bold text-xs px-2 py-0.5 rounded transition-all ${getColorBadgeClass(sideColorName)}`}>
                 {sideColorName}
               </span>
             </div>
             <div className="flex items-center gap-2">
               <div 
-                className="w-8 h-8 rounded-md border border-slate-700 shadow-sm flex-shrink-0 transition-colors"
-                style={{ backgroundColor: `rgb(${sideR}, ${sideG}, ${sideB})` }}
-                title={`RGB: ${sideR}, ${sideG}, ${sideB}`}
+                className="w-8 h-8 rounded-md border border-slate-700 shadow-sm flex-shrink-0 transition-all duration-200"
+                style={{ backgroundColor: getDisplaySwatchBg(sideColorName, sideR, sideG, sideB) }}
+                title={`Detected: ${sideColorName} | RGB: ${sideR}, ${sideG}, ${sideB}`}
               />
               <div className="flex-1 space-y-1">
                 <div className="flex items-center gap-1 text-[10px] font-mono text-slate-400">
                   <span className="text-rose-400 font-bold w-2.5">R</span>
                   <div className="flex-1 bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-rose-500 h-full transition-all" style={{ width: `${Math.min(100, (sideR / 255) * 100)}%` }} />
+                    <div className="bg-rose-500 h-full transition-all" style={{ width: `${Math.min(100, (sideR / 200) * 100)}%` }} />
                   </div>
                   <span className="w-6 text-right">{sideR}</span>
                 </div>
                 <div className="flex items-center gap-1 text-[10px] font-mono text-slate-400">
                   <span className="text-emerald-400 font-bold w-2.5">G</span>
                   <div className="flex-1 bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-emerald-500 h-full transition-all" style={{ width: `${Math.min(100, (sideG / 255) * 100)}%` }} />
+                    <div className="bg-emerald-500 h-full transition-all" style={{ width: `${Math.min(100, (sideG / 200) * 100)}%` }} />
                   </div>
                   <span className="w-6 text-right">{sideG}</span>
                 </div>
                 <div className="flex items-center gap-1 text-[10px] font-mono text-slate-400">
                   <span className="text-blue-400 font-bold w-2.5">B</span>
                   <div className="flex-1 bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-blue-500 h-full transition-all" style={{ width: `${Math.min(100, (sideB / 255) * 100)}%` }} />
+                    <div className="bg-blue-500 h-full transition-all" style={{ width: `${Math.min(100, (sideB / 200) * 100)}%` }} />
                   </div>
                   <span className="w-6 text-right">{sideB}</span>
                 </div>

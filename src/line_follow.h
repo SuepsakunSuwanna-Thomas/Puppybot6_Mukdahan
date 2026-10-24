@@ -96,29 +96,37 @@ inline void handleLineLostAlarm() {
   }
 }
 
-// ด้านหน้า: lineFollow_PID_auto (โครงสร้าง PID ดั้งเดิมจาก rp2350-ide _V1 เพื่อใช้ค่า KP=0.40 และตาราง KD เดิมได้ 100%)
-inline void lineFollow_PID_auto(int speed) {
-  static int _prev_err = 0;
+// ตัวแปรเก็บ Error รอบก่อนหน้าสำหรับคำนวณ Derivative (D-term)
+static float _line_prev_err = 0.0f;
+static float _line_prev_err_B = 0.0f;
 
-  float KP = line_KP; // ค่าเริ่มต้น 0.40f ตามสูตร Sisaket เดิม
-  // หาก line_KD >= 0 ให้ใช้ค่าที่ผู้ใช้ตั้งจริง, ถ้า < 0 (-1) จะดึงจากตารางความเร็วอัตโนมัติ (1.0 - 14.5)
+// ฟังก์ชันรีเซ็ตสถานะ PID ป้องกันอาการกระชาก (Derivative Kick) และกำหนดให้เซนเซอร์เริ่มที่จุดกึ่งกลาง (300)
+inline void reset_PID_state() {
+  _line_prev_err = 0.0f;
+  _line_prev_err_B = 0.0f;
+  _lastPosition = ((NUM_FRONT_SENSORS - 1) * 100) / 2;     // 300 (Center)
+  _lastPosition_B = ((NUM_BACK_SENSORS - 1) * 100) / 2;   // 300 (Center)
+}
+
+// ด้านหน้า: lineFollow_PID_auto (คำนวณตามสมการ PID แท้ 100% สั่งการเลี้ยวเชิงรุกตามตำแหน่งเส้น)
+inline void lineFollow_PID_auto(int speed) {
+  float KP = line_KP; // ค่า KP (0.40f)
   float KD = (line_KD >= 0.0f) ? line_KD : get_KD_for_speed(speed);
 
-  // อ่านค่าตำแหน่งเส้นครั้งเดียว (7 เซนเซอร์) เพื่อรักษา Loop Timing ให้เร็วเท่ากับโค้ดเดิมเป๊ะๆ
   int present_position = readline();
-  int setpoint = ((NUM_FRONT_SENSORS - 1) * 100) / 2; // (6 * 100) / 2 = 300
+  int setpoint = ((NUM_FRONT_SENSORS - 1) * 100) / 2; // 300 (Center)
 
-  // คำนวณ PD ตามสูตรเดิมอย่างต่อเนื่อง ไม่มีอะไรมาดักแทรกแซง
+  // คำนวณ Error และ Derivative ตามสมการ PD
   float err = present_position - setpoint;
-  float deriv = err - _prev_err;
+  float deriv = err - _line_prev_err;
   float out = KP * err + KD * deriv;
-  _prev_err = err;
+  _line_prev_err = err;
 
-  // จำกัดความเร็วล้อซ้าย-ขวา (-speed ถึง speed เพื่อให้ล้อในถอยหลังช่วยเลี้ยวตามสูตรเดิม)
+  // ควบคุมกำลังมอเตอร์ซ้าย-ขวาอย่างเต็มประสิทธิภาพตามสมการ PID
   int motorL = constrain((int)(speed + out), -speed, speed);
   int motorR = constrain((int)(speed - out), -speed, speed);
 
-  // สั่งงานมอเตอร์ทั้ง 4 ล้อโดยตรงตามโครงสร้างเดิม (พร้อมหักลบ Trim ถ้ามี)
+  // สั่งงานมอเตอร์ทั้ง 4 ล้อ
   motor(1, motorL - motor_trim_M1);
   motor(2, motorR - motor_trim_M2);
   motor(3, motorL - motor_trim_M3);
@@ -126,26 +134,22 @@ inline void lineFollow_PID_auto(int speed) {
   delay(1);
 }
 
-// ด้านหลัง: lineFollow_PID_B_auto (วิ่งถอยหลังตามเส้นด้วยเซนเซอร์หลัง ตามโครงสร้างเดิม)
+// ด้านหลัง: lineFollow_PID_B_auto (วิ่งถอยหลังตามเส้นด้วยสมการ PID เต็มรูปแบบ)
 inline void lineFollow_PID_B_auto(int speed) {
-  static int _prev_err_B = 0;
-
-  float KP = line_KP_B; // ค่าเริ่มต้น 0.40f
+  float KP = line_KP_B; // ค่า KP (0.40f)
   float KD = (line_KD_B >= 0.0f) ? line_KD_B : get_KD_for_speed_B(speed);
 
   int present_position_B = readline_B();
-  int setpoint_B = ((NUM_BACK_SENSORS - 1) * 100) / 2; // (6 * 100) / 2 = 300
+  int setpoint_B = ((NUM_BACK_SENSORS - 1) * 100) / 2; // 300 (Center)
 
   float err_B = present_position_B - setpoint_B;
-  float deriv_B = err_B - _prev_err_B;
+  float deriv_B = err_B - _line_prev_err_B;
   float out_B = KP * err_B + KD * deriv_B;
-  _prev_err_B = err_B;
+  _line_prev_err_B = err_B;
 
-  // คำนวณความเร็วมอเตอร์ถอยหลังตามสูตร rp2350-ide _V1 (ล้อซ้าย -out_B, ล้อขวา +out_B)
-  int m1Speed = constrain((int)(speed - out_B), -speed, speed); // ล้อซ้าย (M1, M3)
-  int m2Speed = constrain((int)(speed + out_B), -speed, speed); // ล้อขวา (M2, M4)
+  int m1Speed = constrain((int)(speed - out_B), -speed, speed);
+  int m2Speed = constrain((int)(speed + out_B), -speed, speed);
 
-  // สั่งงานมอเตอร์ถอยหลัง (ทิศทางติดลบ) พร้อมชดเชยค่า Trim
   motor(1, -m1Speed + motor_trim_M1);
   motor(2, -m2Speed + motor_trim_M2);
   motor(3, -m1Speed + motor_trim_M3);

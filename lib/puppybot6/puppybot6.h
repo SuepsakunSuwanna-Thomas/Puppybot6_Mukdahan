@@ -24,8 +24,8 @@ Adafruit_MCP3008 adc;
 // #define ST7735_YELLOW ST7735_YELLOW
 // #define ST7735_ORANGE ST7735_ORANGE
 #include <Adafruit_TCS34725.h>
-Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_2_4MS, TCS34725_GAIN_4X);
-Adafruit_TCS34725 tcsB = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_2_4MS, TCS34725_GAIN_4X);
+Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_24MS, TCS34725_GAIN_4X);
+Adafruit_TCS34725 tcsB = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_24MS, TCS34725_GAIN_4X);
 
 
 Servo servo1;
@@ -58,7 +58,7 @@ int _sensorPins[20];
 int _NumofSensor = 0;
 int _min_sensor_values[20];
 int _max_sensor_values[20];
-int _lastPosition = 0;
+int _lastPosition = 300;
 int _Sensitive  = 50;
 int stateOfRunPID = 0;
 float  errors = 0, output = 0, integral = 0, derivative = 0, _previous_error = 0;
@@ -86,11 +86,25 @@ inline uint8_t init_TCS_sensor(Adafruit_TCS34725 &sensor, TwoWire &wireBus, bool
   for (uint8_t addr : validAddrs) {
     if (sensor.begin(addr, &wireBus)) {
       foundFlag = true;
+      sensor.setInterrupt(false); // [FIX] สั่งเปิดไฟ LED สีขาวส่องสว่างของเซนเซอร์
       return addr;
     }
   }
   foundFlag = false;
   return 0x29; // default fallback
+}
+
+// [ULTRA FAST BURST READ] อ่าน C, R, G, B ตรงจากรีจิสเตอร์แบบ Burst Read (0.2ms ไม่มี delay บล็อก CPU)
+inline bool readColorNoWait(TwoWire &wireBus, uint8_t addr, uint16_t &r, uint16_t &g, uint16_t &b, uint16_t &c) {
+  wireBus.beginTransmission(addr);
+  wireBus.write(0xA0 | 0x14); // 0xA0 = command + auto-increment, 0x14 = CDATAL
+  if (wireBus.endTransmission() != 0) return false;
+  if (wireBus.requestFrom(addr, (uint8_t)8) != 8) return false;
+  c = wireBus.read(); c |= (uint16_t)wireBus.read() << 8;
+  r = wireBus.read(); r |= (uint16_t)wireBus.read() << 8;
+  g = wireBus.read(); g |= (uint16_t)wireBus.read() << 8;
+  b = wireBus.read(); b |= (uint16_t)wireBus.read() << 8;
+  return true;
 }
 
 void puppybot6_setup() {
@@ -164,22 +178,18 @@ long Read_Color_TCS(int color_of_sensor)
   if (!tcs_front_found) return 0;
 
   unsigned long now = millis();
-  // อัปเดตเฟรมใหม่เมื่อผ่านไปอย่างน้อย 15ms หรือการอ่านครั้งแรก
-  if (now - _tcs_f_last_read >= 15 || _tcs_f_last_read == 0) {
-    if (isConnected(tcs_front_addr)) {
-      uint16_t clearcol_lib = 0, red_lib = 0, green_lib = 0, blue_lib = 0, lux = 0, colorTemp = 0;
-      tcs.getRawData(&red_lib, &green_lib, &blue_lib, &clearcol_lib);
-      colorTemp = tcs.calculateColorTemperature(red_lib, green_lib, blue_lib);
-      lux = tcs.calculateLux(red_lib, green_lib, blue_lib);
-
+  // อัปเดตเฟรมใหม่เมื่อผ่านไปอย่างน้อย 10ms หรือการอ่านครั้งแรก
+  if (now - _tcs_f_last_read >= 10 || _tcs_f_last_read == 0) {
+    uint16_t clearcol_lib = 0, red_lib = 0, green_lib = 0, blue_lib = 0;
+    if (readColorNoWait(Wire, tcs_front_addr, red_lib, green_lib, blue_lib, clearcol_lib)) {
       float average_lib = ((float)red_lib + (float)green_lib + (float)blue_lib) / 3.0f;
       if (average_lib < 1.0f) average_lib = 1.0f; // ป้องกันการหารด้วยศูนย์
 
       _tcs_f_cached_r = (long)(((float)red_lib / average_lib) * 100.0f);
       _tcs_f_cached_g = (long)(((float)green_lib / average_lib) * 100.0f);
       _tcs_f_cached_b = (long)(((float)blue_lib / average_lib) * 100.0f);
-      _tcs_f_cached_temp = colorTemp;
-      _tcs_f_cached_lux = (long)lux;
+      _tcs_f_cached_temp = tcs.calculateColorTemperature(red_lib, green_lib, blue_lib);
+      _tcs_f_cached_lux = (long)clearcol_lib; // ใช้ค่า Clear Channel ที่ถูกต้อง ไม่ติดลบ
       _tcs_f_last_read = now;
     }
   }
@@ -193,64 +203,45 @@ long Read_Color_TCS(int color_of_sensor)
   return 0;
 }
 
+static unsigned long _tcs_b_last_read = 0;
+static long _tcs_b_cached_r = 0;
+static long _tcs_b_cached_g = 0;
+static long _tcs_b_cached_b = 0;
+static long _tcs_b_cached_temp = 0;
+static long _tcs_b_cached_lux = 0;
+
 int Read_Color_TCS_B(int color_of_sensor)
 {
-  long data_color = 0.00;
-	 if(color_of_sensor == 0){
-	  data_color =  TCS_R;
-	 }
-	 else if(color_of_sensor == 1){
-	  data_color =  TCS_G;
-	 }
-	  else if(color_of_sensor == 2){
-	  data_color =  TCS_B;
-	 }
-	 else if(color_of_sensor == 3){
-	  data_color =  TCS_T;
-	 }
-	 else if(color_of_sensor == 4){
-	  data_color =  TCS_L;
-	 }
+  if (!tcs_back_found) return 0;
 
-  return data_color;
+  unsigned long now = millis();
+  if (now - _tcs_b_last_read >= 10 || _tcs_b_last_read == 0) {
+    uint16_t clearcol_lib = 0, red_lib = 0, green_lib = 0, blue_lib = 0;
+    if (readColorNoWait(Wire1, tcs_back_addr, red_lib, green_lib, blue_lib, clearcol_lib)) {
+      float average_lib = ((float)red_lib + (float)green_lib + (float)blue_lib) / 3.0f;
+      if (average_lib < 1.0f) average_lib = 1.0f;
+
+      _tcs_b_cached_r = (long)(((float)red_lib / average_lib) * 100.0f);
+      _tcs_b_cached_g = (long)(((float)green_lib / average_lib) * 100.0f);
+      _tcs_b_cached_b = (long)(((float)blue_lib / average_lib) * 100.0f);
+      _tcs_b_cached_temp = tcsB.calculateColorTemperature(red_lib, green_lib, blue_lib);
+      _tcs_b_cached_lux = (long)clearcol_lib;
+      _tcs_b_last_read = now;
+    }
+  }
+
+  if (color_of_sensor == 0) return _tcs_b_cached_r;
+  if (color_of_sensor == 1) return _tcs_b_cached_g;
+  if (color_of_sensor == 2) return _tcs_b_cached_b;
+  if (color_of_sensor == 3) return _tcs_b_cached_temp;
+  if (color_of_sensor == 4) return _tcs_b_cached_lux;
+
+  return 0;
 }
 
 int Read_Color_TCS_B_Raw(int color_of_sensor)
 {
-  // หากไม่มีเซนเซอร์หลัง ให้คืนค่า 0 ทันที เพื่อไม่ให้ Core 1 แย่งบัส I2C กับ Core 0
-  if (!tcs_back_found) return 0;
-
-  uint16_t clearcol_lib, red_lib, green_lib, blue_lib,lux,colorTemp;
-  float average_lib, r_lib, g_lib, b_lib;
-  long data_color = 0.00;
-  if(isConnected_B(tcs_back_addr)){
-	 tcsB.getRawData(&red_lib, &green_lib, &blue_lib, &clearcol_lib);
-	 colorTemp = tcsB.calculateColorTemperature(red_lib, green_lib, blue_lib);
-	 lux = tcsB.calculateLux(red_lib, green_lib, blue_lib);
-
-	 average_lib = ((float)red_lib + (float)green_lib + (float)blue_lib) / 3.0f;
-   if (average_lib < 1.0f) average_lib = 1.0f;
-	 r_lib = red_lib/average_lib;
-	 g_lib = green_lib/average_lib;
-	 b_lib = blue_lib/average_lib;
-	 if(color_of_sensor == 0){
-	  data_color =  r_lib*100;
-	 }
-	 else if(color_of_sensor == 1){
-	  data_color =  g_lib*100;
-	 }
-	  else if(color_of_sensor == 2){
-	  data_color =  b_lib*100;
-	 }
-	 else if(color_of_sensor == 3){
-	  data_color =  colorTemp;
-	 }
-	 else if(color_of_sensor == 4){
-	  data_color =  lux;
-	 }
-  }
-
-  return data_color;
+  return Read_Color_TCS_B(color_of_sensor);
 }
 
 
@@ -850,9 +841,13 @@ int readline()
     {
       return 10;
     }
-    else
+    else if (_lastPosition > (_NumofSensor - 1) * 100 / 2)
     {
       return ((_NumofSensor - 1) * 100);
+    }
+    else
+    {
+      return ((_NumofSensor - 1) * 100) / 2;
     }
   }
   _lastPosition = avg / sum;
@@ -914,7 +909,7 @@ int _sensorPins_B[20];
 int _NumofSensor_B = 0;
 int _min_sensor_values_B[20];
 int _max_sensor_values_B[20];
-int _lastPosition_B = 0;
+int _lastPosition_B = 300;
 int _Sensitive_B  = 20;
 int stateOfRunPID_B = 0;
 float  errors_B = 0, output_B = 0, integral_B = 0, derivative_B = 0, _previous_error_B = 0;
@@ -987,9 +982,13 @@ int readline_B()
     {
       return 0;
     }
-    else
+    else if (_lastPosition_B > (_NumofSensor_B - 1) * 100 / 2)
     {
       return (_NumofSensor_B - 1) * 100;
+    }
+    else
+    {
+      return (_NumofSensor_B - 1) * 100 / 2;
     }
   }
   _lastPosition_B = avg / sum;
