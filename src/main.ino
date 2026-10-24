@@ -135,8 +135,15 @@ void test_start_and_scan_colors(int speed, long max_pulses, float max_dist_cm) {
   unsigned long lastLogTime = 0;
   unsigned long lastScreenTime = 0;
 
+  unsigned long lastColorTime = 0;
+  int rF = 0, gF = 0, bF = 0, clrF = 0;
+  RobotColor floorCol = COLOR_UNKNOWN;
+  int rS = 0, gS = 0, bS = 0, clrS = 0;
+  RobotColor sideCol = COLOR_UNKNOWN;
+
   // --------------------------------------------------------------------------
-  // ขั้นตอนที่ 2: วิ่ง PID ตามเส้นแบบช้าๆ พร้อมตรวจวัด Pulse, cm และสแกนแถบสี
+  // ขั้นตอนที่ 2: วิ่ง PID ตามเส้นแบบความเร็วคงที่ พร้อมตรวจวัด Pulse, cm และสแกนแถบสี
+  // (ปรับปรุงประสิทธิภาพ: ลูป PID ทำงานด้วยความเร็วสูง >500Hz โดยไม่ถูก I2C/TFT หน่วง)
   // --------------------------------------------------------------------------
   while (true) {
     // 1. กดปุ่มหยุดฉุกเฉินได้ตลอดเวลา
@@ -145,10 +152,10 @@ void test_start_and_scan_colors(int speed, long max_pulses, float max_dist_cm) {
       break;
     }
 
-    // 2. วิ่งเกาะเส้นด้วย PID ความเร็วคงที่ ช้านิ่ง
+    // 2. วิ่งเกาะเส้นด้วยสมการ PID ทุกรอบลูป (ความเร็วรอบสูง ควบคุมทิศทางได้ทันที)
     lineFollow_PID_auto(speed);
 
-    // 3. อ่านค่าระยะพัลส์จริง และ cm (ทั้ง 2 ค่าเพื่อให้เปรียบเทียบได้)
+    // 3. อ่านค่าระยะพัลส์จริง และ cm
     long curPulse = abs(get_pulse_Encoder(selection_Encoder));
     float curCm = getDistanceCm();
     unsigned long now = millis();
@@ -159,82 +166,89 @@ void test_start_and_scan_colors(int speed, long max_pulses, float max_dist_cm) {
       break;
     }
 
-    // 4. อ่านค่าสี Floor Sensor (พื้นสนาม)
-    int rF = Read_Color_TCS(0);
-    int gF = Read_Color_TCS(1);
-    int bF = Read_Color_TCS(2);
-    int clrF = Read_Color_TCS(4);
-    RobotColor floorCol = detectColorFloor();
+    // 4. แยกการอ่านเซนเซอร์สี I2C เป็นช่วงเวลา (ทุก 40 ms) ไม่บล็อกลูป PID ทุกรอบ
+    if (now - lastColorTime >= 40) {
+      lastColorTime = now;
 
-    // 5. อ่านค่าสี Side Sensor (ด้านข้าง)
-    int rS = Read_Color_TCS_B(0);
-    int gS = Read_Color_TCS_B(1);
-    int bS = Read_Color_TCS_B(2);
-    int clrS = Read_Color_TCS_B(4);
-    RobotColor sideCol = detectColorSide();
+      // อ่านค่าสี Floor Sensor (พื้นสนาม)
+      rF = Read_Color_TCS(0);
+      gF = Read_Color_TCS(1);
+      bF = Read_Color_TCS(2);
+      clrF = Read_Color_TCS(4);
+      floorCol = detectColorFloor();
 
-    // 6. บันทึกแถบสีใหม่ (Floor Sensor): เมื่อตรวจพบสีและอยู่ห่างจากจุดบันทึกก่อนหน้าอย่างน้อย 15 พัลส์
-    if (floorCol != COLOR_UNKNOWN && floorCol != lastFloorColor && (curPulse - lastRecordPulse >= 15)) {
-      if (recordCount < MAX_RECORDS) {
-        strncpy(records[recordCount].name, getColorName(floorCol), sizeof(records[recordCount].name));
-        records[recordCount].color = floorCol;
-        records[recordCount].pulse = curPulse;
-        records[recordCount].cm = curCm;
-        records[recordCount].r = rF;
-        records[recordCount].g = gF;
-        records[recordCount].b = bF;
-        records[recordCount].lux = clrF;
-        records[recordCount].sensor = "Floor";
-        recordCount++;
+      // อ่านค่าสี Side Sensor (ด้านข้าง) ถ้ามี
+      if (tcs_back_found) {
+        rS = Read_Color_TCS_B(0);
+        gS = Read_Color_TCS_B(1);
+        bS = Read_Color_TCS_B(2);
+        clrS = Read_Color_TCS_B(4);
+        sideCol = detectColorSide();
+      }
 
-        lastRecordPulse = curPulse;
+      // 5. บันทึกแถบสีใหม่ (Floor Sensor): เมื่อตรวจพบสีและอยู่ห่างจากจุดบันทึกก่อนหน้าอย่างน้อย 15 พัลส์
+      if (floorCol != COLOR_UNKNOWN && floorCol != lastFloorColor && (curPulse - lastRecordPulse >= 15)) {
+        if (recordCount < MAX_RECORDS) {
+          strncpy(records[recordCount].name, getColorName(floorCol), sizeof(records[recordCount].name));
+          records[recordCount].color = floorCol;
+          records[recordCount].pulse = curPulse;
+          records[recordCount].cm = curCm;
+          records[recordCount].r = rF;
+          records[recordCount].g = gF;
+          records[recordCount].b = bF;
+          records[recordCount].lux = clrF;
+          records[recordCount].sensor = "Floor";
+          recordCount++;
+
+          lastRecordPulse = curPulse;
+          lastFloorColor = floorCol;
+
+          buzzer(2400, 15); // Beep สั้นๆ ระบุว่าตรวจพบแถบสี
+
+          Serial.println(F("-------------------------------------------------------"));
+          Serial.print(F("🎯 [NEW COLOR #")); Serial.print(recordCount);
+          Serial.print(F("] สี: ")); Serial.print(getColorName(floorCol));
+          Serial.print(F(" | Pulse: ")); Serial.print(curPulse);
+          Serial.print(F(" p | ระยะ: ")); Serial.print(curCm, 1);
+          Serial.print(F(" cm | RGB: ("));
+          Serial.print(rF); Serial.print(F(", "));
+          Serial.print(gF); Serial.print(F(", "));
+          Serial.print(bF); Serial.print(F(") Clear: "));
+          Serial.println(clrF);
+          Serial.println(F("-------------------------------------------------------"));
+        }
+      } else if (floorCol != lastFloorColor) {
         lastFloorColor = floorCol;
-
-        buzzer(2400, 20); // Beep สั้นๆ ไม่หน่วง PID
-
-        Serial.println(F("-------------------------------------------------------"));
-        Serial.print(F("🎯 [NEW COLOR #")); Serial.print(recordCount);
-        Serial.print(F("] สี: ")); Serial.print(getColorName(floorCol));
-        Serial.print(F(" | Pulse: ")); Serial.print(curPulse);
-        Serial.print(F(" p | ระยะ: ")); Serial.print(curCm, 1);
-        Serial.print(F(" cm | RGB: ("));
-        Serial.print(rF); Serial.print(F(", "));
-        Serial.print(gF); Serial.print(F(", "));
-        Serial.print(bF); Serial.print(F(") Clear: "));
-        Serial.println(clrF);
-        Serial.println(F("-------------------------------------------------------"));
       }
-    } else if (floorCol != lastFloorColor) {
-      lastFloorColor = floorCol;
-    }
 
-    // ตรวจสอบ Side Sensor (กรณีเซนเซอร์สีติดด้านข้าง)
-    if (sideCol != COLOR_UNKNOWN && sideCol != lastSideColor && (curPulse - lastRecordPulse >= 15)) {
-      if (recordCount < MAX_RECORDS) {
-        strncpy(records[recordCount].name, getColorName(sideCol), sizeof(records[recordCount].name));
-        records[recordCount].color = sideCol;
-        records[recordCount].pulse = curPulse;
-        records[recordCount].cm = curCm;
-        records[recordCount].r = rS;
-        records[recordCount].g = gS;
-        records[recordCount].b = bS;
-        records[recordCount].lux = clrS;
-        records[recordCount].sensor = "Side";
-        recordCount++;
+      // ตรวจสอบ Side Sensor (กรณีเซนเซอร์สีติดด้านข้าง)
+      if (sideCol != COLOR_UNKNOWN && sideCol != lastSideColor && (curPulse - lastRecordPulse >= 15)) {
+        if (recordCount < MAX_RECORDS) {
+          strncpy(records[recordCount].name, getColorName(sideCol), sizeof(records[recordCount].name));
+          records[recordCount].color = sideCol;
+          records[recordCount].pulse = curPulse;
+          records[recordCount].cm = curCm;
+          records[recordCount].r = rS;
+          records[recordCount].g = gS;
+          records[recordCount].b = bS;
+          records[recordCount].lux = clrS;
+          records[recordCount].sensor = "Side";
+          recordCount++;
 
-        lastRecordPulse = curPulse;
+          lastRecordPulse = curPulse;
+          lastSideColor = sideCol;
+
+          buzzer(2600, 15);
+
+          Serial.print(F("👉 [SIDE COLOR #")); Serial.print(recordCount);
+          Serial.print(F("] สี: ")); Serial.print(getColorName(sideCol));
+          Serial.print(F(" | Pulse: ")); Serial.print(curPulse);
+          Serial.print(F(" p | cm: ")); Serial.print(curCm, 1);
+          Serial.println(F(" cm"));
+        }
+      } else if (sideCol != lastSideColor) {
         lastSideColor = sideCol;
-
-        buzzer(2600, 20);
-
-        Serial.print(F("👉 [SIDE COLOR #")); Serial.print(recordCount);
-        Serial.print(F("] สี: ")); Serial.print(getColorName(sideCol));
-        Serial.print(F(" | Pulse: ")); Serial.print(curPulse);
-        Serial.print(F(" p | cm: ")); Serial.print(curCm, 1);
-        Serial.println(F(" cm"));
       }
-    } else if (sideCol != lastSideColor) {
-      lastSideColor = sideCol;
     }
 
     // หากอ่านครบ 6 แถบสี และวิ่งพ้นแถบสุดท้ายไปสักระยะ (~60 พัลส์) ให้หยุดอัตโนมัติ
@@ -243,8 +257,8 @@ void test_start_and_scan_colors(int speed, long max_pulses, float max_dist_cm) {
       break;
     }
 
-    // 7. พิมพ์ Telemetry ออก Serial ทุก 80 ms
-    if (now - lastLogTime >= 80) {
+    // 6. พิมพ์ Telemetry ออก Serial ทุก 150 ms (ป้องกัน UART Buffer เต็มจนบล็อกลูป)
+    if (now - lastLogTime >= 150) {
       lastLogTime = now;
       Serial.print(F("[LIVE] Pulse: "));
       Serial.print(curPulse);
@@ -252,26 +266,9 @@ void test_start_and_scan_colors(int speed, long max_pulses, float max_dist_cm) {
       Serial.print(curCm, 1);
       Serial.print(F(" cm) | Floor: "));
       Serial.print(getColorName(floorCol));
-      Serial.print(F(" (R:")); Serial.print(rF);
-      Serial.print(F(" G:")); Serial.print(gF);
-      Serial.print(F(" B:")); Serial.print(bF);
-      Serial.print(F(") | Found: "));
+      Serial.print(F(" | Found: "));
       Serial.print(recordCount);
       Serial.println(F(" colors"));
-    }
-
-    // 8. อัปเดตหน้าจอ TFT LCD สดๆ ทุก 120 ms
-    if (now - lastScreenTime >= 120) {
-      lastScreenTime = now;
-      char pBuf[32], cBuf[32], cntBuf[32];
-      snprintf(pBuf, sizeof(pBuf), "Pulse: %-5ld (%4.1fcm)", curPulse, curCm);
-      snprintf(cBuf, sizeof(cBuf), "Color: %-7s", getColorName(floorCol));
-      snprintf(cntBuf, sizeof(cntBuf), "Recorded: %d strips", recordCount);
-
-      printText(5, 26, pBuf, 1, ST7735_GREEN, ST7735_BLACK);
-      printText(5, 46, cBuf, 2, ST7735_YELLOW, ST7735_BLACK);
-      printText(5, 72, cntBuf, 1, ST7735_CYAN, ST7735_BLACK);
-      printText(5, 96, "Press Btn to FINISH", 1, 0x94B2, ST7735_BLACK);
     }
   }
 

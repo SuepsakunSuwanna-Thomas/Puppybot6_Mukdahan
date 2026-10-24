@@ -119,6 +119,10 @@ inline void lineFollow_PID_auto(int speed) {
   // คำนวณ Error และ Derivative ตามสมการ PD
   float err = present_position - setpoint;
   float deriv = err - _line_prev_err;
+  
+  // ป้องกัน D-term Spike เมื่อเซนเซอร์วิ่งผ่านแถบสีขวางสนาม (Clamp ป้องกันมอเตอร์สะบัดรุนแรง)
+  deriv = constrain(deriv, -120.0f, 120.0f);
+  
   float out = KP * err + KD * deriv;
   _line_prev_err = err;
 
