@@ -267,7 +267,8 @@ inline void calibrateFrontSensors() {
   for (int i = 0; i < NUM_FRONT_SENSORS; i++) {
     int y = 31 + (i * 10);
     char buf[32];
-    snprintf(buf, sizeof(buf), "A%d    %4d    %4d   %4d", i, calib.front_min[i], calib.front_max[i], (calib.front_min[i] + calib.front_max[i]) / 2);
+    // แสดงผล: WHITE = ค่ามาก (front_max), BLACK = ค่าน้อย (front_min)
+    snprintf(buf, sizeof(buf), "A%d    %4d    %4d   %4d", i, calib.front_max[i], calib.front_min[i], (calib.front_min[i] + calib.front_max[i]) / 2);
     printText(6, y, buf, 1, ST7735_WHITE, ST7735_BLACK);
   }
 
@@ -373,7 +374,8 @@ inline void calibrateBackSensors() {
   for (int i = 0; i < NUM_BACK_SENSORS; i++) {
     int y = 31 + (i * 10);
     char buf[32];
-    snprintf(buf, sizeof(buf), "A%-2d   %4d    %4d   %4d", i + 7, calib.back_min[i], calib.back_max[i], (calib.back_min[i] + calib.back_max[i]) / 2);
+    // แสดงผล: WHITE = ค่ามาก (back_max), BLACK = ค่าน้อย (back_min)
+    snprintf(buf, sizeof(buf), "A%-2d   %4d    %4d   %4d", i + 7, calib.back_max[i], calib.back_min[i], (calib.back_min[i] + calib.back_max[i]) / 2);
     printText(6, y, buf, 1, ST7735_WHITE, ST7735_BLACK);
   }
 

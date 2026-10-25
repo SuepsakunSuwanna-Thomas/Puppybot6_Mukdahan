@@ -116,17 +116,25 @@ inline void lineFollow_PID_auto(int speed) {
   int present_position = readline();
   int setpoint = ((NUM_FRONT_SENSORS - 1) * 100) / 2; // 300 (Center)
 
+  // 1. หากเซนเซอร์หน้าวิ่งทับแถบสีขวางสนาม (เซนเซอร์หลายตัวเห็นดำพร้อมกัน = Crossing)
+  // หรือเซนเซอร์หน้าหลุดจากเส้นดำชั่วคราวเพราะแถบสีกลืนแสง ให้ล็อค error เป็น 0 เพื่อวิ่งตรงผ่านแถบสีไปเลย
+  if (isFrontCrossing() || isFrontLineLost()) {
+    present_position = setpoint;
+  }
+
   // คำนวณ Error และ Derivative ตามสมการ PD
   float err = present_position - setpoint;
+
+  // จำกัด Error ไม่ให้กระชากเกินขอบเขตเมื่อวิ่งแตะขอบแถบสี
+  err = constrain(err, -150.0f, 150.0f);
+
   float deriv = err - _line_prev_err;
-  
-  // ป้องกัน D-term Spike เมื่อเซนเซอร์วิ่งผ่านแถบสีขวางสนาม (Clamp ป้องกันมอเตอร์สะบัดรุนแรง)
-  deriv = constrain(deriv, -120.0f, 120.0f);
+  deriv = constrain(deriv, -50.0f, 50.0f);
   
   float out = KP * err + KD * deriv;
   _line_prev_err = err;
 
-  // ควบคุมกำลังมอเตอร์ซ้าย-ขวาอย่างเต็มประสิทธิภาพตามสมการ PID
+  // ควบคุมกำลังมอเตอร์ซ้าย-ขวาตามสมการ PID
   int motorL = constrain((int)(speed + out), -speed, speed);
   int motorR = constrain((int)(speed - out), -speed, speed);
 

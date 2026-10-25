@@ -130,7 +130,8 @@ inline void displayLightSensorsFrontAndBack() {
     int y = 29 + (i * 12);
 
     // --- ด้านหน้า (Front ADC 0 ถึง 6) ---
-    int valF = ReadLightSensor(i); // ค่าคำนวณ 0-100%
+    // ปรับการแสดงผลตามความต้องการ: ขาวค่ามาก (100) / ดำค่าน้อย (0)
+    int valF = 100 - ReadLightSensor(i);
     bool onF = isFrontSensorOnLine(i);
     char bufF[10];
     snprintf(bufF, sizeof(bufF), "A%d:%3d", i, valF);
@@ -143,7 +144,8 @@ inline void displayLightSensorsFrontAndBack() {
     tft_.drawRect(44, y, 28, 8, ST7735_BLUE);
 
     // --- ด้านหลัง (Back ADC 7 ถึง 13) ---
-    int valB = ReadLightSensor_B(i);
+    // ปรับการแสดงผล: ขาวค่ามาก (100) / ดำค่าน้อย (0)
+    int valB = 100 - ReadLightSensor_B(i);
     bool onB = isBackSensorOnLine(i);
     char bufB[10];
     snprintf(bufB, sizeof(bufB), "A%d:%3d", i + 7, valB);

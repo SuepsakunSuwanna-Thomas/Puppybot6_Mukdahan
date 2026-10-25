@@ -12,6 +12,8 @@ int selection_Encoder = 1;
 #include "line_follow.h"
 #include "serial_tester.h"
 
+void test_start_and_scan_colors(int speed = 30);
+
 void setup() {
   delay(1500);
   puppybot6_setup();
@@ -46,17 +48,13 @@ void setup() {
     runCalibrationMenu();
   }
   delay(300);
-// Fline_by_pass(30,5);
-  // ==========================================================================
-  // [TEST CODE] วิ่งจากจุดสตาร์ท -> พอแตะเส้นดำสลับเข้า PID ทันที
-  // วิ่งช้าๆ อ่านพัลส์ (Pulse) และ cm จริง พร้อมบันทึกสรุปสีทั้งหมดค้างไว้บนจอ
-  // พารามิเตอร์: speed (25-35), max_pulses (พัลส์สูงสุดป้องกันหลุด), max_dist_cm (ระยะ cm)
-  // ==========================================================================
-  test_start_and_scan_colors(30, 1500, 75.0f);
+
+  // เริ่มวิ่งทดสอบตามพัลส์ (ไม่มี PID): หาเส้น -> 682p (สี 1) -> +385p x 5 (สี 2-6)
+  test_start_and_scan_colors(30);
 }
 
 // ============================================================================
-// โครงสร้างบันทึกข้อมูลแถบสีที่ตรวจพบ
+// โครงสร้างบันทึกข้อมูลแถบสีและสรุปผลภารกิจ
 // ============================================================================
 struct ColorRecord {
   char name[12];
@@ -67,307 +65,269 @@ struct ColorRecord {
   const char* sensor;
 };
 
+struct MissionSummary {
+  bool completed;
+  unsigned long duration_ms;
+  float distance_cm;
+  long pulses;
+  int colorCount;
+  ColorRecord records[12];
+  char finishReason[24];
+};
+
+MissionSummary mission_summary = {false, 0, 0.0f, 0, 0, {}, "INIT"};
+
+enum ScreenState {
+  SCREEN_COLOR_SUMMARY,
+  SCREEN_TIME_SUMMARY
+};
+ScreenState current_screen_state = SCREEN_COLOR_SUMMARY;
+bool screen_drawn = false;
+
+void drawColorSummaryScreen();
+void drawMissionTimeOnlyScreen();
+
 // ============================================================================
-// ฟังก์ชันทดสอบ: วิ่งจากจุดสตาร์ท -> วิ่งตรงจนเจอเส้น -> สลับเข้า PID ทันที
-// พร้อมอ่านค่าพัลส์ (Pulse) และ cm พร้อมทั้งสรุปรายการสีทั้งหมดค้างไว้บนจอ
 // ============================================================================
-void test_start_and_scan_colors(int speed, long max_pulses, float max_dist_cm) {
-  Serial.println(F("\n======================================================="));
-  Serial.println(F("  🚀 [TEST] START -> INSTANT PID -> COLOR SCAN & SUMMARY"));
-  Serial.println(F("======================================================="));
-  Serial.print(F("Speed: ")); Serial.print(speed);
-  Serial.print(F(" | Max Pulses: ")); Serial.print(max_pulses);
-  Serial.print(F(" | Max Dist: ")); Serial.print(max_dist_cm); Serial.println(F(" cm"));
+// ฟังก์ชันทดสอบ: วิ่งจากจุดเริ่มตรงไปข้างหน้า (ไม่มี PID) จนเจอเส้น
+// จากนั้นวิ่งตรงไป 682 พัลส์ เก็บสีที่ 1, และวิ่งต่ออีกช่วงละ 385 พัลส์ เก็บสีที่ 2 ถึง 6
+// ============================================================================
+// ============================================================================
+// ฟังก์ชันทดสอบ: วิ่งจากจุดเริ่ม -> เจอดำ -> วิ่ง PID ตามพัลส์ 6 ช่องแล้วหยุดอ่านสี
+// ============================================================================
+void test_start_and_scan_colors(int speed) {
+  const long step_pulses[6] = {735, 385, 385, 385, 385, 385};
+  long total_pulses = 0;
 
-  // โครงสร้างบันทึกสี
-  const int MAX_RECORDS = 12;
-  ColorRecord records[MAX_RECORDS];
-  int recordCount = 0;
-
-  // เตรียมหน้าจอ TFT แสดงสถานะช่วงค้นหาเส้น
-  tft_.fillScreen(ST7735_BLACK);
-  printText(5, 4, "TEST: SCAN COLORS", 1, ST7735_CYAN, ST7735_BLACK);
-  tft_.drawFastHLine(0, 16, 160, ST7735_BLUE);
-  printText(5, 30, "1. DRIVING TO LINE...", 1, ST7735_WHITE, ST7735_BLACK);
-  printText(5, 50, "Searching for black line", 1, ST7735_YELLOW, ST7735_BLACK);
-
-  // --------------------------------------------------------------------------
-  // ขั้นตอนที่ 1: วิ่งตรงออกจากจุดสตาร์ทจนกว่าจะเจอเส้นดำ -> เริ่มวิ่ง PID ทันที!
-  // --------------------------------------------------------------------------
-  resetDistance();
-  reset_PID_state();
+  mission_summary.colorCount = 0;
   buzzer(1500, 60);
 
-  // หากเซนเซอร์ยังไม่แตะเส้น ให้วิ่งตรงไปข้างหน้าช้าๆ จนกว่าจะแตะเส้นดำ
-  unsigned long search_start = millis();
-  while (countFrontSensorsOnLine() == 0) {
-    if (millis() - search_start > 8000) { // Safety timeout 8 วินาที
-      Serial.println(F("[WARNING] Search line timeout! Stopped."));
-      stop_4w();
-      buzzer(1000, 400);
-      return;
-    }
-    fd_4w(speed); // วิ่งตรงไปข้างหน้า
+  // 1. วิ่งตรงจนกว่าจะเจอเส้นดำขอบกล่องสตาร์ท
+  while (!isFrontSensorOnLine(3)) {
+    if (isButtonPressed()) { stop_4w(); return; }
+    fd_4w(speed);
     delay(1);
   }
 
-  // >>> วินาทีที่แตะเส้นดำ: หยุดนิ่งสั้นๆ และส่งเสียงบัซเซอร์เตือนดังชัดเจน 2 ปี๊บ! <<<
-  // เพื่อให้ทราบทันทีว่า "ตรวจจับเส้นดำได้แล้ว และกำลังเริ่มวิ่งด้วยสมการ PID!"
-  stop_4w();
-  buzzer(1800, 100);
-  delay(50);
-  buzzer(2400, 150);
-  delay(60);
-
-  // แตะเส้นดำแล้ว: เริ่มต้นวิ่ง PID ตามสมการทันที
   reset_PID_state();
-  lineFollow_PID_auto(speed);
-  resetDistance(); // เริ่มนับ Encoder pulse และ cm จากจุดที่เริ่มเกาะเส้นนำทาง
+  resetDistance();
 
-  // เตรียมหน้าจอแสดงผลสดระหว่างวิ่ง PID
-  tft_.fillScreen(ST7735_BLACK);
-  printText(5, 4, "PID TRACKING & SCAN", 1, ST7735_GREEN, ST7735_BLACK);
-  tft_.drawFastHLine(0, 16, 160, ST7735_BLUE);
+  // 2. วิ่งตามเส้นแบบ PID ไปทีละช่อง (682 แล้วต่อด้วย 385 x 5)
+  for (int step = 0; step < 6; step++) {
+    long targetP = step_pulses[step];
+    total_pulses += targetP;
+    long initP = get_pulse_Encoder(selection_Encoder);
 
-  RobotColor lastFloorColor = COLOR_UNKNOWN;
-  RobotColor lastSideColor = COLOR_UNKNOWN;
-  long lastRecordPulse = -999;
-  unsigned long lastLogTime = 0;
-  unsigned long lastScreenTime = 0;
-
-  unsigned long lastColorTime = 0;
-  int rF = 0, gF = 0, bF = 0, clrF = 0;
-  RobotColor floorCol = COLOR_UNKNOWN;
-  int rS = 0, gS = 0, bS = 0, clrS = 0;
-  RobotColor sideCol = COLOR_UNKNOWN;
-
-  // --------------------------------------------------------------------------
-  // ขั้นตอนที่ 2: วิ่ง PID ตามเส้นแบบความเร็วคงที่ พร้อมตรวจวัด Pulse, cm และสแกนแถบสี
-  // (ปรับปรุงประสิทธิภาพ: ลูป PID ทำงานด้วยความเร็วสูง >500Hz โดยไม่ถูก I2C/TFT หน่วง)
-  // --------------------------------------------------------------------------
-  while (true) {
-    // 1. กดปุ่มหยุดฉุกเฉินได้ตลอดเวลา
-    if (isButtonPressed()) {
-      Serial.println(F(">>> [STOPPED] ผู้ใช้กดปุ่มหยุดหุ่นยนต์"));
-      break;
+    while (abs(get_pulse_Encoder(selection_Encoder) - initP) < targetP) {
+      if (isButtonPressed()) { stop_4w(); return; }
+      lineFollow_PID_auto(speed);
+      delay(1);
     }
 
-    // 2. วิ่งเกาะเส้นด้วยสมการ PID ทุกรอบลูป (ความเร็วรอบสูง ควบคุมทิศทางได้ทันที)
-    lineFollow_PID_auto(speed);
+    // หยุดสนิท 2 วินาทีเพื่ออ่านค่าสี
+    stop_4w();
+    buzzer(2400, 50);
 
-    // 3. อ่านค่าระยะพัลส์จริง และ cm
-    long curPulse = abs(get_pulse_Encoder(selection_Encoder));
-    float curCm = getDistanceCm();
-    unsigned long now = millis();
-
-    // เช็คเงื่อนไขระยะสูงสุด (ป้องกันวิ่งเลยหรือหลุด)
-    if (curPulse >= max_pulses || curCm >= max_dist_cm) {
-      Serial.println(F(">>> [LIMIT REACHED] ครบระยะสูงสุดที่ตั้งไว้"));
-      break;
+    unsigned long t0 = millis();
+    while (millis() - t0 < 2000) {
+      if (isButtonPressed()) break;
+      delay(20);
     }
 
-    // 4. แยกการอ่านเซนเซอร์สี I2C เป็นช่วงเวลา (ทุก 40 ms) ไม่บล็อกลูป PID ทุกรอบ
-    if (now - lastColorTime >= 40) {
-      lastColorTime = now;
-
-      // อ่านค่าสี Floor Sensor (พื้นสนาม)
-      rF = Read_Color_TCS(0);
-      gF = Read_Color_TCS(1);
-      bF = Read_Color_TCS(2);
-      clrF = Read_Color_TCS(4);
-      floorCol = detectColorFloor();
-
-      // อ่านค่าสี Side Sensor (ด้านข้าง) ถ้ามี
-      if (tcs_back_found) {
-        rS = Read_Color_TCS_B(0);
-        gS = Read_Color_TCS_B(1);
-        bS = Read_Color_TCS_B(2);
-        clrS = Read_Color_TCS_B(4);
-        sideCol = detectColorSide();
-      }
-
-      // 5. บันทึกแถบสีใหม่ (Floor Sensor): เมื่อตรวจพบสีและอยู่ห่างจากจุดบันทึกก่อนหน้าอย่างน้อย 15 พัลส์
-      if (floorCol != COLOR_UNKNOWN && floorCol != lastFloorColor && (curPulse - lastRecordPulse >= 15)) {
-        if (recordCount < MAX_RECORDS) {
-          strncpy(records[recordCount].name, getColorName(floorCol), sizeof(records[recordCount].name));
-          records[recordCount].color = floorCol;
-          records[recordCount].pulse = curPulse;
-          records[recordCount].cm = curCm;
-          records[recordCount].r = rF;
-          records[recordCount].g = gF;
-          records[recordCount].b = bF;
-          records[recordCount].lux = clrF;
-          records[recordCount].sensor = "Floor";
-          recordCount++;
-
-          lastRecordPulse = curPulse;
-          lastFloorColor = floorCol;
-
-          buzzer(2400, 15); // Beep สั้นๆ ระบุว่าตรวจพบแถบสี
-
-          Serial.println(F("-------------------------------------------------------"));
-          Serial.print(F("🎯 [NEW COLOR #")); Serial.print(recordCount);
-          Serial.print(F("] สี: ")); Serial.print(getColorName(floorCol));
-          Serial.print(F(" | Pulse: ")); Serial.print(curPulse);
-          Serial.print(F(" p | ระยะ: ")); Serial.print(curCm, 1);
-          Serial.print(F(" cm | RGB: ("));
-          Serial.print(rF); Serial.print(F(", "));
-          Serial.print(gF); Serial.print(F(", "));
-          Serial.print(bF); Serial.print(F(") Clear: "));
-          Serial.println(clrF);
-          Serial.println(F("-------------------------------------------------------"));
-        }
-      } else if (floorCol != lastFloorColor) {
-        lastFloorColor = floorCol;
-      }
-
-      // ตรวจสอบ Side Sensor (กรณีเซนเซอร์สีติดด้านข้าง)
-      if (sideCol != COLOR_UNKNOWN && sideCol != lastSideColor && (curPulse - lastRecordPulse >= 15)) {
-        if (recordCount < MAX_RECORDS) {
-          strncpy(records[recordCount].name, getColorName(sideCol), sizeof(records[recordCount].name));
-          records[recordCount].color = sideCol;
-          records[recordCount].pulse = curPulse;
-          records[recordCount].cm = curCm;
-          records[recordCount].r = rS;
-          records[recordCount].g = gS;
-          records[recordCount].b = bS;
-          records[recordCount].lux = clrS;
-          records[recordCount].sensor = "Side";
-          recordCount++;
-
-          lastRecordPulse = curPulse;
-          lastSideColor = sideCol;
-
-          buzzer(2600, 15);
-
-          Serial.print(F("👉 [SIDE COLOR #")); Serial.print(recordCount);
-          Serial.print(F("] สี: ")); Serial.print(getColorName(sideCol));
-          Serial.print(F(" | Pulse: ")); Serial.print(curPulse);
-          Serial.print(F(" p | cm: ")); Serial.print(curCm, 1);
-          Serial.println(F(" cm"));
-        }
-      } else if (sideCol != lastSideColor) {
-        lastSideColor = sideCol;
-      }
-    }
-
-    // หากอ่านครบ 6 แถบสี และวิ่งพ้นแถบสุดท้ายไปสักระยะ (~60 พัลส์) ให้หยุดอัตโนมัติ
-    if (recordCount >= 6 && (curPulse - records[5].pulse > 60)) {
-      Serial.println(F(">>> [ALL 6 COLORS FOUND] ตรวจพบครบทั้ง 6 แถบสีแล้ว!"));
-      break;
-    }
-
-    // 6. พิมพ์ Telemetry ออก Serial ทุก 150 ms (ป้องกัน UART Buffer เต็มจนบล็อกลูป)
-    if (now - lastLogTime >= 150) {
-      lastLogTime = now;
-      Serial.print(F("[LIVE] Pulse: "));
-      Serial.print(curPulse);
-      Serial.print(F(" p ("));
-      Serial.print(curCm, 1);
-      Serial.print(F(" cm) | Floor: "));
-      Serial.print(getColorName(floorCol));
-      Serial.print(F(" | Found: "));
-      Serial.print(recordCount);
-      Serial.println(F(" colors"));
-    }
+    RobotColor col = detectColorFloor();
+    strncpy(mission_summary.records[step].name, getColorName(col), sizeof(mission_summary.records[step].name));
+    mission_summary.records[step].color = col;
+    mission_summary.records[step].pulse = total_pulses;
+    mission_summary.records[step].cm = getDistanceCm();
+    mission_summary.colorCount++;
+    buzzer(2000, 60);
   }
 
-  // --------------------------------------------------------------------------
-  // จบการทดสอบ: หยุดมอเตอร์ 4 ล้อทันที
-  // --------------------------------------------------------------------------
+  // 3. จบภารกิจ: แสดงหน้าจอสรุปสีทั้งหมดที่อ่านได้อันเดียว
   stop_4w();
-  buzzer(1600, 120);
-  delay(60);
-  buzzer(2200, 180);
+  buzzer(1800, 150);
+  mission_summary.completed = true;
 
-  // --------------------------------------------------------------------------
-  // พิมพ์ตารางสรุปผลทั้งหมดอย่างละเอียดออก Serial Monitor
-  // --------------------------------------------------------------------------
-  Serial.println(F("\n========================================================================"));
-  Serial.println(F("📊 สรุปผลการสแกนแถบสีและระยะทาง (COLOR & ENCODER SUMMARY)"));
-  Serial.println(F("========================================================================"));
-  Serial.println(F(" #  | สีที่ตรวจพบ  |  พัลส์ (Pulse)  | ระยะทาง (cm) | ค่าสี RGB (R,G,B) | เซนเซอร์"));
-  Serial.println(F("----+------------+-----------------+--------------+-------------------+---------"));
-  for (int i = 0; i < recordCount; i++) {
-    char sLine[90];
-    snprintf(sLine, sizeof(sLine), " %-2d | %-10s | %6ld pulses | %6.1f cm   | (%3d, %3d, %3d)   | %s",
-             i + 1, records[i].name, records[i].pulse, records[i].cm,
-             records[i].r, records[i].g, records[i].b, records[i].sensor);
-    Serial.println(sLine);
-  }
-  Serial.println(F("========================================================================"));
-  Serial.println(F("💡 สามารถนำตัวเลขพัลส์ (Pulse) หรือ cm ในตารางนี้ไปสร้าง void ใช้งานจริงได้เลย!"));
-  Serial.println(F("========================================================================\n"));
+  drawColorSummaryScreen();
+}
 
-  // --------------------------------------------------------------------------
-  // แสดงผลตารางสรุปค้างไว้บนหน้าจอ TFT LCD (ไม่เด้งหาย ค้างไว้จนกว่าจะกดปุ่ม)
-  // --------------------------------------------------------------------------
+// ============================================================================
+// ฟังก์ชันวาดหน้าจอสรุปสีทั้งหมดที่ตรวจพบ (ALL SCANNED COLORS)
+// ============================================================================
+void drawColorSummaryScreen() {
   tft_.fillScreen(ST7735_BLACK);
-  tft_.fillRect(0, 0, 160, 14, 0x0A22); // Header สีเขียวเข้ม
-  printText(4, 3, "COLOR SCAN SUMMARY", 1, ST7735_GREEN, 0x0A22);
 
-  if (recordCount == 0) {
-    printText(10, 35, "No color detected!", 1, ST7735_RED, ST7735_BLACK);
-    printText(10, 55, "Check TCS Sensor /", 1, ST7735_WHITE, ST7735_BLACK);
-    printText(10, 70, "Calibration.", 1, ST7735_WHITE, ST7735_BLACK);
+  // 1. Header Bar ด้านบนสุด
+  tft_.fillRoundRect(2, 2, 156, 16, 3, 0x0A22); // Emerald Dark Green
+  tft_.drawRoundRect(2, 2, 156, 16, 3, ST7735_GREEN);
+  printText(24, 6, "COLOR SCAN SUMMARY", 1, ST7735_GREEN, 0x0A22);
+
+  // 2. แสดงรายการสีทั้งหมดที่บันทึกได้
+  int count = mission_summary.colorCount;
+  if (count == 0) {
+    tft_.fillRoundRect(4, 25, 152, 74, 4, 0x0841);
+    tft_.drawRoundRect(4, 25, 152, 74, 4, ST7735_CYAN);
+    printText(20, 42, "No color detected!", 1, ST7735_RED, 0x0841);
+    printText(14, 60, "Check TCS Sensor & Calib", 1, ST7735_WHITE, 0x0841);
   } else {
-    int y = 17;
-    for (int i = 0; i < recordCount && i < 7; i++) {
-      uint16_t rowColor = ST7735_WHITE;
-      if (records[i].color == COLOR_RED) rowColor = ST7735_RED;
-      else if (records[i].color == COLOR_GREEN) rowColor = ST7735_GREEN;
-      else if (records[i].color == COLOR_BLUE) rowColor = ST7735_CYAN;
-      else if (records[i].color == COLOR_YELLOW) rowColor = ST7735_YELLOW;
-      else if (records[i].color == COLOR_BLACK) rowColor = 0x8410; // Dark Gray
+    int spacing = (count >= 7) ? 12 : 14;
+    int y = (count >= 7) ? 20 : 22;
 
+    for (int i = 0; i < count && i < 7; i++) {
+      ColorRecord &rec = mission_summary.records[i];
+
+      uint16_t badgeColor = ST7735_WHITE;
+      if (rec.color == COLOR_RED) badgeColor = ST7735_RED;
+      else if (rec.color == COLOR_GREEN) badgeColor = ST7735_GREEN;
+      else if (rec.color == COLOR_BLUE) badgeColor = ST7735_CYAN;
+      else if (rec.color == COLOR_YELLOW) badgeColor = ST7735_YELLOW;
+      else if (rec.color == COLOR_BLACK) badgeColor = 0x632C; // Dark Gray
+
+      // วาดสัญลักษณ์จุดสี (Color Badge Box)
+      tft_.fillRoundRect(4, y + 1, 8, (spacing > 12 ? 9 : 8), 2, badgeColor);
+      tft_.drawRoundRect(4, y + 1, 8, (spacing > 12 ? 9 : 8), 2, ST7735_WHITE);
+
+      // ข้อความ: ลำดับ, ชื่อสี, พัลส์, ระยะทาง cm
       char itemBuf[32];
-      // รูปแบบ: "1.RED    185p 14.2cm"
-      snprintf(itemBuf, sizeof(itemBuf), "%d.%-6s %4ldp %4.1fcm",
-               i + 1, records[i].name, records[i].pulse, records[i].cm);
-      printText(2, y, itemBuf, 1, rowColor, ST7735_BLACK);
-      y += 13;
+      snprintf(itemBuf, sizeof(itemBuf), "#%d %-6s %4ldp %4.1fcm",
+               i + 1, rec.name, rec.pulse, rec.cm);
+      printText(16, y + 1, itemBuf, 1, badgeColor, ST7735_BLACK);
+
+      y += spacing;
     }
   }
 
-  // Footer แสดงจำนวนสีที่พบ และปุ่มกด
-  tft_.fillRect(0, 114, 160, 14, 0x0841);
-  char footBuf[32];
-  snprintf(footBuf, sizeof(footBuf), "Found: %d colors  [OK]", recordCount);
-  printText(4, 117, footBuf, 1, ST7735_YELLOW, 0x0841);
-
-  // >>> ค้างหน้าจอไว้ตลอดเวลา ไม่มีทางหลุดหรือโดนทับ <<<
-  // จนกว่าผู้ใช้จะกดปุ่ม OK/SW อีกครั้ง
-  while (!isButtonPressed()) {
-    delay(20);
+  // 3. แถบคำสั่ง Footer ด้านล่างสุด
+  tft_.fillRoundRect(2, 107, 156, 18, 3, 0x0841);
+  tft_.drawRoundRect(2, 107, 156, 18, 3, ST7735_CYAN);
+  if (button_mode == 3) {
+    printText(17, 112, "[OK]=TIME  [B1]=START", 1, ST7735_YELLOW, 0x0841);
+  } else {
+    printText(14, 112, "PRESS [BTN] FOR TIME >", 1, ST7735_YELLOW, 0x0841);
   }
-  buzzer(1800, 100);
-  while (isButtonPressed()) delay(10);
-  delay(100);
+}
+
+// ============================================================================
+// ฟังก์ชันวาดหน้าจอแสดงผลเวลาภารกิจ (TIME ONLY)
+// ============================================================================
+void drawMissionTimeOnlyScreen() {
+  tft_.fillScreen(ST7735_BLACK);
+
+  // 1. Header Bar ด้านบนสุด
+  tft_.fillRoundRect(4, 4, 152, 16, 3, 0x0A22); // Emerald Dark Green
+  tft_.drawRoundRect(4, 4, 152, 16, 3, ST7735_GREEN);
+  printText(28, 8, "MISSION TIME", 1, ST7735_GREEN, 0x0A22);
+
+  // คำนวณเวลา: นาที (Min), วินาที (Sec), มิลลิเสค (Ms)
+  unsigned long total_ms = mission_summary.duration_ms;
+  unsigned long m = total_ms / 60000;
+  unsigned long s = (total_ms % 60000) / 1000;
+  unsigned long ms = total_ms % 1000;
+
+  // 2. Main Hero Time Card ขนาดใหญ่ตรงกลางจอ (เน้นเฉพาะเวลาล้วนๆ)
+  tft_.fillRoundRect(4, 25, 152, 74, 4, 0x0841); // Dark Tech Blue
+  tft_.drawRoundRect(4, 25, 152, 74, 4, ST7735_CYAN);
+  tft_.drawRoundRect(5, 26, 150, 72, 3, 0x0115); // กรอบมิติชั้นใน
+
+  printText(10, 31, "TOTAL ELAPSED", 1, ST7735_CYAN, 0x0841);
+
+  // ตัวเลขเวลารูปแบบนาฬิกาดิจิทัลขนาดใหญ่ (Font Size 2 สีเหลืองทองเด่นชัด)
+  char timeBuf[16];
+  snprintf(timeBuf, sizeof(timeBuf), "%02lu:%02lu.%03lu", m, s, ms);
+  // ความกว้างตัวอักษรขนาด 2 รวม 9 ตัว = 108px -> กึ่งกลาง: (160 - 108)/2 = 26
+  printText(26, 47, timeBuf, 2, ST7735_YELLOW, 0x0841);
+
+  // บรรทัดย่อยแจกแจงหน่วยเวลาอย่างชัดเจน อ่านง่าย
+  char subTimeBuf[36];
+  if (m > 0) {
+    snprintf(subTimeBuf, sizeof(subTimeBuf), "%lu min  %lu sec  %03lu ms", m, s, ms);
+  } else {
+    snprintf(subTimeBuf, sizeof(subTimeBuf), "%lu sec  %03lu ms", s, ms);
+  }
+  int subLen = strlen(subTimeBuf);
+  int subX = (160 - (subLen * 6)) / 2;
+  if (subX < 6) subX = 6;
+  printText(subX, 71, subTimeBuf, 1, ST7735_WHITE, 0x0841);
+
+  // ระยะทางและพัลส์รวม
+  char distBuf[36];
+  snprintf(distBuf, sizeof(distBuf), "Dist: %.1f cm (%ld p)", mission_summary.distance_cm, mission_summary.pulses);
+  int distLen = strlen(distBuf);
+  int distX = (160 - (distLen * 6)) / 2;
+  if (distX < 6) distX = 6;
+  printText(distX, 85, distBuf, 1, ST7735_CYAN, 0x0841);
+
+  // 3. แถบคำสั่งด้านล่างสุดสำหรับกดเริ่มใหม่ / สลับกลับไปดูสี
+  tft_.fillRoundRect(4, 105, 152, 18, 3, 0x2104);
+  tft_.drawRoundRect(4, 105, 152, 18, 3, 0x4208);
+  if (button_mode == 3) {
+    printText(14, 110, "[OK]=COLOR  [B1]=START", 1, ST7735_YELLOW, 0x2104);
+  } else {
+    printText(14, 110, "PRESS BUTTON TO RESTART", 1, ST7735_YELLOW, 0x2104);
+  }
 }
 
 void loop() {
-  static bool screen_init = false;
-  // if (!screen_init) {
-  //   tft_.fillScreen(ST7735_BLACK);
-  //   if (button_mode == 3) {
-  //     printText(5, 4, "MONITOR: [B3]=CALIB", 1, ST7735_YELLOW, ST7735_BLACK);
-  //   } else {
-  //     printText(5, 4, "MONITOR: [Hold]=CALIB", 1, ST7735_YELLOW, ST7735_BLACK);
-  //   }
-  //   tft_.drawFastHLine(0, 15, 160, ST7735_BLUE);
-  //   screen_init = true;
-  // }
+  // หากยังไม่มีการรันภารกิจ ให้แสดงหน้ามอนิเตอร์เซนเซอร์ทั่วไป
+  if (!mission_summary.completed) {
+    displayLightSensorsFrontAndBack();
+    if (checkLongPress(1200)) {
+      runCalibrationMenu();
+    }
+    delay(50);
+    return;
+  }
 
-  // // แสดงผลค่าแสงเซนเซอร์หน้าและหลังแบบ Real-time บนหน้าจอ
-  // displayLightSensorsFrontAndBack();
+  // วาดหน้าจอตามสถานะปัจจุบัน (วาดครั้งเดียว ไม่กระพริบ)
+  if (!screen_drawn) {
+    if (current_screen_state == SCREEN_COLOR_SUMMARY) {
+      drawColorSummaryScreen();
+    } else {
+      drawMissionTimeOnlyScreen();
+    }
+    screen_drawn = true;
+  }
 
-  // // หากกดปุ่มจะเข้าสู่เมนูคาลิเบรตได้ทันที
-  // if (checkLongPress(1200)) {
-  //   runCalibrationMenu();
-  //   screen_init = false; // หลังออกจากเมนู ให้วาดหัวข้อหน้าจอใหม่
-  // }
+  // จัดการการกดปุ่มเพื่อสลับหน้าจอหรือเริ่มใหม่
+  if (button_mode == 3) {
+    // โหมด 4 ปุ่ม:
+    // [OK]: สลับหน้าระหว่าง รายการสี <-> หน้าเวลา
+    // [Start / B1]: เริ่มวิ่งทดสอบภารกิจใหม่ทันที
+    if (isBtnOkPressed()) {
+      buzzer(2000, 60);
+      while (isBtnOkPressed()) delay(10);
+      delay(150);
+      current_screen_state = (current_screen_state == SCREEN_COLOR_SUMMARY) ? SCREEN_TIME_SUMMARY : SCREEN_COLOR_SUMMARY;
+      screen_drawn = false;
+    } else if (isBtnStartPressed()) {
+      buzzer(2400, 100);
+      while (isBtnStartPressed()) delay(10);
+      delay(200);
+      current_screen_state = SCREEN_COLOR_SUMMARY;
+      screen_drawn = false;
+      test_start_and_scan_colors(30);
+    }
+  } else {
+    // โหมดปุ่มเดี่ยว:
+    // ครั้งที่ 1 (หน้าสี): กดปุ่ม -> สลับไปหน้าเวลาภารกิจ
+    // ครั้งที่ 2 (หน้าเวลา): กดปุ่ม -> เริ่มวิ่งทดสอบภารกิจใหม่
+    if (isButtonPressed()) {
+      buzzer(2200, 80);
+      while (isButtonPressed()) delay(10);
+      delay(150);
 
-  // delay(100);
+      if (current_screen_state == SCREEN_COLOR_SUMMARY) {
+        current_screen_state = SCREEN_TIME_SUMMARY;
+        screen_drawn = false;
+      } else {
+        current_screen_state = SCREEN_COLOR_SUMMARY;
+        screen_drawn = false;
+        test_start_and_scan_colors(30);
+      }
+    }
+  }
+
+  delay(30);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
