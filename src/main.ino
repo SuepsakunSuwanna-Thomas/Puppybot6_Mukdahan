@@ -47,7 +47,7 @@ void setup() {
   if (waitForStartOrCalibration()) {
     runCalibrationMenu();
   }
-  delay(300);
+  delay(290);
 
   // เริ่มวิ่งทดสอบตามพัลส์ (ไม่มี PID): หาเส้น -> 682p (สี 1) -> +385p x 5 (สี 2-6)
   test_start_and_scan_colors(30);
@@ -96,7 +96,7 @@ void drawMissionTimeOnlyScreen();
 // ฟังก์ชันทดสอบ: วิ่งจากจุดเริ่ม -> เจอดำ -> วิ่ง PID ตามพัลส์ 6 ช่องแล้วหยุดอ่านสี
 // ============================================================================
 void test_start_and_scan_colors(int speed) {
-  const long step_pulses[6] = {735, 385, 385, 385, 385, 385};
+  const long step_pulses[6] = {1040, 235, 235, 245, 245 , 240};
   long total_pulses = 0;
 
   mission_summary.colorCount = 0;
