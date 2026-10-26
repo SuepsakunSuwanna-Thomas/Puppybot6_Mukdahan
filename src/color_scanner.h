@@ -14,10 +14,22 @@
 // ============================================================================
 // ตำแหน่งพัลส์สะสมสัมบูรณ์ (Absolute Target Pulses) นับจากเส้นดำจุดสตาร์ท
 // สามารถปรับแก้ค่าตำแหน่งของแต่ละช่องแยกอิสระได้เลย ไม่กระทบช่องอื่น
-inline long TARGET_COLOR_PULSES[6] = {1150, 1720, 2080, 3755, 4000, 5240};
+inline long TARGET_COLOR_PULSES[6] = {1040, 1275, 1510, 1755, 2000, 2240};
 
-// ระยะหน้าต่างการอ่านสีก่อนและหลังเป้าหมาย (+- 20 พัลส์)
+// ระยะหน้าต่างการอ่านสีก่อนและหลังเป้าหมาย (+- 30 พัลส์)
 const long COLOR_SCAN_WINDOW = 30;
+
+// พัลส์วิ่งออกจากจุดสตาร์ทก่อนเริ่มสแกนสีรัวๆ (ปรับเปลี่ยนค่าได้ที่นี่ หรือใส่ในฟังก์ชันได้เลย)
+inline long INITIAL_SCAN_START_PULSES = 150;
+
+// ตำแหน่งกึ่งกลางของแถบสีแรกนับจากเส้นดำจุดสตาร์ท (ประมาณ 1040 พัลส์)
+inline long FIRST_STRIP_PULSE = 1040;
+
+// ระยะห่างระหว่างกึ่งกลางของแต่ละช่องสี (เท่ากันทุกช่องตามแผ่นเพลท ประมาณ 235-240 พัลส์)
+inline long STRIP_STEP_PULSES = 240;
+
+// ระยะพัลส์เผื่อ (Tolerance) สำหรับตัดสินว่าเป็นสีขาว เมื่อเลยจุดกึ่งกลางช่องไปแล้วไม่พบสีใดๆ
+inline long WHITE_TIMEOUT_TOLERANCE = 60;
 
 // ============================================================================
 // 2. โครงสร้างบันทึกข้อมูลแถบสีและสรุปผลภารกิจ
@@ -75,13 +87,14 @@ inline void test_start_and_scan_colors(int speed = 30, int max_slots = 6) {
   mission_summary.colorCount = 0;
   buzzer(1500, 60);
 
-  // 1. วิ่งตรงจนกว่าจะเจอเส้นดำขอบกล่องสตาร์ท
-  while (!isFrontSensorOnLine(3)) {
+  // 1. วิ่งตรงออกจากจุดสตาร์ทจนกว่าเซนเซอร์หน้าจะแตะเจอเส้นดำเส้นแรกของสนาม
+  while (countFrontSensorsOnLine() == 0) {
     if (isButtonPressed()) { stop_4w(); return; }
     fd_4w(speed);
     delay(1);
   }
 
+  buzzer(1800, 80); // เสียงเตือน: แตะเจอเส้นดำเส้นแรกเรียบร้อย เริ่มต้นระบบทำงาน
   reset_PID_state();
   resetDistance();
   long baseline_pulse = get_pulse_Encoder(selection_Encoder);
@@ -293,6 +306,399 @@ inline void test_start_and_scan_colors(int speed = 30, int max_slots = 6) {
 // ฟังก์ชันทางเลือกชื่อเดียวกัน
 inline void scanColorsContinuous(int speed = 30, int max_slots = 6) {
   test_start_and_scan_colors(speed, max_slots);
+}
+
+// ============================================================================
+// 3.1 ฟังก์ชันทดลองอ่านสีแบบตรวจจับแถบแทรกผ่านพื้นขาว (Equidistant Transition Scan)
+// ============================================================================
+// หุ่นวิ่งออกจากจุดสตาร์ท -> เจอเส้นดำแรก -> วิ่งตามเส้น 500-600 พัลส์ -> หยุด 1000ms
+// -> ออกตัววิ่งตามเส้นพร้อมอ่านค่าสีรัวๆ:
+//   - หากมีสีอื่น (แดง, เขียว, น้ำเงิน, เหลือง, ดำ) เข้ามาแทรกแทนที่พื้นขาว ให้นับเป็นสีนั้น
+//   - เนื่องจากระยะห่างระหว่างแต่ละช่องสีเท่าๆ กัน (STRIP_STEP_PULSES)
+//     หากตรงไหนวิ่งผ่านช่องสีแล้วสีหายไปนาน (ไม่พบสีใดๆ) แปลว่าช่องนั้นคือ "สีขาว"
+//   - มีสีขาวได้เพียง 1 ช่องเท่านั้นในชุดคำสั่งซื้อ 6 สี
+//   - ตรวจจับครบ 6 สีแล้วหยุดสนิททันที และคำนวณจับคู่ 1-to-1 ป้องกันสีซ้ำกัน 100%
+inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1, long strip_step = -1, long first_strip = -1) {
+  if (initial_skip_pulses < 0) initial_skip_pulses = INITIAL_SCAN_START_PULSES;
+  if (strip_step < 0) strip_step = STRIP_STEP_PULSES;
+  if (first_strip < 0) first_strip = FIRST_STRIP_PULSE;
+  mission_summary.colorCount = 0;
+  buzzer(1500, 60);
+
+  // 1. วิ่งตรงออกจากจุดสตาร์ทจนกว่าเซนเซอร์หน้าจะแตะเจอเส้นดำเส้นแรกของสนาม
+  while (countFrontSensorsOnLine() == 0) {
+    if (isButtonPressed()) { stop_4w(); return; }
+    fd_4w(speed);
+    delay(1);
+  }
+
+  buzzer(1800, 80); // เสียงเตือน: แตะเจอเส้นดำเส้นแรกเรียบร้อย เริ่มต้นระบบทำงาน
+  reset_PID_state();
+  resetDistance();
+  long baseline_pulse = get_pulse_Encoder(selection_Encoder);
+
+  // 2. วิ่งตามเส้นจนกว่าจะพ้นพัลส์ตอนแรก (ออกจากโซนสตาร์ท เข้าใกล้โซนแถบสี)
+  while (abs(get_pulse_Encoder(selection_Encoder) - baseline_pulse) < initial_skip_pulses) {
+    if (isButtonPressed()) { stop_4w(); return; }
+    lineFollow_PID_auto(speed);
+  }
+
+  // วิ่งต่อเนื่องเข้าสู่โซนแถบสีทันที (ไม่มีหยุดดีเลย์ 1000ms)
+  buzzer(2000, 60); // สัญญาณเตือน: พ้นพัลส์แรกแล้ว เริ่มต้นสแกนสีแบบต่อเนื่อง
+  long scan_start_pulse = abs(get_pulse_Encoder(selection_Encoder) - baseline_pulse);
+  long max_scan_pulse = scan_start_pulse + 2600; // ระยะสิ้นสุดของแผ่นเพลทคำสั่งซื้อ วิ่งพ้นแถบสีที่ 6 แน่นอน
+  long white_gap_threshold = 400; // เกณฑ์ตัดสินช่องสีขาว (ปกติก้าวละ ~240p ถ้ามีขาวแทรกจะกว้าง ~480-500p)
+
+  Serial.printf("\n=== AUTO SCAN STARTED (Start: %ld p, Step: %ld p, White Gap Threshold: %ld p) ===\n",
+                scan_start_pulse, strip_step, white_gap_threshold);
+  Serial.println("--- Active EEPROM Calibrated TCS Floor Values ---");
+  const char* cnames[6] = {"RED", "GREEN", "BLUE", "YELLOW", "WHITE", "BLACK"};
+  for (int c = 0; c < 6; c++) {
+    Serial.printf("  [%-6s] R:%3d G:%3d B:%3d\n",
+                  cnames[c],
+                  calib.tcs_front_rgb[c][0],
+                  calib.tcs_front_rgb[c][1],
+                  calib.tcs_front_rgb[c][2]);
+  }
+
+  enum ScanState { STATE_ON_WHITE, STATE_IN_STRIP };
+  ScanState state = STATE_ON_WHITE;
+
+  // โครงสร้างบันทึกแถบสีที่ตรวจพบจริงบนแผ่นเพลท
+  struct FoundStrip {
+    RobotColor color;
+    long pulse;
+    int samples;
+    int color_counts[7];
+  };
+  FoundStrip found_strips[8];
+  int found_count = 0;
+
+  int strip_counts[7] = {0};
+  long strip_start_pulse = 0;
+  long last_strip_pulse = scan_start_pulse;
+  int white_consecutive = 0;
+  unsigned long last_sample_time = 0;
+  unsigned long last_log_time = 0;
+
+  // ตรวจจับช่องที่ 1 แบบเรียลไทม์ขณะวิ่งผ่าน (หากเลยขอบช่อง 1 แล้วยังไม่เจอแม่สีใดๆ = ช่อง 1 คือสีขาว)
+  bool slot1_checked = false;
+  bool slot1_passed_as_white = false;
+  long slot1_boundary = first_strip + (long)(strip_step * 0.45f);
+
+  // 3. วิ่งตามเส้นและเก็บค่าสีรัวๆ จนตรวจพบแถบสีครบ หรือวิ่งจนพ้นแผ่นเพลท
+  while (abs(get_pulse_Encoder(selection_Encoder) - baseline_pulse) < max_scan_pulse) {
+    if (isButtonPressed()) { stop_4w(); return; }
+
+    long current_p = abs(get_pulse_Encoder(selection_Encoder) - baseline_pulse);
+
+    // ตรวจสอบช่องที่ 1 แบบเรียลไทม์ขณะวิ่งผ่านขอบเขตช่อง 1
+    if (!slot1_checked && current_p >= slot1_boundary) {
+      slot1_checked = true;
+      if (found_count == 0 && state == STATE_ON_WHITE) {
+        slot1_passed_as_white = true;
+        Serial.printf(">> [REALTIME EVENT] Passed Slot 1 boundary (%ld p) with NO colored strip! Marked Slot 1 as WHITE!\n", current_p);
+      }
+    }
+
+    // สุ่มอ่านค่าสีรัวๆ ทุก 2ms (ความเร็วสูงสุดเพื่อให้ได้ตัวอย่างสีหลายสิบรอบในแถบ 2cm)
+    if (millis() - last_sample_time >= 2) {
+      last_sample_time = millis();
+
+      int r = Read_Color_TCS(0);
+      int g = Read_Color_TCS(1);
+      int b = Read_Color_TCS(2);
+      int clear_val = Read_Color_TCS(4);
+      RobotColor col = detectColorFloor();
+
+      // แสดงผลสถานะเซนเซอร์สดๆ ทุก 150ms เพื่อให้ผู้ใช้งานเช็คค่าได้ทันที
+      if (millis() - last_log_time >= 150) {
+        last_log_time = millis();
+        Serial.printf("[Pulse %4ld] RGB:(%3d,%3d,%3d) Clear:%4d -> %-6s (Strips: %d)\n",
+                      current_p, r, g, b, clear_val, getColorName(col), found_count);
+      }
+
+      // ป้องกันการตรวจจับหลอกช่วงก่อนถึงพิกัดแถบสี
+      if (current_p < scan_start_pulse + 30) {
+        state = STATE_ON_WHITE;
+      } else if (state == STATE_ON_WHITE) {
+        // เมื่อเซนเซอร์สัมผัสโดนแม่สี (แดง เขียว น้ำเงิน เหลือง ดำ) ที่แทรกเข้ามาแทนที่พื้นขาว
+        if (col != COLOR_WHITE && col != COLOR_UNKNOWN) {
+          state = STATE_IN_STRIP;
+          strip_start_pulse = current_p;
+          for (int c = 1; c <= 6; c++) strip_counts[c] = 0;
+          strip_counts[col]++;
+          white_consecutive = 0;
+          Serial.printf(">> [STRIP ENTER] at pulse %ld -> %s\n", current_p, getColorName(col));
+        }
+      } else if (state == STATE_IN_STRIP) {
+        // กำลังอยู่ในแถบสี: สะสมตัวอย่างสี
+        if (col >= 1 && col <= 6) {
+          strip_counts[col]++;
+        }
+
+        if (col == COLOR_WHITE) {
+          white_consecutive++;
+          // พ้นแถบสีกลับสู่พื้นขาว (เจอขาวติดต่อกัน 5 รอบ = ~10ms ป้องกันแสงสะท้อนชั่วคราว)
+          if (white_consecutive >= 5) {
+            long center_pulse = (strip_start_pulse + current_p) / 2;
+
+            // ค้นหาแม่สีที่เด่นที่สุดในแถบนี้ (ไม่นับสีขาว)
+            RobotColor dominant_col = COLOR_UNKNOWN;
+            int max_sample = 0;
+            for (int c = 1; c <= 6; c++) {
+              if (c != COLOR_WHITE && strip_counts[c] > max_sample) {
+                max_sample = strip_counts[c];
+                dominant_col = (RobotColor)c;
+              }
+            }
+
+            // กรอง Noise: แถบสีจริง (อย่างน้อย 4 ตัวอย่าง = ~8ms) และระยะห่างจากแถบก่อนหน้า >= 120p
+            bool is_duplicate_nearby = (found_count > 0 && (center_pulse - found_strips[found_count - 1].pulse) < 120);
+
+            if (dominant_col != COLOR_UNKNOWN && max_sample >= 4 && !is_duplicate_nearby && found_count < 6) {
+              found_strips[found_count].color = dominant_col;
+              found_strips[found_count].pulse = center_pulse;
+              found_strips[found_count].samples = max_sample;
+              for (int c = 1; c <= 6; c++) {
+                found_strips[found_count].color_counts[c] = strip_counts[c];
+              }
+              found_count++;
+
+              Serial.printf(">> [STRIP CONFIRMED #%d] %s at pulse %ld (Samples: %d)\n",
+                            found_count, getColorName(dominant_col), center_pulse, max_sample);
+
+              last_strip_pulse = center_pulse;
+
+              // หากพบครบ 5 แม่สีแล้ว (แดง เขียว น้ำเงิน เหลือง ดำ) แสดงว่าสีที่เหลือคือ สีขาว แน่นอน
+              if (found_count == 5) {
+                Serial.println(">> Found all 5 non-white colors! Completing mission...");
+                break;
+              }
+            }
+
+            state = STATE_ON_WHITE;
+            white_consecutive = 0;
+          }
+        } else {
+          white_consecutive = 0;
+        }
+      }
+    }
+
+    lineFollow_PID_auto(speed);
+  }
+
+  // หากถึงระยะสิ้นสุดขณะที่ยังคาอยู่ในแถบสี ให้บันทึกแถบสีนั้นด้วย
+  if (state == STATE_IN_STRIP && found_count < 6) {
+    long current_p = abs(get_pulse_Encoder(selection_Encoder) - baseline_pulse);
+    long center_pulse = (strip_start_pulse + current_p) / 2;
+    RobotColor dominant_col = COLOR_UNKNOWN;
+    int max_sample = 0;
+    for (int c = 1; c <= 6; c++) {
+      if (c != COLOR_WHITE && strip_counts[c] > max_sample) {
+        max_sample = strip_counts[c];
+        dominant_col = (RobotColor)c;
+      }
+    }
+    bool is_duplicate_nearby = (found_count > 0 && (center_pulse - found_strips[found_count - 1].pulse) < 120);
+    if (dominant_col != COLOR_UNKNOWN && max_sample >= 3 && !is_duplicate_nearby && found_count < 6) {
+      found_strips[found_count].color = dominant_col;
+      found_strips[found_count].pulse = center_pulse;
+      found_strips[found_count].samples = max_sample;
+      for (int c = 1; c <= 6; c++) {
+        found_strips[found_count].color_counts[c] = strip_counts[c];
+      }
+      found_count++;
+      Serial.printf(">> [STRIP CONFIRMED AT SCAN END #%d] %s at pulse %ld (Samples: %d)\n",
+                    found_count, getColorName(dominant_col), center_pulse, max_sample);
+    }
+  }
+
+  // วิ่งสแกนเรียบร้อยแล้ว สั่งหยุดสนิททันที
+  stop_4w();
+  buzzer(1800, 200);
+  Serial.printf("\n=== SCAN MOTOR STOPPED at pulse %ld (Total Colored Strips Found: %d) ===\n",
+                abs(get_pulse_Encoder(selection_Encoder) - baseline_pulse), found_count);
+
+  // 4. สรุปลำดับแถบสีทั้ง 6 ช่อง โดยจัดตำแหน่ง "สีขาว" ลงในช่องว่างกว้างที่สีหายไปนาน
+  // ค้นหาตำแหน่งของช่องสีขาว:
+  int white_slot_index = -1; // 0 ถึง 5
+  long measured_step = strip_step;
+
+  if (found_count >= 5) {
+    measured_step = ((found_strips[found_count - 1].pulse - found_strips[0].pulse) / (found_count - 1));
+    if (measured_step < 120 || measured_step > 400) measured_step = strip_step;
+    long gap_threshold = (long)(measured_step * 1.45f);
+
+    // กรณีที่ 1: ตรวจหาว่ามีช่องว่างขนาดใหญ่ (>= 1.45 เท่าของก้าว) ระหว่างแถบสีหรือไม่
+    long max_gap = 0;
+    int max_gap_after_idx = -1;
+
+    for (int i = 0; i < found_count - 1; i++) {
+      long gap = found_strips[i + 1].pulse - found_strips[i].pulse;
+      if (gap > max_gap) {
+        max_gap = gap;
+        max_gap_after_idx = i;
+      }
+    }
+
+    if (max_gap >= gap_threshold && max_gap_after_idx >= 0) {
+      white_slot_index = max_gap_after_idx + 1;
+      Serial.printf(">> WHITE identified in Middle Slot #%d (Gap was %ld pulses, threshold: %ld)\n",
+                    white_slot_index + 1, max_gap, gap_threshold);
+    } else {
+      // หากระหว่างแม่สีไม่มีช่องว่างใหญ่ แสดงว่าสีขาวอยู่ที่หัวแถว (ช่อง 1) หรือท้ายแถว (ช่อง 6)
+      long p0 = found_strips[0].pulse;
+      long p_last = found_strips[found_count - 1].pulse;
+      long strip_center = (p0 + p_last) / 2;
+
+      // 1. คำนวณระยะก้าวเฉลี่ยต่อช่องจริงจากการวิ่งครั้งนี้ (Self-Calibrating Step)
+      float step_f = (float)(p_last - p0) / 4.0f;
+      if (step_f < 120.0f || step_f > 400.0f) step_f = (float)strip_step;
+
+      // 2. คำนวณสัดส่วนทางเรขาคณิตเทียบกับระยะก้าว (Dimensionless Geometric Ratios)
+      // ตามกติกา ระยะจากเส้นดำถึงช่อง 1 = 17cm, ระยะก้าว = ~4.5cm -> สัดส่วน = 17 / 4.5 = ~3.8 ก้าว
+      // ถ้าช่อง 1 มีสี: แถบแรก p0 คือช่อง 1 -> p0 / step ~ 3.8
+      // ถ้าช่อง 1 สีขาว: แถบแรก p0 คือช่อง 2 -> p0 / step ~ 4.8 (เลยไปอีก 1 ก้าวเต็มๆ)
+      float ratio_p0 = (float)p0 / step_f;
+      float ratio_last = (float)p_last / step_f;
+      float ratio_center = (float)strip_center / step_f;
+
+      // เปรียบเทียบสมมติฐาน First Strip (กรณี first_strip ถูกต้อง)
+      long err_slot1_white = abs((p0 - (long)step_f) - first_strip);
+      long err_slot6_white = abs(p0 - first_strip);
+
+      int vote_slot1 = 0;
+      // 1. สัดส่วนเรขาคณิต: แถบแรก p0 อยู่ไกลเกิน 4.2 ก้าว (เกณฑ์เด็ดขาด)
+      if (ratio_p0 >= 4.2f) vote_slot1 += 2;
+      // 2. สัดส่วนเรขาคณิต: แถบสุดท้าย p_last อยู่ไกลเกิน 8.2 ก้าว (วิ่งถึงช่อง 6)
+      if (ratio_last >= 8.2f) vote_slot1 += 2;
+      // 3. จุดกึ่งกลางแถบสีเกิน 6.2 ก้าว
+      if (ratio_center >= 6.2f) vote_slot1++;
+      // 4. เปรียบเทียบ error กับ first_strip
+      if (err_slot1_white < err_slot6_white) vote_slot1++;
+      // 5. ธงตรวจจับสดขณะวิ่งผ่านช่อง 1
+      if (slot1_passed_as_white) vote_slot1 += 2;
+
+      bool is_first_slot_white = (vote_slot1 >= 3);
+
+      if (is_first_slot_white) {
+        white_slot_index = 0; // สีขาวอยู่ที่ช่อง 1 (แถบสีแรกที่เจอคือช่อง 2)
+        Serial.printf(">> WHITE identified in First Slot #1 (Votes: %d/8, p0: %ld, p_last: %ld, step: %.1f, r_p0: %.2f, r_last: %.2f)\n",
+                      vote_slot1, p0, p_last, step_f, ratio_p0, ratio_last);
+      } else {
+        white_slot_index = 5; // สีขาวอยู่ที่ช่อง 6 (ท้ายสุด)
+        Serial.printf(">> WHITE identified in Last Slot #6 (Votes: %d/8, p0: %ld, p_last: %ld, step: %.1f, r_p0: %.2f, r_last: %.2f)\n",
+                      vote_slot1, p0, p_last, step_f, ratio_p0, ratio_last);
+      }
+    }
+  } else {
+    // กรณีเก็บแม่สีได้ 4 สี (หลุด 1 สี):
+    float step_f = (found_count >= 2) ? ((float)(found_strips[found_count - 1].pulse - found_strips[0].pulse) / (float)(found_count - 1)) : (float)strip_step;
+    if (step_f < 120.0f || step_f > 400.0f) step_f = (float)strip_step;
+    long gap_threshold = (long)(step_f * 1.45f);
+
+    long max_gap = 0;
+    int max_gap_after_idx = -1;
+    for (int i = 0; i < found_count - 1; i++) {
+      long gap = found_strips[i + 1].pulse - found_strips[i].pulse;
+      if (gap > max_gap) {
+        max_gap = gap;
+        max_gap_after_idx = i;
+      }
+    }
+    long p0 = (found_count > 0) ? found_strips[0].pulse : 0;
+    long p_last = (found_count > 0) ? found_strips[found_count - 1].pulse : 0;
+    float ratio_p0 = (float)p0 / step_f;
+    float ratio_last = (float)p_last / step_f;
+
+    int vote_slot1 = 0;
+    if (ratio_p0 >= 4.2f) vote_slot1 += 2;
+    if (ratio_last >= 8.2f) vote_slot1 += 2;
+    if (slot1_passed_as_white) vote_slot1 += 2;
+
+    if (max_gap >= gap_threshold && max_gap_after_idx >= 0) {
+      white_slot_index = max_gap_after_idx + 1;
+    } else if (vote_slot1 >= 2) {
+      white_slot_index = 0; // สีขาวอยู่ที่ช่อง 1
+    } else {
+      white_slot_index = 5; // สีขาวอยู่ที่ช่อง 6
+    }
+  }
+
+  // ป้องกันสีซ้ำกัน 100% ด้วยการจับคู่ 1-to-1 (Global Optimal Permutation)
+  // แม่สี 5 สีที่ไม่ใช่สีขาว: RED, GREEN, BLUE, YELLOW, BLACK
+  const RobotColor non_white_colors[5] = {
+    COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_YELLOW, COLOR_BLACK
+  };
+
+  RobotColor assigned_strip_colors[6];
+  for (int i = 0; i < found_count && i < 6; i++) {
+    assigned_strip_colors[i] = found_strips[i].color;
+  }
+
+  if (found_count == 5) {
+    int perm[5] = {0, 1, 2, 3, 4};
+    long best_total_score = -1;
+    int best_perm[5] = {0, 1, 2, 3, 4};
+
+    do {
+      long current_score = 0;
+      for (int i = 0; i < 5; i++) {
+        RobotColor candidate = non_white_colors[perm[i]];
+        current_score += (long)found_strips[i].color_counts[candidate] * 100L;
+        if (found_strips[i].color == candidate) {
+          current_score += 5000L;
+        }
+      }
+      if (current_score > best_total_score) {
+        best_total_score = current_score;
+        for (int i = 0; i < 5; i++) best_perm[i] = perm[i];
+      }
+    } while (std::next_permutation(perm, perm + 5));
+
+    for (int i = 0; i < 5; i++) {
+      assigned_strip_colors[i] = non_white_colors[best_perm[i]];
+    }
+  }
+
+  // 5. บันทึกผลลัพธ์ลงใน mission_summary ตามลำดับช่อง 1 ถึง 6 อย่างถูกต้องแม่นยำ
+  mission_summary.colorCount = 0;
+  int strip_idx = 0;
+
+  for (int slot = 0; slot < 6; slot++) {
+    if (slot == white_slot_index) {
+      strncpy(mission_summary.records[slot].name, "WHITE", sizeof(mission_summary.records[slot].name));
+      mission_summary.records[slot].color = COLOR_WHITE;
+      if (slot > 0) {
+        mission_summary.records[slot].pulse = mission_summary.records[slot - 1].pulse + measured_step;
+      } else if (found_count > 0) {
+        mission_summary.records[slot].pulse = found_strips[0].pulse - measured_step;
+      } else {
+        mission_summary.records[slot].pulse = first_strip;
+      }
+    } else if (strip_idx < found_count) {
+      RobotColor c = assigned_strip_colors[strip_idx];
+      strncpy(mission_summary.records[slot].name, getColorName(c), sizeof(mission_summary.records[slot].name));
+      mission_summary.records[slot].color = c;
+      mission_summary.records[slot].pulse = found_strips[strip_idx].pulse;
+      strip_idx++;
+    } else {
+      strncpy(mission_summary.records[slot].name, "WHITE", sizeof(mission_summary.records[slot].name));
+      mission_summary.records[slot].color = COLOR_WHITE;
+      mission_summary.records[slot].pulse = (slot > 0) ? (mission_summary.records[slot - 1].pulse + measured_step) : 1000;
+    }
+
+    mission_summary.records[slot].cm = encoderToCm(mission_summary.records[slot].pulse);
+    mission_summary.colorCount++;
+
+    Serial.printf("Final Slot #%d [Pulse %4ld]: %-6s\n",
+                  slot + 1, mission_summary.records[slot].pulse, mission_summary.records[slot].name);
+  }
+
+  mission_summary.completed = true;
+  drawColorSummaryScreen();
 }
 
 // ============================================================================

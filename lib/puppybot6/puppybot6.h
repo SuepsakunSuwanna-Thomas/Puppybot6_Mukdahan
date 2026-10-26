@@ -24,8 +24,8 @@ Adafruit_MCP3008 adc;
 // #define ST7735_YELLOW ST7735_YELLOW
 // #define ST7735_ORANGE ST7735_ORANGE
 #include <Adafruit_TCS34725.h>
-Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_24MS, TCS34725_GAIN_4X);
-Adafruit_TCS34725 tcsB = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_24MS, TCS34725_GAIN_4X);
+Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_2_4MS, TCS34725_GAIN_16X);
+Adafruit_TCS34725 tcsB = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_2_4MS, TCS34725_GAIN_16X);
 
 
 Servo servo1;
@@ -86,6 +86,8 @@ inline uint8_t init_TCS_sensor(Adafruit_TCS34725 &sensor, TwoWire &wireBus, bool
   for (uint8_t addr : validAddrs) {
     if (sensor.begin(addr, &wireBus)) {
       foundFlag = true;
+      sensor.setIntegrationTime(TCS34725_INTEGRATIONTIME_2_4MS); // [HIGH SPEED] สุ่มวัดค่าแสงทุก 2.4ms (เร็วขึ้น 10 เท่า)
+      sensor.setGain(TCS34725_GAIN_16X); // [GAIN 16X] ขยายสัญญาณแสงให้คมชัด ชดเชยเวลา integration สั้น
       sensor.setInterrupt(false); // [FIX] สั่งเปิดไฟ LED สีขาวส่องสว่างของเซนเซอร์
       return addr;
     }
@@ -94,17 +96,13 @@ inline uint8_t init_TCS_sensor(Adafruit_TCS34725 &sensor, TwoWire &wireBus, bool
   return 0x29; // default fallback
 }
 
-// [ULTRA FAST BURST READ] อ่าน C, R, G, B ตรงจากรีจิสเตอร์แบบ Burst Read (0.2ms ไม่มี delay บล็อก CPU)
-inline bool readColorNoWait(TwoWire &wireBus, uint8_t addr, uint16_t &r, uint16_t &g, uint16_t &b, uint16_t &c) {
-  wireBus.beginTransmission(addr);
-  wireBus.write(0xA0 | 0x14); // 0xA0 = command + auto-increment, 0x14 = CDATAL
-  if (wireBus.endTransmission() != 0) return false;
-  if (wireBus.requestFrom(addr, (uint8_t)8) != 8) return false;
-  c = wireBus.read(); c |= (uint16_t)wireBus.read() << 8;
-  r = wireBus.read(); r |= (uint16_t)wireBus.read() << 8;
-  g = wireBus.read(); g |= (uint16_t)wireBus.read() << 8;
-  b = wireBus.read(); b |= (uint16_t)wireBus.read() << 8;
-  return true;
+// [FAST DIRECT READ] อ่าน C, R, G, B ตรงจากรีจิสเตอร์ผ่าน read16 ของ Adafruit (แม่นยำ 100% ไม่มี delay บล็อก CPU)
+inline bool readColorDirect(Adafruit_TCS34725 &sensor, uint16_t &r, uint16_t &g, uint16_t &b, uint16_t &c) {
+  c = sensor.read16(TCS34725_CDATAL);
+  r = sensor.read16(TCS34725_RDATAL);
+  g = sensor.read16(TCS34725_GDATAL);
+  b = sensor.read16(TCS34725_BDATAL);
+  return (c > 0 || r > 0 || g > 0 || b > 0);
 }
 
 void puppybot6_setup() {
@@ -180,10 +178,10 @@ long Read_Color_TCS(int color_of_sensor)
   if (!tcs_front_found) return 0;
 
   unsigned long now = millis();
-  // อัปเดตเฟรมใหม่ทุก ~3ms (สอดคล้องกับ Integration Time 2.4ms เร็วกว่าเดิม 3 เท่า)
-  if (now - _tcs_f_last_read >= 3 || _tcs_f_last_read == 0) {
+  // อัปเดตเฟรมใหม่ทุก ~2ms (Ultra High-Speed Non-blocking Fast Read)
+  if (now - _tcs_f_last_read >= 2 || _tcs_f_last_read == 0) {
     uint16_t clearcol_lib = 0, red_lib = 0, green_lib = 0, blue_lib = 0;
-    if (readColorNoWait(Wire, tcs_front_addr, red_lib, green_lib, blue_lib, clearcol_lib)) {
+    if (readColorDirect(tcs, red_lib, green_lib, blue_lib, clearcol_lib)) {
       float average_lib = ((float)red_lib + (float)green_lib + (float)blue_lib) / 3.0f;
       if (average_lib < 1.0f) average_lib = 1.0f; // ป้องกันการหารด้วยศูนย์
 
@@ -217,16 +215,17 @@ int Read_Color_TCS_B(int color_of_sensor)
   if (!tcs_back_found) return 0;
 
   unsigned long now = millis();
-  if (now - _tcs_b_last_read >= 3 || _tcs_b_last_read == 0) {
+  // อัปเดตเฟรมใหม่ทุก ~2ms
+  if (now - _tcs_b_last_read >= 2 || _tcs_b_last_read == 0) {
     uint16_t clearcol_lib = 0, red_lib = 0, green_lib = 0, blue_lib = 0;
-    if (readColorNoWait(Wire1, tcs_back_addr, red_lib, green_lib, blue_lib, clearcol_lib)) {
+    if (readColorDirect(tcsB, red_lib, green_lib, blue_lib, clearcol_lib)) {
       float average_lib = ((float)red_lib + (float)green_lib + (float)blue_lib) / 3.0f;
       if (average_lib < 1.0f) average_lib = 1.0f;
 
       _tcs_b_cached_r = (long)(((float)red_lib / average_lib) * 100.0f);
       _tcs_b_cached_g = (long)(((float)green_lib / average_lib) * 100.0f);
       _tcs_b_cached_b = (long)(((float)blue_lib / average_lib) * 100.0f);
-      _tcs_b_cached_temp = 0; // ตัดสูตรทศนิยม Color Temp ออกเพื่อความเร็วสูงสุด
+      _tcs_b_cached_temp = 0;
       _tcs_b_cached_lux = (long)clearcol_lib;
       _tcs_b_last_read = now;
     }

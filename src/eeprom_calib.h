@@ -101,22 +101,6 @@ inline void loadCalibrationFromEEPROM() {
     saveCalibrationToEEPROM();
   } else {
     Serial.println(">> Loaded valid Calibration data from EEPROM!");
-    // อัปเกรดสเกลอัตโนมัติหากใน EEPROM เดิมเป็นสเกลเก่า (R < 100 สำหรับสีแดง)
-    if (calib.tcs_front_rgb[0][0] < 100) {
-      Serial.println(">> Auto-upgrading TCS color reference to calibrated scale...");
-      calib.tcs_front_rgb[0][0] = 180; calib.tcs_front_rgb[0][1] = 60; calib.tcs_front_rgb[0][2] = 60;
-      calib.tcs_front_rgb[1][0] = 60;  calib.tcs_front_rgb[1][1] = 180; calib.tcs_front_rgb[1][2] = 60;
-      calib.tcs_front_rgb[2][0] = 60;  calib.tcs_front_rgb[2][1] = 75;  calib.tcs_front_rgb[2][2] = 165;
-      calib.tcs_front_rgb[3][0] = 135; calib.tcs_front_rgb[3][1] = 135; calib.tcs_front_rgb[3][2] = 30;
-      calib.tcs_front_rgb[4][0] = 100; calib.tcs_front_rgb[4][1] = 100; calib.tcs_front_rgb[4][2] = 100;
-      calib.tcs_front_rgb[5][0] = 95;  calib.tcs_front_rgb[5][1] = 105; calib.tcs_front_rgb[5][2] = 100;
-      for (int i = 0; i < NUM_CALIB_COLORS; i++) {
-        for (int k = 0; k < 3; k++) {
-          calib.tcs_back_rgb[i][k] = calib.tcs_front_rgb[i][k];
-        }
-      }
-      saveCalibrationToEEPROM();
-    }
 
     // ตรวจสอบค่า Encoder Pulses per CM
     if (calib.encoder_pulses_per_cm <= 1.0f || isnan(calib.encoder_pulses_per_cm)) {
@@ -834,7 +818,7 @@ inline void runCalibrationMenu() {
     "3. TCS COLOR (FLR/SIDE)",
     "4. ENCODER CALIB",
     "5. IR DISTANCE SENSOR",
-    "6. EXIT & START ROBOT"
+    "6. EXIT TO STANDBY"
   };
 
   tft_.fillScreen(ST7735_BLACK);
@@ -897,9 +881,9 @@ inline void runCalibrationMenu() {
             tft_.fillScreen(ST7735_BLACK);
             tft_.fillRoundRect(8, 42, 144, 44, 4, 0x0A22);
             tft_.drawRoundRect(8, 42, 144, 44, 4, ST7735_GREEN);
-            printText(16, 56, "STARTING ROBOT...", 1, ST7735_GREEN, 0x0A22);
-            buzzer(1500, 120);
-            delay(400);
+            printText(14, 56, "SAVED! EXIT STANDBY", 1, ST7735_GREEN, 0x0A22);
+            buzzer(1800, 150);
+            delay(500);
             return;
           }
 
@@ -955,9 +939,9 @@ inline void runCalibrationMenu() {
           tft_.fillScreen(ST7735_BLACK);
           tft_.fillRoundRect(8, 42, 144, 44, 4, 0x0A22);
           tft_.drawRoundRect(8, 42, 144, 44, 4, ST7735_GREEN);
-          printText(16, 56, "STARTING ROBOT...", 1, ST7735_GREEN, 0x0A22);
-          buzzer(1500, 120);
-          delay(400);
+          printText(14, 56, "SAVED! EXIT STANDBY", 1, ST7735_GREEN, 0x0A22);
+          buzzer(1800, 150);
+          delay(500);
           return;
         }
 

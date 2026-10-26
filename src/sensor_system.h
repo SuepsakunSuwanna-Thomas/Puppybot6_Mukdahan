@@ -403,6 +403,8 @@ inline float get_distance_cm() {
 // ============================================================================
 // 6. ตรวจจับสี (TCS34725 Color Detection)
 // ============================================================================
+// 6. ตรวจจับสี (TCS34725 Color Detection)
+// ============================================================================
 inline RobotColor detectColorFront() {
   int r = Read_Color_TCS(0);
   int g = Read_Color_TCS(1);
@@ -414,38 +416,51 @@ inline RobotColor detectColorFront() {
     return COLOR_UNKNOWN;
   }
 
-  // มืดสนิท ไม่มีแสงสะท้อน (ลด threshold จาก 35 ลงเหลือ 20 เพื่อไม่ให้แม่สีเข้มๆ กลายเป็นสีดำ)
-  if (clear_val < 20) {
+  // 1. ตรวจสอบสีดำก่อนเป็นอันดับแรก (แสงสะท้อนต่ำกว่าเกณฑ์สีดำ)
+  if (clear_val < 130) {
     return COLOR_BLACK;
   }
 
-  // 1. ตรวจจับแม่สีและสีขาว (0=RED, 1=GREEN, 2=BLUE, 3=YELLOW, 4=WHITE) ด้วย Euclidean Distance
-  int bestColor = COLOR_UNKNOWN;
-  long minDiff = 1000000;
+  // 2. คำนวณระยะห่าง Euclidean Distance เทียบกับตารางค่าที่ผู้ใช้คาลิเบรตไว้ใน EEPROM
+  // calib.tcs_front_rgb: [0]=RED, [1]=GREEN, [2]=BLUE, [3]=YELLOW, [4]=WHITE, [5]=BLACK
+  int bestColor = COLOR_WHITE;
+  long minDiff = 100000000;
 
-  for (int c = 0; c < 5; c++) { // ตรวจสอบครบทั้ง 5 สี รวมทั้ง WHITE (c=4)
+  for (int c = 0; c < 6; c++) {
     long dr = r - calib.tcs_front_rgb[c][0];
     long dg = g - calib.tcs_front_rgb[c][1];
     long db = b - calib.tcs_front_rgb[c][2];
     long diff = dr * dr + dg * dg + db * db;
 
-    // กฎ Green Dominance: ถ้าจะเป็นสีเขียว ค่า G ต้องเด่นกว่า R และ B อย่างน้อย 15 หน่วย
-    if (c == 1) { // GREEN
-      if (g < r + 15 || g < b + 15) {
-        diff += 15000; // หาก G ไม่เด่นจริง จะไม่ยอมให้ตัดสินเป็นสีเขียวเด็ดขาด
+    // หากเป็นสีดำ (c = 5): แสงสะท้อนรวมต้องต่ำ (clear_val < 140)
+    if (c == 5) {
+      if (clear_val < 140) {
+        diff /= 2;
+      } else {
+        diff += 100000; // แสงสว่างห้ามเป็นสีดำ
+      }
+    }
+
+    // หากเป็นสีขาว (c = 4): แสงสะท้อนต้องสว่าง (clear_val >= 140)
+    if (c == 4) {
+      if (clear_val < 140) {
+        diff += 100000;
       }
     }
 
     if (diff < minDiff) {
       minDiff = diff;
-      bestColor = c + 1; // 1-based enum: 1=RED, 2=GREEN, 3=BLUE, 4=YELLOW, 5=WHITE
+      bestColor = c + 1; // 1=RED, 2=GREEN, 3=BLUE, 4=YELLOW, 5=WHITE, 6=BLACK
     }
   }
 
-  // 2. แยกแยะ BLACK vs WHITE: ทั้งสองสีมีสัดส่วน RGB ใกล้เคียงกัน (~100, 100, 100)
-  // ตัดสินด้วยความเข้มแสงสะท้อน Clear Channel (ปรับเกณฑ์ลงเหลือ 220)
-  if (bestColor == COLOR_WHITE && clear_val < 220) {
-    return COLOR_BLACK;
+  // 3. กรองพื้นขาวธรรมชาติ (Neutral White): ค่า R,G,B สมดุลกันมากและแสงสะท้อนสูง
+  int max_rgb = max(r, max(g, b));
+  int min_rgb = min(r, min(g, b));
+  int delta = max_rgb - min_rgb;
+
+  if (delta < 15 && clear_val >= 140) {
+    return COLOR_WHITE;
   }
 
   return (RobotColor)bestColor;
