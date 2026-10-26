@@ -414,8 +414,8 @@ inline RobotColor detectColorFront() {
     return COLOR_UNKNOWN;
   }
 
-  // มืดสนิท ไม่มีแสงสะท้อน
-  if (clear_val < 35) {
+  // มืดสนิท ไม่มีแสงสะท้อน (ลด threshold จาก 35 ลงเหลือ 20 เพื่อไม่ให้แม่สีเข้มๆ กลายเป็นสีดำ)
+  if (clear_val < 20) {
     return COLOR_BLACK;
   }
 
@@ -443,8 +443,8 @@ inline RobotColor detectColorFront() {
   }
 
   // 2. แยกแยะ BLACK vs WHITE: ทั้งสองสีมีสัดส่วน RGB ใกล้เคียงกัน (~100, 100, 100)
-  // ตัดสินด้วยความเข้มแสงสะท้อน Clear Channel (สีขาวสะท้อนแสงสูง > 350, สีดำดูดกลืนแสง < 350)
-  if (bestColor == COLOR_WHITE && clear_val < 350) {
+  // ตัดสินด้วยความเข้มแสงสะท้อน Clear Channel (ปรับเกณฑ์ลงเหลือ 220)
+  if (bestColor == COLOR_WHITE && clear_val < 220) {
     return COLOR_BLACK;
   }
 
@@ -459,7 +459,7 @@ inline RobotColor detectColorBack() {
   int clear_val = Read_Color_TCS_B(4);
 
   if (r == 0 && g == 0 && b == 0) return COLOR_UNKNOWN;
-  if (clear_val < 35) return COLOR_BLACK;
+  if (clear_val < 20) return COLOR_BLACK;
 
   int bestColor = COLOR_UNKNOWN;
   long minDiff = 1000000;
@@ -482,7 +482,7 @@ inline RobotColor detectColorBack() {
     }
   }
 
-  if (bestColor == COLOR_WHITE && clear_val < 350) {
+  if (bestColor == COLOR_WHITE && clear_val < 220) {
     return COLOR_BLACK;
   }
 

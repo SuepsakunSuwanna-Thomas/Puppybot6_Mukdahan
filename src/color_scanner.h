@@ -14,7 +14,7 @@
 // ============================================================================
 // ตำแหน่งพัลส์สะสมสัมบูรณ์ (Absolute Target Pulses) นับจากเส้นดำจุดสตาร์ท
 // สามารถปรับแก้ค่าตำแหน่งของแต่ละช่องแยกอิสระได้เลย ไม่กระทบช่องอื่น
-inline long TARGET_COLOR_PULSES[6] = {1720, 2060, 2080, 1755, 2000, 2240};
+inline long TARGET_COLOR_PULSES[6] = {1150, 1720, 2080, 3755, 4000, 5240};
 
 // ระยะหน้าต่างการอ่านสีก่อนและหลังเป้าหมาย (+- 20 พัลส์)
 const long COLOR_SCAN_WINDOW = 30;
@@ -98,21 +98,73 @@ inline void test_start_and_scan_colors(int speed = 30, int max_slots = 6) {
 
   unsigned long last_sample_time = 0;
 
-  // 2. วิ่งตามเส้นแบบ PID ต่อเนื่องไปข้างหน้า
+  // ตรวจสอบความถูกต้องของลำดับพัลส์
+  for (int i = 0; i < max_slots - 1; i++) {
+    if (TARGET_COLOR_PULSES[i] >= TARGET_COLOR_PULSES[i+1]) {
+      Serial.printf("[เตือนภัย บัคพัลส์] ช่อง %d (%ld) ดันมากกว่าหรือเท่ากับช่อง %d (%ld)! พัลส์ต้องเรียงจากน้อยไปมากเสมอ\n",
+                    i + 1, TARGET_COLOR_PULSES[i], i + 2, TARGET_COLOR_PULSES[i+1]);
+    }
+  }
+
+  // ตัวแปรเช็คว่าช่องใดหยุดอ่าน 10ms ไปแล้วบ้าง
+  bool slot_stopped[6] = {false};
+
+  // 2. วิ่งตามเส้นแบบ PID ไปข้างหน้า พร้อมหยุดอ่าน 10ms ในแต่ละช่อง
   while (true) {
     if (isButtonPressed()) { stop_4w(); return; }
 
     long current_p = abs(get_pulse_Encoder(selection_Encoder) - baseline_pulse);
+
+    // ตรวจสอบว่าถึงพิกัดกึ่งกลางช่องใด เพื่อหยุด 10ms อ่านค่าสีแบบนิ่งสนิท
+    for (int step = 0; step < max_slots; step++) {
+      if (current_p >= TARGET_COLOR_PULSES[step] && !slot_stopped[step]) {
+        slot_stopped[step] = true;
+        stop_4w(); // หยุดมอเตอร์ทั้ง 4 ล้อสนิททันที
+
+        // หยุด 10ms อ่านค่าสีแบบนิ่งสนิท ไร้การสั่นไหวและ Motion Blur
+        unsigned long stop_start = millis();
+        while (millis() - stop_start < 10) {
+          int r = Read_Color_TCS(0);
+          int g = Read_Color_TCS(1);
+          int b = Read_Color_TCS(2);
+          int clear_val = Read_Color_TCS(4);
+          RobotColor col = detectColorFloor();
+
+          if (col >= 1 && col <= 6) {
+            color_counts[step][col] += 5; // ให้น้ำหนักค่าสีตอนหยุดนิ่งสูงเป็นพิเศษ
+            total_samples[step] += 5;
+          }
+
+          for (int c = 0; c < 5; c++) {
+            long dr = r - calib.tcs_front_rgb[c][0];
+            long dg = g - calib.tcs_front_rgb[c][1];
+            long db = b - calib.tcs_front_rgb[c][2];
+            long diff = dr * dr + dg * dg + db * db;
+            if (c == 1 && (g < r + 15 || g < b + 15)) diff += 15000;
+            int color_id = c + 1;
+            if (diff < min_diff[step][color_id]) {
+              min_diff[step][color_id] = diff;
+            }
+          }
+          if (clear_val < min_diff[step][COLOR_BLACK]) {
+            min_diff[step][COLOR_BLACK] = clear_val;
+          }
+          delay(1);
+        }
+        _line_prev_err = 0; // รีเซ็ต derivative ป้องกันหุ่นยนต์กระตุกตอนออกตัวใหม่
+        break;
+      }
+    }
+
     if (current_p >= finish_pulse) break;
 
-    // ตรวจสอบว่าพัลส์ปัจจุบันอยู่ในช่วง [target - 20, target + 20] ของช่องใด
+    // อ่านค่าสีช่วงวิ่งเข้าหา/ออกจากหน้าต่างของช่อง [target - 30, target + 30]
     for (int step = 0; step < max_slots; step++) {
       long p_start = TARGET_COLOR_PULSES[step] - COLOR_SCAN_WINDOW;
       long p_end   = TARGET_COLOR_PULSES[step] + COLOR_SCAN_WINDOW;
 
       if (current_p >= p_start && current_p <= p_end) {
-        // อ่านค่าสีทุกๆ รอบที่ TCS พร้อม (อย่างน้อย 10ms ต่อเฟรม)
-        if (millis() - last_sample_time >= 10) {
+        if (millis() - last_sample_time >= 3) {
           last_sample_time = millis();
 
           int r = Read_Color_TCS(0);
@@ -126,16 +178,13 @@ inline void test_start_and_scan_colors(int speed = 30, int max_slots = 6) {
             total_samples[step]++;
           }
 
-          // เก็บค่าความคลาดเคลื่อน Euclidean Distance ของแต่ละสี
           for (int c = 0; c < 5; c++) {
             long dr = r - calib.tcs_front_rgb[c][0];
             long dg = g - calib.tcs_front_rgb[c][1];
             long db = b - calib.tcs_front_rgb[c][2];
             long diff = dr * dr + dg * dg + db * db;
-            if (c == 1) { // กฎ Green Dominance
-              if (g < r + 15 || g < b + 15) diff += 15000;
-            }
-            int color_id = c + 1; // 1=RED, 2=GREEN, 3=BLUE, 4=YELLOW, 5=WHITE
+            if (c == 1 && (g < r + 15 || g < b + 15)) diff += 15000;
+            int color_id = c + 1;
             if (diff < min_diff[step][color_id]) {
               min_diff[step][color_id] = diff;
             }
@@ -144,12 +193,11 @@ inline void test_start_and_scan_colors(int speed = 30, int max_slots = 6) {
             min_diff[step][COLOR_BLACK] = clear_val;
           }
         }
-        break; // อยู่ในช่วงของช่องนี้แล้ว
+        break;
       }
     }
 
     lineFollow_PID_auto(speed);
-    delay(1);
   }
 
   // วิ่งถึงเป้าหมายแล้ว หยุดสนิททันที

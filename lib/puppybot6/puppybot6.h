@@ -125,12 +125,13 @@ void puppybot6_setup() {
   Wire.setSDA(4);
   Wire.setSCL(5);
   Wire.begin();
+  Wire.setClock(400000); // [FAST I2C] เร่งสปีด I2C บัสเป็น 400 kHz (Fast Mode)
   delay(15); // รอเซนเซอร์ TCS บูตระบบ
 
   // ตรวจจับและเชื่อมต่อเซนเซอร์สี TCS3472 ด้านหน้า (SDA=4, SCL=5)
   tcs_front_addr = init_TCS_sensor(tcs, Wire, tcs_front_found);
   if (tcs_front_found) {
-    Serial.printf("[TCS Front] Found & initialized TCS3472 at I2C: 0x%02X (SDA=4, SCL=5)\n", tcs_front_addr);
+    Serial.printf("[TCS Front] Found & initialized TCS3472 at I2C: 0x%02X (SDA=4, SCL=5, 400kHz)\n", tcs_front_addr);
   } else {
     Serial.printf("[TCS Front] Warning: TCS3472 not detected on Wire (SDA=4, SCL=5)\n");
   }
@@ -140,12 +141,13 @@ void set_TCS_back(){
   Wire1.setSDA(6);
   Wire1.setSCL(7);
   Wire1.begin();
+  Wire1.setClock(400000); // [FAST I2C] เร่งสปีด I2C บัสเป็น 400 kHz (Fast Mode)
   delay(15);
 
   // ตรวจสอบเซนเซอร์สีด้านหลัง (SDA=6, SCL=7)
   tcs_back_addr = init_TCS_sensor(tcsB, Wire1, tcs_back_found);
   if (tcs_back_found) {
-    Serial.printf("[TCS Back] Found & initialized TCS3472 at I2C: 0x%02X (SDA=6, SCL=7)\n", tcs_back_addr);
+    Serial.printf("[TCS Back] Found & initialized TCS3472 at I2C: 0x%02X (SDA=6, SCL=7, 400kHz)\n", tcs_back_addr);
   } else {
     Serial.println("[TCS Back] No TCS detected on Wire1 - Back color reader safely disabled");
   }
@@ -178,8 +180,8 @@ long Read_Color_TCS(int color_of_sensor)
   if (!tcs_front_found) return 0;
 
   unsigned long now = millis();
-  // อัปเดตเฟรมใหม่เมื่อผ่านไปอย่างน้อย 10ms หรือการอ่านครั้งแรก
-  if (now - _tcs_f_last_read >= 10 || _tcs_f_last_read == 0) {
+  // อัปเดตเฟรมใหม่ทุก ~3ms (สอดคล้องกับ Integration Time 2.4ms เร็วกว่าเดิม 3 เท่า)
+  if (now - _tcs_f_last_read >= 3 || _tcs_f_last_read == 0) {
     uint16_t clearcol_lib = 0, red_lib = 0, green_lib = 0, blue_lib = 0;
     if (readColorNoWait(Wire, tcs_front_addr, red_lib, green_lib, blue_lib, clearcol_lib)) {
       float average_lib = ((float)red_lib + (float)green_lib + (float)blue_lib) / 3.0f;
@@ -188,8 +190,8 @@ long Read_Color_TCS(int color_of_sensor)
       _tcs_f_cached_r = (long)(((float)red_lib / average_lib) * 100.0f);
       _tcs_f_cached_g = (long)(((float)green_lib / average_lib) * 100.0f);
       _tcs_f_cached_b = (long)(((float)blue_lib / average_lib) * 100.0f);
-      _tcs_f_cached_temp = tcs.calculateColorTemperature(red_lib, green_lib, blue_lib);
-      _tcs_f_cached_lux = (long)clearcol_lib; // ใช้ค่า Clear Channel ที่ถูกต้อง ไม่ติดลบ
+      _tcs_f_cached_temp = 0; // ตัดสูตรทศนิยม Color Temp ออกเพื่อความเร็วสูงสุด
+      _tcs_f_cached_lux = (long)clearcol_lib; // ใช้ค่าดิบ Clear Channel โดยตรง
       _tcs_f_last_read = now;
     }
   }
@@ -215,7 +217,7 @@ int Read_Color_TCS_B(int color_of_sensor)
   if (!tcs_back_found) return 0;
 
   unsigned long now = millis();
-  if (now - _tcs_b_last_read >= 10 || _tcs_b_last_read == 0) {
+  if (now - _tcs_b_last_read >= 3 || _tcs_b_last_read == 0) {
     uint16_t clearcol_lib = 0, red_lib = 0, green_lib = 0, blue_lib = 0;
     if (readColorNoWait(Wire1, tcs_back_addr, red_lib, green_lib, blue_lib, clearcol_lib)) {
       float average_lib = ((float)red_lib + (float)green_lib + (float)blue_lib) / 3.0f;
@@ -224,7 +226,7 @@ int Read_Color_TCS_B(int color_of_sensor)
       _tcs_b_cached_r = (long)(((float)red_lib / average_lib) * 100.0f);
       _tcs_b_cached_g = (long)(((float)green_lib / average_lib) * 100.0f);
       _tcs_b_cached_b = (long)(((float)blue_lib / average_lib) * 100.0f);
-      _tcs_b_cached_temp = tcsB.calculateColorTemperature(red_lib, green_lib, blue_lib);
+      _tcs_b_cached_temp = 0; // ตัดสูตรทศนิยม Color Temp ออกเพื่อความเร็วสูงสุด
       _tcs_b_cached_lux = (long)clearcol_lib;
       _tcs_b_last_read = now;
     }

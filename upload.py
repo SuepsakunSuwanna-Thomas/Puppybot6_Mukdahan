@@ -23,7 +23,7 @@ def set_console_title(title: str):
     if os.name == "nt":
         try:
             os.system(f"title {title}")
-        except Exception:
+        except BaseException:
             pass
 
 def check_pio():
