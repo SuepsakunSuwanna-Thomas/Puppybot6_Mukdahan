@@ -67,48 +67,60 @@ void drawColorSummaryScreen();
 void drawMissionTimeOnlyScreen();
 
 // ============================================================================
+// ฟังก์ชันตรวจสอบและป้องกันสีซ้ำ 100% (Zero-Duplicate Color Integrity Guard)
+// ตรวจสอบทั้ง 6 ช่อง หากมีสีซ้ำกันจะทำการแก้เป็นสีที่ขาดหายไปทันที รับประกัน 0 สีซ้ำ
 // ============================================================================
-// ฟังก์ชันคำนวณผลต่าง (Color Distance) ระหว่างค่าสีที่อ่านได้ กับค่าคาลิเบรตใน EEPROM
-// calib_idx: 0=RED, 1=GREEN, 2=BLUE, 3=YELLOW, 4=WHITE, 5=BLACK
-// ============================================================================
-inline long computeColorDiff(int r, int g, int b, int clear_val, int calib_idx, bool is_white_slot) {
-  int cr = calib.tcs_front_rgb[calib_idx][0];
-  int cg = calib.tcs_front_rgb[calib_idx][1];
-  int cb = calib.tcs_front_rgb[calib_idx][2];
+inline void enforceUnique6Colors(MissionSummary &summary) {
+  if (summary.colorCount != 6) return;
 
-  long dr = r - cr;
-  long dg = g - cg;
-  long db = b - cb;
-  long diff = (dr * dr) + (dg * dg) + (db * db);
-
-  // คุณลักษณะเฉพาะของแต่ละสี
-  if (calib_idx == 0) { // RED
-    if (r <= g || r <= b) diff += 30000L;
-    if (is_white_slot) diff += 150000L;
-  } else if (calib_idx == 1) { // GREEN
-    if (g <= r + 10 || g <= b + 10) diff += 30000L;
-    if (is_white_slot) diff += 150000L;
-  } else if (calib_idx == 2) { // BLUE
-    if (b <= r + 15 || b <= g + 10) diff += 30000L;
-    if (is_white_slot) diff += 150000L;
-  } else if (calib_idx == 3) { // YELLOW
-    if (r < 105 || g < 105 || b > 65) diff += 30000L;
-    if (is_white_slot) diff += 150000L;
-  } else if (calib_idx == 4) { // WHITE
-    if (is_white_slot) {
-      diff -= 50000L; // ช่องที่ตรวจพบว่าเป็นช่องว่างขาว ได้แต้มนำสำหรับ WHITE
-    } else {
-      diff += 50000L; // แถบสีที่มีสีสัน ไม่ควรจับคู่เป็นสีขาว
-    }
-  } else if (calib_idx == 5) { // BLACK
-    if (is_white_slot) {
-      diff += 150000L; // ช่องว่างขาว ห้ามเป็นสีดำ
-    }
-    // สีดำ: ยิ่ง Clear ต่ำ ยิ่งเป็นสีดำ (แสงสะท้อนต่ำ)
-    diff += (long)clear_val * 8L;
+  int counts[7] = {0};
+  for (int i = 0; i < 6; i++) {
+    RobotColor c = summary.records[i].color;
+    if (c >= 1 && c <= 6) counts[c]++;
   }
 
-  return diff;
+  bool has_duplicate = false;
+  for (int c = 1; c <= 6; c++) {
+    if (counts[c] != 1) {
+      has_duplicate = true;
+      break;
+    }
+  }
+
+  if (!has_duplicate) {
+    Serial.println(">> [COLOR INTEGRITY CHECK] Passed 100%! All 6 colors (R, G, B, Y, W, K) are completely unique with 0 duplicates!");
+    return;
+  }
+
+  Serial.println(">> [COLOR INTEGRITY CHECK] Duplicate color detected! Repairing to strict 1-to-1 unique colors...");
+
+  // รวบรวมแม่สีที่ยังขาดหายไปใน 6 ช่อง
+  RobotColor missing[6];
+  int missing_count = 0;
+  for (int c = 1; c <= 6; c++) {
+    if (counts[c] == 0) {
+      missing[missing_count++] = (RobotColor)c;
+    }
+  }
+
+  // แก้ไขช่องที่มีสีซ้ำ โดยนำสีที่ขาดหายไปมาแทนที่
+  bool seen[7] = {false};
+  int missing_idx = 0;
+  for (int i = 0; i < 6; i++) {
+    RobotColor c = summary.records[i].color;
+    if (c < 1 || c > 6 || seen[c]) {
+      if (missing_idx < missing_count) {
+        RobotColor replacement = missing[missing_idx++];
+        summary.records[i].color = replacement;
+        strncpy(summary.records[i].name, getColorName(replacement), sizeof(summary.records[i].name));
+        seen[replacement] = true;
+        Serial.printf(">> [REPAIR] Fixed duplicate in Slot #%d -> Assigned missing color: %s\n",
+                      i + 1, getColorName(replacement));
+      }
+    } else {
+      seen[c] = true;
+    }
+  }
 }
 
 // ============================================================================
@@ -116,9 +128,13 @@ inline long computeColorDiff(int r, int g, int b, int clear_val, int calib_idx, 
 // ============================================================================
 // speed: ความเร็วในการวิ่งตามเส้น
 // max_slots: จำนวนช่องที่ต้องการทดสอบ (1 ถึง 6 ช่อง, ค่าเริ่มต้น 6)
+//   - หากระบุ 1-5 ช่อง: หุ่นยนต์จะวิ่งไปหยุดตรงตำแหน่งพัลส์ของช่องนั้นทันที เพื่อตรวจดูตำแหน่งจริงว่าถึงไหน
+//   - หากระบุ 6 ช่อง: หุ่นยนต์จะสแกนครบทุกช่องจนพ้นแถบคำสั่งซื้อ
 inline void test_start_and_scan_colors(int speed = 30, int max_slots = 6) {
   max_slots = constrain(max_slots, 1, 6);
 
+  // หากทดสอบช่อง 1-5 ให้หยุดตรงพิกัดพัลส์ของช่องนั้นทันทีเพื่อเช็คตำแหน่งว่าวิ่งถึงไหน
+  // หากทดสอบครบ 6 ช่อง ให้วิ่งจนพ้นหน้าต่างสแกนของช่องที่ 6
   const long finish_pulse = (max_slots < 6) ? TARGET_COLOR_PULSES[max_slots - 1]
                                             : (TARGET_COLOR_PULSES[5] + COLOR_SCAN_WINDOW + 5);
 
@@ -137,12 +153,15 @@ inline void test_start_and_scan_colors(int speed = 30, int max_slots = 6) {
   resetDistance();
   long baseline_pulse = get_pulse_Encoder(selection_Encoder);
 
-  // ตัวแปรสะสมค่าสีดิบในแต่ละช่องเป้าหมาย [0..5]
-  long slot_sum_r[6] = {0};
-  long slot_sum_g[6] = {0};
-  long slot_sum_b[6] = {0};
-  long slot_sum_clear[6] = {0};
-  int slot_samples[6] = {0};
+  // สถิติการอ่านเซนเซอร์สีในแต่ละช่อง [slot 0..5][color 1..6]
+  int color_counts[6][7] = {0};
+  int total_samples[6] = {0};
+  long min_diff[6][7];
+  for (int s = 0; s < 6; s++) {
+    for (int c = 1; c <= 6; c++) {
+      min_diff[s][c] = 99999999L;
+    }
+  }
 
   unsigned long last_sample_time = 0;
 
@@ -154,7 +173,7 @@ inline void test_start_and_scan_colors(int speed = 30, int max_slots = 6) {
     }
   }
 
-  // 2. วิ่งตามเส้นแบบ PID ไปข้างหน้า สแกนและเก็บค่าสีแต่ละช่องไว้ก่อนจนครบ
+  // 2. วิ่งตามเส้นแบบ PID ไปข้างหน้า สแกนสีแบบต่อเนื่องไหลลื่น ไร้การหยุดดีเลย์
   while (true) {
     if (isButtonPressed()) { stop_4w(); return; }
 
@@ -174,12 +193,27 @@ inline void test_start_and_scan_colors(int speed = 30, int max_slots = 6) {
           int g = Read_Color_TCS(1);
           int b = Read_Color_TCS(2);
           int clear_val = Read_Color_TCS(4);
+          RobotColor col = detectColorFloor();
 
-          slot_sum_r[step] += r;
-          slot_sum_g[step] += g;
-          slot_sum_b[step] += b;
-          slot_sum_clear[step] += clear_val;
-          slot_samples[step]++;
+          if (col >= 1 && col <= 6) {
+            color_counts[step][col]++;
+            total_samples[step]++;
+          }
+
+          for (int c = 0; c < 5; c++) {
+            long dr = r - calib.tcs_front_rgb[c][0];
+            long dg = g - calib.tcs_front_rgb[c][1];
+            long db = b - calib.tcs_front_rgb[c][2];
+            long diff = dr * dr + dg * dg + db * db;
+            if (c == 1 && (g < r + 15 || g < b + 15)) diff += 15000;
+            int color_id = c + 1;
+            if (diff < min_diff[step][color_id]) {
+              min_diff[step][color_id] = diff;
+            }
+          }
+          if (clear_val < min_diff[step][COLOR_BLACK]) {
+            min_diff[step][COLOR_BLACK] = clear_val;
+          }
         }
         break;
       }
@@ -188,70 +222,93 @@ inline void test_start_and_scan_colors(int speed = 30, int max_slots = 6) {
     lineFollow_PID_auto(speed);
   }
 
-  // วิ่งผ่านครบทุกช่องแล้ว สั่งหยุดสนิททันที
+  // วิ่งถึงเป้าหมายแล้ว หยุดสนิททันที
   stop_4w();
   buzzer(1800, 150);
 
-  // 3. หลังจากอ่านครบทุกช่องแล้ว นำค่าที่เก็บไว้ไปเปรียบเทียบกับค่าคาลิเบรตใน EEPROM
-  // เพื่อหาคู่สีที่ใกล้เคียงที่สุดแบบ 1-to-1 (Global Optimal Permutation) ย้ำห้ามมีสีซ้ำกันเด็ดขาด
+  // 3. วิเคราะห์ข้อมูลสีและจับคู่แบบ 1-to-1 (รับประกันสีไม่ซ้ำกันอย่างแน่นอน 100% แม้จะสแกนแค่ 2 ช่อง)
   const RobotColor candidate_colors[6] = {
     COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_YELLOW, COLOR_WHITE, COLOR_BLACK
   };
 
-  long cost[6][6];
-  for (int s = 0; s < max_slots; s++) {
-    int s_r = (slot_samples[s] > 0) ? (int)(slot_sum_r[s] / slot_samples[s]) : 100;
-    int s_g = (slot_samples[s] > 0) ? (int)(slot_sum_g[s] / slot_samples[s]) : 100;
-    int s_b = (slot_samples[s] > 0) ? (int)(slot_sum_b[s] / slot_samples[s]) : 100;
-    int s_c = (slot_samples[s] > 0) ? (int)(slot_sum_clear[s] / slot_samples[s]) : 1000;
-    bool is_white = (s_c > 1600 && abs(s_r - 100) < 20 && abs(s_g - 100) < 20);
+  RobotColor final_colors[6] = {COLOR_UNKNOWN};
+  long score[6][7] = {0};
 
-    for (int c = 0; c < 6; c++) {
-      cost[s][c] = computeColorDiff(s_r, s_g, s_b, s_c, c, is_white);
+  for (int s = 0; s < max_slots; s++) {
+    int c_white = color_counts[s][COLOR_WHITE];
+    int c_red   = color_counts[s][COLOR_RED];
+    int c_green = color_counts[s][COLOR_GREEN];
+    int c_blue  = color_counts[s][COLOR_BLUE];
+    int c_yellow= color_counts[s][COLOR_YELLOW];
+    int c_black = color_counts[s][COLOR_BLACK];
+    int non_white_sum = c_red + c_green + c_blue + c_yellow + c_black;
+
+    for (int ci = 0; ci < 6; ci++) {
+      RobotColor c = candidate_colors[ci];
+      if (c == COLOR_WHITE) {
+        if (non_white_sum == 0) {
+          score[s][c] = 50000L + (c_white * 100L);
+        } else if (c_white > non_white_sum * 4) {
+          score[s][c] = c_white * 300L;
+        } else {
+          score[s][c] = 0;
+        }
+      } else {
+        if (color_counts[s][c] > 0) {
+          score[s][c] = color_counts[s][c] * 1000L;
+          if (min_diff[s][c] < 20000) {
+            score[s][c] += (20000 - min_diff[s][c]) / 20;
+          }
+        } else {
+          score[s][c] = 0;
+        }
+      }
     }
   }
 
+  // คำนวณจับคู่สีแบบ 1-to-1 ด้วย Permutation สำหรับทุกจำนวนช่องที่สแกน (1 ถึง 6 ช่อง)
+  // รับประกันว่าช่องที่ 1 และช่องที่ 2 (รวมถึงช่องอื่นๆ) จะไม่มีทางได้สีซ้ำกันเด็ดขาด
+  long max_total_score = -1;
   int perm[6] = {0, 1, 2, 3, 4, 5};
-  int best_perm[6] = {0, 1, 2, 3, 4, 5};
-  long min_total_cost = 2147483647L;
 
   do {
-    long total_cost = 0;
-    for (int s = 0; s < max_slots; s++) {
-      total_cost += cost[s][perm[s]];
+    long current_score = 0;
+    for (int i = 0; i < max_slots; i++) {
+      RobotColor col = candidate_colors[perm[i]];
+      current_score += score[i][col];
     }
-    if (total_cost < min_total_cost) {
-      min_total_cost = total_cost;
-      for (int s = 0; s < max_slots; s++) best_perm[s] = perm[s];
+    if (current_score > max_total_score) {
+      max_total_score = current_score;
+      for (int i = 0; i < max_slots; i++) {
+        final_colors[i] = candidate_colors[perm[i]];
+      }
     }
   } while (std::next_permutation(perm, perm + 6));
 
   // 4. บันทึกผลลัพธ์ลงใน mission_summary
   mission_summary.colorCount = 0;
-  Serial.printf("\n=== SCAN RESULTS (Scanned %d of 6 Slots | 1-to-1 Match) ===\n", max_slots);
+  char titleBuf[64];
+  snprintf(titleBuf, sizeof(titleBuf), "\n=== SCAN RESULTS (Scanned %d of 6 Slots) ===", max_slots);
+  Serial.println(titleBuf);
 
   for (int step = 0; step < max_slots; step++) {
-    int chosen_c = best_perm[step];
-    RobotColor final_col = candidate_colors[chosen_c];
-
+    RobotColor final_col = final_colors[step];
     strncpy(mission_summary.records[step].name, getColorName(final_col), sizeof(mission_summary.records[step].name));
     mission_summary.records[step].color = final_col;
     mission_summary.records[step].pulse = TARGET_COLOR_PULSES[step];
     mission_summary.records[step].cm = encoderToCm(TARGET_COLOR_PULSES[step]);
     mission_summary.colorCount++;
 
-    int s_r = (slot_samples[step] > 0) ? (int)(slot_sum_r[step] / slot_samples[step]) : 0;
-    int s_g = (slot_samples[step] > 0) ? (int)(slot_sum_g[step] / slot_samples[step]) : 0;
-    int s_b = (slot_samples[step] > 0) ? (int)(slot_sum_b[step] / slot_samples[step]) : 0;
-    int s_c = (slot_samples[step] > 0) ? (int)(slot_sum_clear[step] / slot_samples[step]) : 0;
-
-    Serial.printf("Slot #%d [Target Pulse %4ld]: %-6s (Measured RGB:%3d,%3d,%3d Clear:%4d | Calib RGB:%3d,%3d,%3d | Diff:%ld)\n",
-                  step + 1, TARGET_COLOR_PULSES[step], getColorName(final_col),
-                  s_r, s_g, s_b, s_c,
-                  calib.tcs_front_rgb[chosen_c][0], calib.tcs_front_rgb[chosen_c][1], calib.tcs_front_rgb[chosen_c][2],
-                  cost[step][chosen_c]);
+    char logBuf[96];
+    snprintf(logBuf, sizeof(logBuf), "Slot #%d [Target Pulse %4ld]: %-6s (Counts: R%d G%d B%d Y%d W%d K%d)",
+             step + 1, TARGET_COLOR_PULSES[step], getColorName(final_col),
+             color_counts[step][COLOR_RED], color_counts[step][COLOR_GREEN],
+             color_counts[step][COLOR_BLUE], color_counts[step][COLOR_YELLOW],
+             color_counts[step][COLOR_WHITE], color_counts[step][COLOR_BLACK]);
+    Serial.println(logBuf);
   }
 
+  enforceUnique6Colors(mission_summary);
   mission_summary.completed = true;
   drawColorSummaryScreen();
 }
@@ -321,34 +378,26 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
     RobotColor color;
     long pulse;
     int samples;
-    int avg_r;
-    int avg_g;
-    int avg_b;
-    int avg_clear;
     int color_counts[7];
+    long sum_r, sum_g, sum_b, sum_clear;
   };
   FoundStrip found_strips[8];
   int found_count = 0;
 
-  long strip_sum_r = 0, strip_sum_g = 0, strip_sum_b = 0, strip_sum_clear = 0;
-  int strip_sample_count = 0;
   int strip_counts[7] = {0};
   long strip_start_pulse = 0;
+  long strip_sum_r = 0, strip_sum_g = 0, strip_sum_b = 0, strip_sum_clear = 0;
   long last_strip_pulse = scan_start_pulse;
   int white_consecutive = 0;
   unsigned long last_sample_time = 0;
   unsigned long last_log_time = 0;
-
-  // ตัวแปรสะสมค่าสีของพื้นขาว (White Floor Background)
-  long white_sum_r = 0, white_sum_g = 0, white_sum_b = 0, white_sum_clear = 0;
-  int white_samples = 0;
 
   // ตรวจจับช่องที่ 1 แบบเรียลไทม์ขณะวิ่งผ่าน (หากเลยขอบช่อง 1 แล้วยังไม่เจอแม่สีใดๆ = ช่อง 1 คือสีขาว)
   bool slot1_checked = false;
   bool slot1_passed_as_white = false;
   long slot1_boundary = first_strip + (long)(strip_step * 0.45f);
 
-  // 3. วิ่งตามเส้นและเก็บค่าสีแต่ละช่องไว้ก่อนจนครบทุกช่อง
+  // 3. วิ่งตามเส้นและเก็บค่าสีรัวๆ จนตรวจพบแถบสีครบ หรือวิ่งจนพ้นแผ่นเพลท
   while (abs(get_pulse_Encoder(selection_Encoder) - baseline_pulse) < max_scan_pulse) {
     if (isButtonPressed()) { stop_4w(); return; }
 
@@ -363,7 +412,7 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
       }
     }
 
-    // สุ่มอ่านค่าสีรัวๆ ทุก 2ms
+    // สุ่มอ่านค่าสีรัวๆ ทุก 2ms (ความเร็วสูงสุดเพื่อให้ได้ตัวอย่างสีหลายสิบรอบในแถบ 2cm)
     if (millis() - last_sample_time >= 2) {
       last_sample_time = millis();
 
@@ -373,7 +422,7 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
       int clear_val = Read_Color_TCS(4);
       RobotColor col = detectColorFloor();
 
-      // แสดงผลสถานะเซนเซอร์สดๆ ทุก 150ms
+      // แสดงผลสถานะเซนเซอร์สดๆ ทุก 150ms เพื่อให้ผู้ใช้งานเช็คค่าได้ทันที
       if (millis() - last_log_time >= 150) {
         last_log_time = millis();
         Serial.printf("[Pulse %4ld] RGB:(%3d,%3d,%3d) Clear:%4d -> %-6s (Strips: %d)\n",
@@ -384,42 +433,34 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
       if (current_p < scan_start_pulse + 30) {
         state = STATE_ON_WHITE;
       } else if (state == STATE_ON_WHITE) {
-        white_sum_r += r;
-        white_sum_g += g;
-        white_sum_b += b;
-        white_sum_clear += clear_val;
-        white_samples++;
-
         // เมื่อเซนเซอร์สัมผัสโดนแม่สี (แดง เขียว น้ำเงิน เหลือง ดำ) ที่แทรกเข้ามาแทนที่พื้นขาว
         if (col != COLOR_WHITE && col != COLOR_UNKNOWN) {
           state = STATE_IN_STRIP;
           strip_start_pulse = current_p;
+          for (int c = 1; c <= 6; c++) strip_counts[c] = 0;
+          strip_counts[col]++;
           strip_sum_r = r;
           strip_sum_g = g;
           strip_sum_b = b;
           strip_sum_clear = clear_val;
-          strip_sample_count = 1;
-          for (int c = 1; c <= 6; c++) strip_counts[c] = 0;
-          strip_counts[col]++;
           white_consecutive = 0;
-          Serial.printf(">> [STRIP ENTER] at pulse %ld -> %s (RGB:%d,%d,%d Clear:%d)\n",
-                        current_p, getColorName(col), r, g, b, clear_val);
+          Serial.printf(">> [STRIP ENTER] at pulse %ld -> %s\n", current_p, getColorName(col));
         }
       } else if (state == STATE_IN_STRIP) {
-        // กำลังอยู่ในแถบสี: สะสมค่าสีดิบของแถบนี้
+        // กำลังอยู่ในแถบสี: สะสมตัวอย่างสี
+        if (col >= 1 && col <= 6) {
+          strip_counts[col]++;
+        }
         strip_sum_r += r;
         strip_sum_g += g;
         strip_sum_b += b;
         strip_sum_clear += clear_val;
-        strip_sample_count++;
-        if (col >= 1 && col <= 6) {
-          strip_counts[col]++;
-        }
 
         if (col == COLOR_WHITE) {
           white_consecutive++;
-          // พ้นแถบสีกลับสู่พื้นขาว (เจอขาวติดต่อกัน 5 รอบ = ~10ms ป้องกันแสงสะท้อนชั่วคราว)
-          if (white_consecutive >= 5) {
+          // พ้นแถบสีกลับสู่พื้นขาว (เจอขาวติดต่อกัน 4-5 รอบ = ~8-10ms ป้องกันแสงสะท้อนชั่วคราว)
+          int req_white = (speed >= 45) ? 4 : 5;
+          if (white_consecutive >= req_white) {
             long center_pulse = (strip_start_pulse + current_p) / 2;
 
             // ค้นหาแม่สีที่เด่นที่สุดในแถบนี้ (ไม่นับสีขาว)
@@ -432,35 +473,32 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
               }
             }
 
-            // กรอง Noise: แถบสีจริง (อย่างน้อย 4 ตัวอย่าง) และระยะห่างจากแถบก่อนหน้า >= 120p
-            bool is_duplicate_nearby = (found_count > 0 && (center_pulse - found_strips[found_count - 1].pulse) < 120);
+            // กรอง Noise: แถบสีจริง (ความเร็วสูง >= 45 ใช้เกณฑ์ 2 ตัวอย่าง, ปกติ 3 ตัวอย่าง)
+            int min_samples = (speed >= 45) ? 2 : 3;
+            bool is_duplicate_nearby = (found_count > 0 && (center_pulse - found_strips[found_count - 1].pulse) < 100);
 
-            if (dominant_col != COLOR_UNKNOWN && max_sample >= 4 && !is_duplicate_nearby && found_count < 6) {
+            if (dominant_col != COLOR_UNKNOWN && max_sample >= min_samples && !is_duplicate_nearby && found_count < 6) {
               found_strips[found_count].color = dominant_col;
               found_strips[found_count].pulse = center_pulse;
-              found_strips[found_count].samples = strip_sample_count;
-              found_strips[found_count].avg_r = (int)(strip_sum_r / strip_sample_count);
-              found_strips[found_count].avg_g = (int)(strip_sum_g / strip_sample_count);
-              found_strips[found_count].avg_b = (int)(strip_sum_b / strip_sample_count);
-              found_strips[found_count].avg_clear = (int)(strip_sum_clear / strip_sample_count);
+              found_strips[found_count].samples = max_sample;
+              found_strips[found_count].sum_r = strip_sum_r;
+              found_strips[found_count].sum_g = strip_sum_g;
+              found_strips[found_count].sum_b = strip_sum_b;
+              found_strips[found_count].sum_clear = strip_sum_clear;
               for (int c = 1; c <= 6; c++) {
                 found_strips[found_count].color_counts[c] = strip_counts[c];
               }
               found_count++;
 
-              Serial.printf(">> [STRIP CONFIRMED #%d] %s at pulse %ld | Samples:%d | Avg RGB:(%d,%d,%d) Clear:%d\n",
-                            found_count, getColorName(dominant_col), center_pulse, strip_sample_count,
-                            found_strips[found_count - 1].avg_r, found_strips[found_count - 1].avg_g,
-                            found_strips[found_count - 1].avg_b, found_strips[found_count - 1].avg_clear);
+              Serial.printf(">> [STRIP CONFIRMED #%d] %s at pulse %ld (Samples: %d)\n",
+                            found_count, getColorName(dominant_col), center_pulse, max_sample);
 
               last_strip_pulse = center_pulse;
 
-              // หากพบครบ 5 แม่สีแล้ว และวิ่งพ้นถึงช่องที่ 6 แล้ว ให้หยุดได้เลย
+              // หากพบครบ 5 แม่สีแล้ว (แดง เขียว น้ำเงิน เหลือง ดำ) แสดงว่าสีที่เหลือคือ สีขาว แน่นอน
               if (found_count == 5) {
-                if (slot1_passed_as_white || (found_strips[found_count - 1].pulse - found_strips[0].pulse > strip_step * 3.8f)) {
-                  Serial.println(">> Found all strips and reached slot 6! Completing scan...");
-                  break;
-                }
+                Serial.println(">> Found all 5 non-white colors! Completing mission...");
+                break;
               }
             }
 
@@ -471,12 +509,6 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
           white_consecutive = 0;
         }
       }
-    }
-
-    // หากพบครบ 5 แม่สีแล้ว และวิ่งผ่านพ้นเข้าสู่ช่องที่ 6 (สีขาว) ให้หยุดทันที
-    if (found_count == 5 && current_p >= last_strip_pulse + (long)(strip_step * 0.85f)) {
-      Serial.println(">> Passed slot 5 into slot 6 (White)! Completing scan...");
-      break;
     }
 
     lineFollow_PID_auto(speed);
@@ -494,23 +526,22 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
         dominant_col = (RobotColor)c;
       }
     }
-    bool is_duplicate_nearby = (found_count > 0 && (center_pulse - found_strips[found_count - 1].pulse) < 120);
-    if (dominant_col != COLOR_UNKNOWN && max_sample >= 3 && !is_duplicate_nearby && found_count < 6) {
+    int min_samples = (speed >= 45) ? 2 : 3;
+    bool is_duplicate_nearby = (found_count > 0 && (center_pulse - found_strips[found_count - 1].pulse) < 100);
+    if (dominant_col != COLOR_UNKNOWN && max_sample >= min_samples && !is_duplicate_nearby && found_count < 6) {
       found_strips[found_count].color = dominant_col;
       found_strips[found_count].pulse = center_pulse;
-      found_strips[found_count].samples = strip_sample_count;
-      found_strips[found_count].avg_r = (int)(strip_sum_r / strip_sample_count);
-      found_strips[found_count].avg_g = (int)(strip_sum_g / strip_sample_count);
-      found_strips[found_count].avg_b = (int)(strip_sum_b / strip_sample_count);
-      found_strips[found_count].avg_clear = (int)(strip_sum_clear / strip_sample_count);
+      found_strips[found_count].samples = max_sample;
+      found_strips[found_count].sum_r = strip_sum_r;
+      found_strips[found_count].sum_g = strip_sum_g;
+      found_strips[found_count].sum_b = strip_sum_b;
+      found_strips[found_count].sum_clear = strip_sum_clear;
       for (int c = 1; c <= 6; c++) {
         found_strips[found_count].color_counts[c] = strip_counts[c];
       }
       found_count++;
-      Serial.printf(">> [STRIP CONFIRMED AT SCAN END #%d] %s at pulse %ld (Avg RGB:%d,%d,%d Clear:%d)\n",
-                    found_count, getColorName(dominant_col), center_pulse,
-                    found_strips[found_count - 1].avg_r, found_strips[found_count - 1].avg_g,
-                    found_strips[found_count - 1].avg_b, found_strips[found_count - 1].avg_clear);
+      Serial.printf(">> [STRIP CONFIRMED AT SCAN END #%d] %s at pulse %ld (Samples: %d)\n",
+                    found_count, getColorName(dominant_col), center_pulse, max_sample);
     }
   }
 
@@ -521,6 +552,7 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
                 abs(get_pulse_Encoder(selection_Encoder) - baseline_pulse), found_count);
 
   // 4. สรุปลำดับแถบสีทั้ง 6 ช่อง โดยจัดตำแหน่ง "สีขาว" ลงในช่องว่างกว้างที่สีหายไปนาน
+  // ค้นหาตำแหน่งของช่องสีขาว:
   int white_slot_index = -1; // 0 ถึง 5
   long measured_step = strip_step;
 
@@ -556,33 +588,43 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
       if (step_f < 120.0f || step_f > 400.0f) step_f = (float)strip_step;
 
       // 2. คำนวณสัดส่วนทางเรขาคณิตเทียบกับระยะก้าว (Dimensionless Geometric Ratios)
+      // ตามกติกา ระยะจากเส้นดำถึงช่อง 1 = 17cm, ระยะก้าว = ~4.5cm -> สัดส่วน = 17 / 4.5 = ~3.8 ก้าว
+      // ถ้าช่อง 1 มีสี: แถบแรก p0 คือช่อง 1 -> p0 / step ~ 3.8
+      // ถ้าช่อง 1 สีขาว: แถบแรก p0 คือช่อง 2 -> p0 / step ~ 4.8 (เลยไปอีก 1 ก้าวเต็มๆ)
       float ratio_p0 = (float)p0 / step_f;
       float ratio_last = (float)p_last / step_f;
       float ratio_center = (float)strip_center / step_f;
 
+      // เปรียบเทียบสมมติฐาน First Strip (กรณี first_strip ถูกต้อง)
       long err_slot1_white = abs((p0 - (long)step_f) - first_strip);
       long err_slot6_white = abs(p0 - first_strip);
 
       int vote_slot1 = 0;
+      // 1. สัดส่วนเรขาคณิต: แถบแรก p0 อยู่ไกลเกิน 4.2 ก้าว (เกณฑ์เด็ดขาด)
       if (ratio_p0 >= 4.2f) vote_slot1 += 2;
+      // 2. สัดส่วนเรขาคณิต: แถบสุดท้าย p_last อยู่ไกลเกิน 8.2 ก้าว (วิ่งถึงช่อง 6)
       if (ratio_last >= 8.2f) vote_slot1 += 2;
+      // 3. จุดกึ่งกลางแถบสีเกิน 6.2 ก้าว
       if (ratio_center >= 6.2f) vote_slot1++;
+      // 4. เปรียบเทียบ error กับ first_strip
       if (err_slot1_white < err_slot6_white) vote_slot1++;
+      // 5. ธงตรวจจับสดขณะวิ่งผ่านช่อง 1
       if (slot1_passed_as_white) vote_slot1 += 2;
 
       bool is_first_slot_white = (vote_slot1 >= 3);
 
       if (is_first_slot_white) {
-        white_slot_index = 0; // สีขาวอยู่ที่ช่อง 1
+        white_slot_index = 0; // สีขาวอยู่ที่ช่อง 1 (แถบสีแรกที่เจอคือช่อง 2)
         Serial.printf(">> WHITE identified in First Slot #1 (Votes: %d/8, p0: %ld, p_last: %ld, step: %.1f, r_p0: %.2f, r_last: %.2f)\n",
                       vote_slot1, p0, p_last, step_f, ratio_p0, ratio_last);
       } else {
-        white_slot_index = 5; // สีขาวอยู่ที่ช่อง 6
+        white_slot_index = 5; // สีขาวอยู่ที่ช่อง 6 (ท้ายสุด)
         Serial.printf(">> WHITE identified in Last Slot #6 (Votes: %d/8, p0: %ld, p_last: %ld, step: %.1f, r_p0: %.2f, r_last: %.2f)\n",
                       vote_slot1, p0, p_last, step_f, ratio_p0, ratio_last);
       }
     }
   } else {
+    // กรณีเก็บแม่สีได้ 4 สี (หลุด 1 สี):
     float step_f = (found_count >= 2) ? ((float)(found_strips[found_count - 1].pulse - found_strips[0].pulse) / (float)(found_count - 1)) : (float)strip_step;
     if (step_f < 120.0f || step_f > 400.0f) step_f = (float)strip_step;
     long gap_threshold = (long)(step_f * 1.45f);
@@ -609,116 +651,158 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
     if (max_gap >= gap_threshold && max_gap_after_idx >= 0) {
       white_slot_index = max_gap_after_idx + 1;
     } else if (vote_slot1 >= 2) {
-      white_slot_index = 0;
+      white_slot_index = 0; // สีขาวอยู่ที่ช่อง 1
     } else {
-      white_slot_index = 5;
+      white_slot_index = 5; // สีขาวอยู่ที่ช่อง 6
     }
   }
 
-  // --------------------------------------------------------------------------
-  // โครงสร้างบันทึกข้อมูลสีเฉลี่ยของทั้ง 6 ช่องที่จัดเรียงลำดับเรียบร้อยแล้ว
-  // --------------------------------------------------------------------------
-  struct SlotMeasuredData {
-    int r;
-    int g;
-    int b;
-    int clear;
-    long pulse;
-    bool is_white;
+  // ==========================================================================
+  // จัดสรรสีลงทั้ง 6 ช่อง โดยรับประกันว่า "ไม่มีสีซ้ำกัน 100%" (Strict 1-to-1 Bijection)
+  // แม่สี 5 สีที่ไม่ใช่สีขาว: RED, GREEN, BLUE, YELLOW, BLACK
+  // ==========================================================================
+  const RobotColor non_white_colors[5] = {
+    COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_YELLOW, COLOR_BLACK
   };
-  SlotMeasuredData slot_data[6];
 
-  int strip_idx = 0;
-  int w_r = (white_samples > 0) ? (int)(white_sum_r / white_samples) : calib.tcs_front_rgb[4][0];
-  int w_g = (white_samples > 0) ? (int)(white_sum_g / white_samples) : calib.tcs_front_rgb[4][1];
-  int w_b = (white_samples > 0) ? (int)(white_sum_b / white_samples) : calib.tcs_front_rgb[4][2];
-  int w_c = (white_samples > 0) ? (int)(white_sum_clear / white_samples) : 2500;
+  // กำหนด 5 ช่องที่ไม่ใช่สีขาว (Non-White Slots)
+  int non_white_slots[5];
+  int nw_idx = 0;
+  for (int s = 0; s < 6; s++) {
+    if (s != white_slot_index) {
+      non_white_slots[nw_idx++] = s;
+    }
+  }
+
+  // จับคู่แถบสี found_strips เข้ากับ 5 ช่องที่ไม่ใช่สีขาว (Index -1 แปลว่าช่องนั้นหลุดแถบสีไป)
+  int strip_to_nw_slot[5];
+  for (int i = 0; i < 5; i++) strip_to_nw_slot[i] = -1;
+
+  if (found_count == 5) {
+    // พบครบ 5 แถบสี: จับคู่แถบสี 0..4 เข้ากับ non_white_slots 0..4 แบบ 1-to-1 ตามลำดับ
+    for (int i = 0; i < 5; i++) strip_to_nw_slot[i] = i;
+  } else if (found_count < 5) {
+    // พบ 1-4 แถบสี (วิ่งเร็วทำให้เซนเซอร์จับบางแถบไม่ทัน):
+    // จับคู่แถบสีแต่ละแถบเข้ากับ non_white_slot ที่มีพิกัดพัลส์ใกล้เคียงที่สุด
+    bool slot_taken[5] = {false};
+    for (int fi = 0; fi < found_count; fi++) {
+      long f_pulse = found_strips[fi].pulse;
+      long best_diff = 999999L;
+      int best_slot_idx = -1;
+      for (int si = 0; si < 5; si++) {
+        if (!slot_taken[si]) {
+          int real_slot = non_white_slots[si];
+          long est_pulse = (white_slot_index == 0)
+                           ? (found_strips[0].pulse + (real_slot - 1) * measured_step)
+                           : (found_strips[0].pulse + real_slot * measured_step);
+          long diff = abs(f_pulse - est_pulse);
+          if (diff < best_diff) {
+            best_diff = diff;
+            best_slot_idx = si;
+          }
+        }
+      }
+      if (best_slot_idx >= 0) {
+        slot_taken[best_slot_idx] = true;
+        strip_to_nw_slot[best_slot_idx] = fi;
+      }
+    }
+  } else {
+    // พบ >= 6 แถบสี: ใช้ 5 แถบแรก
+    for (int i = 0; i < 5; i++) strip_to_nw_slot[i] = i;
+  }
+
+  // คำนวณ Permutation 5! = 120 แบบ เพื่อหาการจับคู่ที่ดีที่สุดในระดับโกลบอล
+  // รับประกันว่าสี RED, GREEN, BLUE, YELLOW, BLACK จะถูกกระจายให้ 5 ช่องนี้ โดย "ไม่มีทางซ้ำกันแน่นอน"
+  int perm[5] = {0, 1, 2, 3, 4};
+  long best_total_score = -999999999L;
+  int best_perm[5] = {0, 1, 2, 3, 4};
+
+  do {
+    long current_score = 0;
+    for (int i = 0; i < 5; i++) {
+      RobotColor candidate = non_white_colors[perm[i]];
+      int fi = strip_to_nw_slot[i];
+
+      if (fi >= 0 && fi < found_count) {
+        // 1. คะแนนจากผลโหวตของเซนเซอร์ในแถบนี้
+        current_score += (long)found_strips[fi].color_counts[candidate] * 150L;
+        // 2. คะแนนโบนัสหากตรงกับสีเด่น
+        if (found_strips[fi].color == candidate) {
+          current_score += 6000L;
+        }
+        // 3. คะแนนระยะห่าง Euclidean RGB เทียบกับค่า EEPROM
+        if (found_strips[fi].samples > 0) {
+          long avg_r = found_strips[fi].sum_r / found_strips[fi].samples;
+          long avg_g = found_strips[fi].sum_g / found_strips[fi].samples;
+          long avg_b = found_strips[fi].sum_b / found_strips[fi].samples;
+          long avg_c = found_strips[fi].sum_clear / found_strips[fi].samples;
+
+          int c_idx = -1;
+          if (candidate == COLOR_RED) c_idx = 0;
+          else if (candidate == COLOR_GREEN) c_idx = 1;
+          else if (candidate == COLOR_BLUE) c_idx = 2;
+          else if (candidate == COLOR_YELLOW) c_idx = 3;
+          else if (candidate == COLOR_BLACK) c_idx = 5;
+
+          if (c_idx >= 0) {
+            long dr = avg_r - calib.tcs_front_rgb[c_idx][0];
+            long dg = avg_g - calib.tcs_front_rgb[c_idx][1];
+            long db = avg_b - calib.tcs_front_rgb[c_idx][2];
+            long dist = dr * dr + dg * dg + db * db;
+            if (candidate == COLOR_BLACK && avg_c < 130) dist /= 2;
+            current_score += max(0L, 20000L - dist / 5);
+          }
+        }
+      }
+    }
+    if (current_score > best_total_score) {
+      best_total_score = current_score;
+      for (int i = 0; i < 5; i++) best_perm[i] = perm[i];
+    }
+  } while (std::next_permutation(perm, perm + 5));
+
+  // 5. บันทึกผลลัพธ์ลงใน mission_summary ตามลำดับช่อง 1 ถึง 6 อย่างถูกต้องแม่นยำ
+  mission_summary.colorCount = 0;
 
   for (int slot = 0; slot < 6; slot++) {
     if (slot == white_slot_index) {
-      slot_data[slot].r = w_r;
-      slot_data[slot].g = w_g;
-      slot_data[slot].b = w_b;
-      slot_data[slot].clear = w_c;
-      slot_data[slot].is_white = true;
+      strncpy(mission_summary.records[slot].name, "WHITE", sizeof(mission_summary.records[slot].name));
+      mission_summary.records[slot].color = COLOR_WHITE;
       if (slot > 0) {
-        slot_data[slot].pulse = slot_data[slot - 1].pulse + measured_step;
+        mission_summary.records[slot].pulse = mission_summary.records[slot - 1].pulse + measured_step;
       } else if (found_count > 0) {
-        slot_data[slot].pulse = found_strips[0].pulse - measured_step;
+        mission_summary.records[slot].pulse = found_strips[0].pulse - measured_step;
       } else {
-        slot_data[slot].pulse = first_strip;
+        mission_summary.records[slot].pulse = first_strip;
       }
-    } else if (strip_idx < found_count) {
-      slot_data[slot].r = found_strips[strip_idx].avg_r;
-      slot_data[slot].g = found_strips[strip_idx].avg_g;
-      slot_data[slot].b = found_strips[strip_idx].avg_b;
-      slot_data[slot].clear = found_strips[strip_idx].avg_clear;
-      slot_data[slot].pulse = found_strips[strip_idx].pulse;
-      slot_data[slot].is_white = false;
-      strip_idx++;
     } else {
-      slot_data[slot].r = w_r;
-      slot_data[slot].g = w_g;
-      slot_data[slot].b = w_b;
-      slot_data[slot].clear = w_c;
-      slot_data[slot].is_white = true;
-      slot_data[slot].pulse = (slot > 0) ? (slot_data[slot - 1].pulse + measured_step) : 1000;
+      // ค้นหาตำแหน่งของ slot นี้ใน non_white_slots
+      int nw_i = -1;
+      for (int i = 0; i < 5; i++) {
+        if (non_white_slots[i] == slot) { nw_i = i; break; }
+      }
+      RobotColor c = non_white_colors[best_perm[nw_i]];
+      strncpy(mission_summary.records[slot].name, getColorName(c), sizeof(mission_summary.records[slot].name));
+      mission_summary.records[slot].color = c;
+
+      int fi = strip_to_nw_slot[nw_i];
+      if (fi >= 0 && fi < found_count) {
+        mission_summary.records[slot].pulse = found_strips[fi].pulse;
+      } else {
+        mission_summary.records[slot].pulse = (slot > 0) ? (mission_summary.records[slot - 1].pulse + measured_step) : 1000;
+      }
     }
-  }
 
-  // --------------------------------------------------------------------------
-  // 5. นำค่าสีที่อ่านได้ในแต่ละช่อง ไปเปรียบเทียบกับค่าที่คาลิเบรตไว้ใน EEPROM
-  // เพื่อหาคู่สีที่ใกล้เคียงที่สุดแบบ 1-to-1 (Global Optimal Permutation) ย้ำห้ามมีสีซ้ำกันเด็ดขาด!
-  // แม่สี 6 สี: RED(0), GREEN(1), BLUE(2), YELLOW(3), WHITE(4), BLACK(5)
-  // --------------------------------------------------------------------------
-  const RobotColor candidate_colors[6] = {
-    COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_YELLOW, COLOR_WHITE, COLOR_BLACK
-  };
-
-  long cost[6][6];
-  for (int s = 0; s < 6; s++) {
-    for (int c = 0; c < 6; c++) {
-      cost[s][c] = computeColorDiff(slot_data[s].r, slot_data[s].g, slot_data[s].b, slot_data[s].clear, c, slot_data[s].is_white);
-    }
-  }
-
-  int perm[6] = {0, 1, 2, 3, 4, 5};
-  int best_perm[6] = {0, 1, 2, 3, 4, 5};
-  long min_total_cost = 2147483647L;
-
-  do {
-    long total_cost = 0;
-    for (int s = 0; s < 6; s++) {
-      total_cost += cost[s][perm[s]];
-    }
-    if (total_cost < min_total_cost) {
-      min_total_cost = total_cost;
-      for (int s = 0; s < 6; s++) best_perm[s] = perm[s];
-    }
-  } while (std::next_permutation(perm, perm + 6));
-
-  // 6. บันทึกผลลัพธ์ลงใน mission_summary ตามลำดับช่อง 1 ถึง 6 อย่างถูกต้องแม่นยำ
-  mission_summary.colorCount = 0;
-  Serial.println("\n=== 6 SLOTS MEASURED VS EEPROM CALIBRATION (1-to-1 Match) ===");
-
-  for (int slot = 0; slot < 6; slot++) {
-    int chosen_c = best_perm[slot];
-    RobotColor final_col = candidate_colors[chosen_c];
-
-    strncpy(mission_summary.records[slot].name, getColorName(final_col), sizeof(mission_summary.records[slot].name));
-    mission_summary.records[slot].color = final_col;
-    mission_summary.records[slot].pulse = slot_data[slot].pulse;
-    mission_summary.records[slot].cm = encoderToCm(slot_data[slot].pulse);
+    mission_summary.records[slot].cm = encoderToCm(mission_summary.records[slot].pulse);
     mission_summary.colorCount++;
 
-    Serial.printf("Final Slot #%d [Pulse %4ld]: %-6s (Measured RGB:%3d,%3d,%3d Clear:%4d | Calib RGB:%3d,%3d,%3d | Diff:%ld)\n",
-                  slot + 1,
-                  slot_data[slot].pulse,
-                  getColorName(final_col),
-                  slot_data[slot].r, slot_data[slot].g, slot_data[slot].b, slot_data[slot].clear,
-                  calib.tcs_front_rgb[chosen_c][0], calib.tcs_front_rgb[chosen_c][1], calib.tcs_front_rgb[chosen_c][2],
-                  cost[slot][chosen_c]);
+    Serial.printf("Final Slot #%d [Pulse %4ld]: %-6s\n",
+                  slot + 1, mission_summary.records[slot].pulse, mission_summary.records[slot].name);
   }
+
+  // ตรวจสอบและบังคับความถูกต้องรอบสุดท้าย (Double-check Zero Duplicates)
+  enforceUnique6Colors(mission_summary);
 
   mission_summary.completed = true;
   drawColorSummaryScreen();
