@@ -21,7 +21,10 @@ RESET = "\033[0m"
 def set_console_title(title: str):
     """ตั้งค่าหัวข้อหน้าต่าง Terminal บน Windows"""
     if os.name == "nt":
-        os.system(f"title {title}")
+        try:
+            os.system(f"title {title}")
+        except Exception:
+            pass
 
 def check_pio():
     """ตรวจสอบว่าคำสั่ง pio (PlatformIO Core) ติดตั้งอยู่ในระบบหรือไม่"""
