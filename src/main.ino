@@ -50,7 +50,7 @@ void setup() {
   // 5. แสดงหน้าจอเริ่มต้น และตรวจจับการกดปุ่ม:
   // - กดค้าง (>= 700ms) = เข้าเมนูเลือกคาลิเบรตทีละอัน
   // - กดสั้น (< 700ms)  = เริ่มวิ่งภารกิจทันทีโดยใช้ค่าเดิมที่เคยจำไว้ใน EEPROM
-  if (waitForStartOrCalibration()) {
+  while (waitForStartOrCalibration()) {
     runCalibrationMenu();
   }
   delay(290);
