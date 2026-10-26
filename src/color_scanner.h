@@ -14,10 +14,10 @@
 // ============================================================================
 // ตำแหน่งพัลส์สะสมสัมบูรณ์ (Absolute Target Pulses) นับจากเส้นดำจุดสตาร์ท
 // สามารถปรับแก้ค่าตำแหน่งของแต่ละช่องแยกอิสระได้เลย ไม่กระทบช่องอื่น
-inline long TARGET_COLOR_PULSES[6] = {1320, 1420, 1510, 1755, 2000, 2240};
+inline long TARGET_COLOR_PULSES[6] = {1720, 2060, 2080, 1755, 2000, 2240};
 
 // ระยะหน้าต่างการอ่านสีก่อนและหลังเป้าหมาย (+- 20 พัลส์)
-const long COLOR_SCAN_WINDOW = 70;
+const long COLOR_SCAN_WINDOW = 30;
 
 // ============================================================================
 // 2. โครงสร้างบันทึกข้อมูลแถบสีและสรุปผลภารกิจ
@@ -156,83 +156,64 @@ inline void test_start_and_scan_colors(int speed = 30, int max_slots = 6) {
   stop_4w();
   buzzer(1800, 150);
 
-  // 3. วิเคราะห์ข้อมูลสี
+  // 3. วิเคราะห์ข้อมูลสีและจับคู่แบบ 1-to-1 (รับประกันสีไม่ซ้ำกันอย่างแน่นอน 100% แม้จะสแกนแค่ 2 ช่อง)
   const RobotColor candidate_colors[6] = {
     COLOR_RED, COLOR_GREEN, COLOR_BLUE, COLOR_YELLOW, COLOR_WHITE, COLOR_BLACK
   };
 
   RobotColor final_colors[6] = {COLOR_UNKNOWN};
+  long score[6][7] = {0};
 
-  if (max_slots == 6) {
-    // โหมดครบ 6 ช่อง: จับคู่ 1-to-1 ด้วย Permutation (720 รูปแบบ) รับประกันสีไม่ซ้ำกัน 100%
-    long score[6][7] = {0};
+  for (int s = 0; s < max_slots; s++) {
+    int c_white = color_counts[s][COLOR_WHITE];
+    int c_red   = color_counts[s][COLOR_RED];
+    int c_green = color_counts[s][COLOR_GREEN];
+    int c_blue  = color_counts[s][COLOR_BLUE];
+    int c_yellow= color_counts[s][COLOR_YELLOW];
+    int c_black = color_counts[s][COLOR_BLACK];
+    int non_white_sum = c_red + c_green + c_blue + c_yellow + c_black;
 
-    for (int s = 0; s < 6; s++) {
-      int c_white = color_counts[s][COLOR_WHITE];
-      int c_red   = color_counts[s][COLOR_RED];
-      int c_green = color_counts[s][COLOR_GREEN];
-      int c_blue  = color_counts[s][COLOR_BLUE];
-      int c_yellow= color_counts[s][COLOR_YELLOW];
-      int c_black = color_counts[s][COLOR_BLACK];
-      int non_white_sum = c_red + c_green + c_blue + c_yellow + c_black;
-
-      for (int ci = 0; ci < 6; ci++) {
-        RobotColor c = candidate_colors[ci];
-        if (c == COLOR_WHITE) {
-          if (non_white_sum == 0) {
-            score[s][c] = 50000L + (c_white * 100L);
-          } else if (c_white > non_white_sum * 4) {
-            score[s][c] = c_white * 300L;
-          } else {
-            score[s][c] = 0;
+    for (int ci = 0; ci < 6; ci++) {
+      RobotColor c = candidate_colors[ci];
+      if (c == COLOR_WHITE) {
+        if (non_white_sum == 0) {
+          score[s][c] = 50000L + (c_white * 100L);
+        } else if (c_white > non_white_sum * 4) {
+          score[s][c] = c_white * 300L;
+        } else {
+          score[s][c] = 0;
+        }
+      } else {
+        if (color_counts[s][c] > 0) {
+          score[s][c] = color_counts[s][c] * 1000L;
+          if (min_diff[s][c] < 20000) {
+            score[s][c] += (20000 - min_diff[s][c]) / 20;
           }
         } else {
-          if (color_counts[s][c] > 0) {
-            score[s][c] = color_counts[s][c] * 1000L;
-            if (min_diff[s][c] < 20000) {
-              score[s][c] += (20000 - min_diff[s][c]) / 20;
-            }
-          } else {
-            score[s][c] = 0;
-          }
+          score[s][c] = 0;
         }
       }
-    }
-
-    long max_total_score = -1;
-    int perm[6] = {0, 1, 2, 3, 4, 5};
-
-    do {
-      long current_score = 0;
-      for (int i = 0; i < 6; i++) {
-        RobotColor col = candidate_colors[perm[i]];
-        current_score += score[i][col];
-      }
-      if (current_score > max_total_score) {
-        max_total_score = current_score;
-        for (int i = 0; i < 6; i++) {
-          final_colors[i] = candidate_colors[perm[i]];
-        }
-      }
-    } while (std::next_permutation(perm, perm + 6));
-  } else {
-    // โหมดทดสอบรายช่อง (1 ถึง 5 ช่อง): ประเมินสีเด่นที่สุดของแต่ละช่องที่วิ่งผ่าน
-    for (int step = 0; step < max_slots; step++) {
-      RobotColor best_c = COLOR_WHITE;
-      int max_c = 0;
-      for (int ci = 0; ci < 6; ci++) {
-        RobotColor c = candidate_colors[ci];
-        if (c != COLOR_WHITE && color_counts[step][c] > max_c) {
-          max_c = color_counts[step][c];
-          best_c = c;
-        }
-      }
-      if (max_c == 0) {
-        best_c = (color_counts[step][COLOR_WHITE] > 0) ? COLOR_WHITE : detectColorFloor();
-      }
-      final_colors[step] = best_c;
     }
   }
+
+  // คำนวณจับคู่สีแบบ 1-to-1 ด้วย Permutation สำหรับทุกจำนวนช่องที่สแกน (1 ถึง 6 ช่อง)
+  // รับประกันว่าช่องที่ 1 และช่องที่ 2 (รวมถึงช่องอื่นๆ) จะไม่มีทางได้สีซ้ำกันเด็ดขาด
+  long max_total_score = -1;
+  int perm[6] = {0, 1, 2, 3, 4, 5};
+
+  do {
+    long current_score = 0;
+    for (int i = 0; i < max_slots; i++) {
+      RobotColor col = candidate_colors[perm[i]];
+      current_score += score[i][col];
+    }
+    if (current_score > max_total_score) {
+      max_total_score = current_score;
+      for (int i = 0; i < max_slots; i++) {
+        final_colors[i] = candidate_colors[perm[i]];
+      }
+    }
+  } while (std::next_permutation(perm, perm + 6));
 
   // 4. บันทึกผลลัพธ์ลงใน mission_summary
   mission_summary.colorCount = 0;

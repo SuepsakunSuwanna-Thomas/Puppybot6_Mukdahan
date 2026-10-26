@@ -57,7 +57,7 @@ void setup() {
 
   // เริ่มต้นภารกิจหลักในสนาม (เขียนคำสั่งภารกิจได้ที่ไฟล์ field_mission.h)
   // runFieldMission();
-  test_start_and_scan_colors(45,2);
+  test_start_and_scan_colors(30,1);
 }
 
 // ============================================================================
