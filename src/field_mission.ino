@@ -17,14 +17,14 @@
 // ============================================================================
 // 1. การตั้งค่าเซอร์โวมือจับ แขนยก ระยะเอ็นโค้ดเดอร์ และความเร็ว
 // ============================================================================
-const int SERVO_GRIPPER_CH = 1; // เซอร์โวมือจับหนีบกระป๋อง (ช่อง 1)
-const int SERVO_ARM_CH     = 2; // เซอร์โวยกแขนขึ้น-ลง (ช่อง 2)
+const int SERVO_ARM_CH     = 1; // เซอร์โวยกแขนขึ้น-ลง (ช่อง 1)
+const int SERVO_GRIPPER_CH = 2; // เซอร์โวมือจับหนีบกระป๋อง (ช่อง 2)
 
 // องศาเซอร์โว (สามารถปรับจูนตามกลไกของหุ่นได้ที่นี่)
-int GRIPPER_OPEN_ANG = 55;  // องศากางมือจับออกสุด
-int GRIPPER_GRAB_ANG = 145; // องศาหนีบกระป๋องแน่น
-int ARM_DOWN_ANG     = 62;  // องศาลดแขนลงระดับคีบ/วางลงหลุมแท่น 5 cm
-int ARM_LIFT_ANG     = 125; // องศายกแขนขึ้นสูงพ้นแท่น 5 cm
+int GRIPPER_OPEN_ANG = 130;  // องศากางมือจับออกสุด
+int GRIPPER_GRAB_ANG = 65; // องศาหนีบกระป๋องแน่น
+int ARM_DOWN_ANG     = 100;  // องศาลดแขนลงระดับคีบ/วางลงหลุมแท่น 5 cm
+int ARM_LIFT_ANG     = 10; // องศายกแขนขึ้นสูงพ้นแท่น 5 cm
 
 // ระยะพัลส์เอ็นโค้ดเดอร์สำหรับเข้าไปคีบและวางกระป๋อง
 long ENCODER_CAN_APPROACH_PULSES = 160; // ระยะ PID เดินหน้าเข้าไปเอากระป๋องนิดนึง
@@ -50,9 +50,11 @@ RobotColor RECALLED_COLOR     = COLOR_UNKNOWN; // เช่น COLOR_BLUE หร
 
 // คีบกระป๋องและยกขึ้นข้ามแท่น (Grab Can)
 inline void grabCan() {
-  servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);
-  delay(180);
-  servoRun(SERVO_GRIPPER_CH, GRIPPER_GRAB_ANG); // หนีบแน่น
+  servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
+  delay(120);
+  servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงครอบตัวกระป๋อง
+  delay(250);
+  servoRun(SERVO_GRIPPER_CH, GRIPPER_GRAB_ANG); // หนีบกระป๋องแน่น
   delay(250);
   servoRun(SERVO_ARM_CH, ARM_LIFT_ANG);         // ยกแขนข้ามแท่น 5 cm
   delay(200);
