@@ -210,6 +210,30 @@ inline void Fline_by_pass(int speed, int pass_lines) {
   stop_4w();
 }
 
+// โอเวอร์โหลด Fline_by_pass แบบ 3 พารามิเตอร์ ตามสไตล์ Sisakat 4WD: Fline_by_pass(speed, count, sensor)
+inline void Fline_by_pass(int speed, int pass_lines, int sensor) {
+  if (sensor < 0) {
+    Fline_by_pass(speed, pass_lines);
+    return;
+  }
+  for (int count = 0; count < pass_lines; count++) {
+    while (!isFrontSensorOnLine(sensor)) {
+      lineFollow_PID_auto(speed);
+    }
+    if (count < pass_lines - 1) {
+      unsigned long t_cross = millis();
+      while (isFrontSensorOnLine(sensor) && (millis() - t_cross < 1500)) {
+        lineFollow_PID_auto(speed);
+      }
+      unsigned long t_clear = millis();
+      while (millis() - t_clear < 40) {
+        lineFollow_PID_auto(speed);
+      }
+    }
+  }
+  stop_4w();
+}
+
 // Fline_by_pass_B: วิ่งตามเส้นถอยหลังจนกว่าจะผ่านเส้นตัดครบตามจำนวน
 inline void Fline_by_pass_B(int speed, int pass_lines) {
   for (int count = 0; count < pass_lines; count++) {
