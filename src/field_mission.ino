@@ -111,28 +111,176 @@ inline int findConsumerForColor(RobotColor color, const RobotColor* order_list) 
 
 // ----------------------------------------------------------------------------
 // จัดการกรณีกระป๋องหมดสต็อกที่ Warehouse 1 -> ไปคลังสำรอง Warehouse 2
+// แยก switch-case ตามสีที่หมด เพราะตำแหน่งที่หุ่นยนต์ไปเช็คแต่ละสียืนอยู่คนละจุด
 // ----------------------------------------------------------------------------
 inline void get_Warehouse2_Spare(RobotColor color, int speed) {
   Serial.print("\n[Warehouse 2] Heading to Warehouse 2 for Spare Can (Color: ");
   Serial.print(getColorName(color));
   Serial.println(") ...");
-  
-  turnLeft_by_stop(50);
-  turnLeft_by_stop(50);
-  Fline_by_pass(speed, 2);
-  turnRight_by_stop(50);
-  Fline_by_pass(speed, 1);
-  
-  Fline_by_Encoder(speed, ENCODER_CAN_APPROACH_PULSES);
-  grabCan();
-  Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
-  
-  turnLeft_by_stop(50);
-  turnLeft_by_stop(50);
-  Fline_by_pass(speed, 1);
-  turnRight(50);
-  Fline_by_pass(speed, 2);
-  
+
+  switch (color) {
+    // ------------------------------------------------------------------------
+    // กรณีสีเหลืองหมดสต็อก: หุ่นยนต์หยุดตรวจจับที่ช่อง Yellow (เส้นกึ่งกลาง หน้า HUB)
+    // ------------------------------------------------------------------------
+    case COLOR_YELLOW:
+      Serial.println("[W2 Route] Out of stock at YELLOW -> Heading to Warehouse 2...");
+      // 1. หมุนตัว 180 องศากลับมาที่จุด HUB
+      turnLeft_by_stop(50);
+      turnLeft_by_stop(50);
+      // 2. เลี้ยวขวามุ่งหน้าสู่คลังสำรอง W2
+      turnRight_by_stop(50);
+      Fline_by_pass(speed, 1);
+      // 3. วิ่งตามเอ็นโค้ดเดอร์เข้าไปคีบกระป๋องสำรอง
+      Fline_by_Encoder(speed, ENCODER_CAN_APPROACH_PULSES);
+      grabCan();
+      Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
+      // 4. หันหลังกลับและวิ่งกลับมาตั้งลำที่จุด HUB (หันหน้าเข้าหา Consumer)
+      turnLeft_by_stop(50);
+      turnLeft_by_stop(50);
+      Fline_by_pass(speed, 1);
+      turnRight(50);
+      Fline_by_pass(speed, 2);
+      break;
+
+    // ------------------------------------------------------------------------
+    // กรณีสีน้ำเงินหมดสต็อก: หุ่นยนต์หยุดตรวจจับที่ช่อง Blue (เส้นบน)
+    // ------------------------------------------------------------------------
+    case COLOR_BLUE:
+      Serial.println("[W2 Route] Out of stock at BLUE -> Heading to Warehouse 2...");
+      // 1. ถอย/กลับตัวออกจากช่อง Blue กลับเข้าสู่จุด HUB
+      turnLeft_by_stop(50);
+      turnLeft_by_stop(50);
+      turnLeft_by_stop(50);
+      turnRight_by_stop(50);
+      // 2. จาก HUB เลี้ยวขวามุ่งหน้าสู่คลังสำรอง W2
+      turnRight_by_stop(50);
+      Fline_by_pass(speed, 1);
+      // 3. วิ่งตามเอ็นโค้ดเดอร์เข้าไปคีบกระป๋องสำรอง
+      Fline_by_Encoder(speed, ENCODER_CAN_APPROACH_PULSES);
+      grabCan();
+      Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
+      // 4. หันหลังกลับและวิ่งกลับมาตั้งลำที่จุด HUB (หันหน้าเข้าหา Consumer)
+      turnLeft_by_stop(50);
+      turnLeft_by_stop(50);
+      Fline_by_pass(speed, 1);
+      turnRight(50);
+      Fline_by_pass(speed, 2);
+      break;
+
+    // ------------------------------------------------------------------------
+    // กรณีสีดำหมดสต็อก: หุ่นยนต์หยุดตรวจจับที่ช่อง Black (เส้นล่าง)
+    // ------------------------------------------------------------------------
+    case COLOR_BLACK:
+      Serial.println("[W2 Route] Out of stock at BLACK -> Heading to Warehouse 2...");
+      // 1. ถอย/กลับตัวออกจากช่อง Black กลับเข้าสู่จุด HUB
+      turnLeft_by_stop(50);
+      turnLeft_by_stop(50);
+      turnRight_by_stop(50);
+      turnLeft_by_stop(50);
+      // 2. จาก HUB เลี้ยวขวามุ่งหน้าสู่คลังสำรอง W2
+      turnRight_by_stop(50);
+      Fline_by_pass(speed, 1);
+      // 3. วิ่งตามเอ็นโค้ดเดอร์เข้าไปคีบกระป๋องสำรอง
+      Fline_by_Encoder(speed, ENCODER_CAN_APPROACH_PULSES);
+      grabCan();
+      Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
+      // 4. หันหลังกลับและวิ่งกลับมาตั้งลำที่จุด HUB (หันหน้าเข้าหา Consumer)
+      turnLeft_by_stop(50);
+      turnLeft_by_stop(50);
+      Fline_by_pass(speed, 1);
+      turnRight(50);
+      Fline_by_pass(speed, 2);
+      break;
+
+    // ------------------------------------------------------------------------
+    // กรณีสีเขียวหมดสต็อก: หุ่นยนต์หยุดตรวจจับที่ช่อง Green (เส้นกึ่งกลาง ถัดจากเหลือง)
+    // ------------------------------------------------------------------------
+    case COLOR_GREEN:
+      Serial.println("[W2 Route] Out of stock at GREEN -> Heading to Warehouse 2...");
+      // 1. หันหลังกลับ วิ่งผ่าน 2 เส้น เลี้ยวขวา ผ่าน 1 เส้น เข้าคลัง W2
+      turnLeft_by_stop(50);
+      turnLeft_by_stop(50);
+      Fline_by_pass(speed, 2);
+      turnRight_by_stop(50);
+      Fline_by_pass(speed, 1);
+      // 2. วิ่งตามเอ็นโค้ดเดอร์เข้าไปคีบกระป๋องสำรอง
+      Fline_by_Encoder(speed, ENCODER_CAN_APPROACH_PULSES);
+      grabCan();
+      Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
+      // 3. หันหลังกลับและวิ่งกลับมาตั้งลำที่จุด HUB (หันหน้าเข้าหา Consumer)
+      turnLeft_by_stop(50);
+      turnLeft_by_stop(50);
+      Fline_by_pass(speed, 1);
+      turnRight(50);
+      Fline_by_pass(speed, 2);
+      break;
+
+    // ------------------------------------------------------------------------
+    // กรณีสีแดงหมดสต็อก: หุ่นยนต์หยุดตรวจจับที่ช่อง Red (เส้นบน ถัดจากน้ำเงิน)
+    // ------------------------------------------------------------------------
+    case COLOR_RED:
+      Serial.println("[W2 Route] Out of stock at RED -> Heading to Warehouse 2...");
+      // 1. ถอย/กลับตัวออกจากช่อง Red กลับเข้าสู่จุด HUB
+      turnRight_by_stop(50);
+      turnRight_by_stop(50);
+      Fline_by_pass(speed, 1);
+      // 2. จาก HUB เลี้ยวขวามุ่งหน้าสู่คลังสำรอง W2
+      turnRight_by_stop(50);
+      Fline_by_pass(speed, 1);
+      // 3. วิ่งตามเอ็นโค้ดเดอร์เข้าไปคีบกระป๋องสำรอง
+      Fline_by_Encoder(speed, ENCODER_CAN_APPROACH_PULSES);
+      grabCan();
+      Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
+      // 4. หันหลังกลับและวิ่งกลับมาตั้งลำที่จุด HUB (หันหน้าเข้าหา Consumer)
+      turnLeft_by_stop(50);
+      turnLeft_by_stop(50);
+      Fline_by_pass(speed, 1);
+      turnRight(50);
+      Fline_by_pass(speed, 2);
+      break;
+
+    // ------------------------------------------------------------------------
+    // กรณีสีขาวหมดสต็อก: หุ่นยนต์หยุดตรวจจับที่ช่อง White (เส้นล่าง ถัดจากดำ)
+    // ------------------------------------------------------------------------
+    case COLOR_WHITE:
+      Serial.println("[W2 Route] Out of stock at WHITE -> Heading to Warehouse 2...");
+      // 1. ถอย/กลับตัวออกจากช่อง White กลับเข้าสู่จุด HUB
+      turnLeft_by_stop(50);
+      turnLeft_by_stop(50);
+      Fline_by_pass(speed, 1);
+      // 2. จาก HUB เลี้ยวขวามุ่งหน้าสู่คลังสำรอง W2
+      turnRight_by_stop(50);
+      Fline_by_pass(speed, 1);
+      // 3. วิ่งตามเอ็นโค้ดเดอร์เข้าไปคีบกระป๋องสำรอง
+      Fline_by_Encoder(speed, ENCODER_CAN_APPROACH_PULSES);
+      grabCan();
+      Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
+      // 4. หันหลังกลับและวิ่งกลับมาตั้งลำที่จุด HUB (หันหน้าเข้าหา Consumer)
+      turnLeft_by_stop(50);
+      turnLeft_by_stop(50);
+      Fline_by_pass(speed, 1);
+      turnRight(50);
+      Fline_by_pass(speed, 2);
+      break;
+
+    default:
+      Serial.println("[Warehouse 2] Unknown color! Using default route...");
+      turnLeft_by_stop(50);
+      turnLeft_by_stop(50);
+      Fline_by_pass(speed, 2);
+      turnRight_by_stop(50);
+      Fline_by_pass(speed, 1);
+      Fline_by_Encoder(speed, ENCODER_CAN_APPROACH_PULSES);
+      grabCan();
+      Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
+      turnLeft_by_stop(50);
+      turnLeft_by_stop(50);
+      Fline_by_pass(speed, 1);
+      turnRight(50);
+      Fline_by_pass(speed, 2);
+      break;
+  }
+
   Serial.println("[Warehouse 2] Spare can secured and robot returned to HUB!");
 }
 inline void get_Warehouse2_Spare(RobotColor color) { get_Warehouse2_Spare(color, SPEED_WAREHOUSE); }
@@ -356,7 +504,7 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
       } else {
         releaseCan(); // วางลงหลุม
       }
-sw();
+      sw();
       Backword_Notline_by_Encoder(speed, ENCODER_CONSUMER_PULSES);
       turnLeft_by_stop(45);
       Fline_by_pass(speed, 2);
