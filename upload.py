@@ -10,6 +10,14 @@ import sys
 import shutil
 import subprocess
 
+# ป้องกันปัญหา UnicodeEncodeError บน Windows Console (cp1252 / cp874)
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # สีสำหรับแสดงผลใน Terminal (ANSI Escape Codes)
 GREEN = "\033[92m"
 YELLOW = "\033[93m"

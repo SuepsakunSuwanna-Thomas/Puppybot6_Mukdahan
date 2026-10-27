@@ -14,8 +14,8 @@ int selection_Encoder = 1;
 #include "serial_tester.h"
 #include "color_scanner.h"
 
-// ฟังก์ชันภารกิจหลักในสนาม (อยู่ในไฟล์ field_mission.ino)
-void runFieldMission();
+// ฟังก์ชันภารกิจหลักในสนาม
+#include "field_mission.h"
 
 // ============================================================================
 // SETUP: เริ่มต้นระบบฮาร์ดแวร์และเซนเซอร์
