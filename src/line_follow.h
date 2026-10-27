@@ -208,6 +208,7 @@ inline void Fline_by_pass(int speed, int pass_lines) {
     }
   }
   stop_4w();
+  delay(50);
 }
 
 // โอเวอร์โหลด Fline_by_pass แบบ 3 พารามิเตอร์ ตามสไตล์ Sisakat 4WD: Fline_by_pass(speed, count, sensor)

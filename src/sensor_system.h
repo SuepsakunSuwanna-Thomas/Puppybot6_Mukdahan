@@ -104,6 +104,27 @@ inline void waitForButton(const char* promptText = "Press Button") {
   delay(150);
 }
 
+// ============================================================================
+// ฟังก์ชันรอกดสวิตช์ขา 47 (SW)
+// มีเสียงบัซเซอร์ร้องเตือนตอนเข้าฟังก์ชัน และรอจนกว่าจะกดปุ่มขา 47 จึงหลุดออก
+// ============================================================================
+inline void sw() {
+  pinMode(47, INPUT_PULLUP);
+  buzzer(2000, 120); // บัซเซอร์ดังตอนเข้า void นี้
+
+  // รอจนกว่าจะมีการกดปุ่มที่ขา 47 (Active LOW เมื่อกดจะเป็น LOW)
+  while (digitalRead(47) == HIGH) {
+    delay(10);
+  }
+
+  // ส่งเสียงสั้นยืนยันการกด และรอจนปล่อยปุ่ม
+  buzzer(2400, 80);
+  while (digitalRead(47) == LOW) {
+    delay(10);
+  }
+  delay(50);
+}
+
 // Forward declarations
 inline bool isFrontSensorOnLine(int index);
 inline bool isBackSensorOnLine(int index);

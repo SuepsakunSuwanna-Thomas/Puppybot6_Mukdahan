@@ -27,9 +27,9 @@ int ARM_DOWN_ANG     = 100;  // องศาลดแขนลงระดับ
 int ARM_LIFT_ANG     = 10; // องศายกแขนขึ้นสูงพ้นแท่น 5 cm
 
 // ระยะพัลส์เอ็นโค้ดเดอร์สำหรับเข้าไปคีบและวางกระป๋อง
-long ENCODER_CAN_APPROACH_PULSES = 160; // ระยะ PID เดินหน้าเข้าไปเอากระป๋องนิดนึง
-long ENCODER_CAN_BACKUP_PULSES   = 160; // ระยะถอยหลังตามเอ็นโค้ดเดอร์นิดนึงหลังยก
-long ENCODER_CONSUMER_PULSES     = 180; // ระยะ PID เข้าไปวาง/ยกที่แท่นหลุมลูกค้า
+long ENCODER_CAN_APPROACH_PULSES = 90; // ระยะ PID เดินหน้าเข้าไปเอากระป๋องนิดนึง
+long ENCODER_CAN_BACKUP_PULSES   = 80; // ระยะถอยหลังตามเอ็นโค้ดเดอร์นิดนึงหลังยก
+long ENCODER_CONSUMER_PULSES     = 200; // ระยะ PID เข้าไปวาง/ยกที่แท่นหลุมลูกค้า
 
 // ความเร็วมาตรฐานในการวิ่งภารกิจ
 int SPEED_SCAN       = 40;  // ความเร็วตอนสแกนสีแถบคำสั่งซื้อ
@@ -51,7 +51,7 @@ RobotColor RECALLED_COLOR     = COLOR_UNKNOWN; // เช่น COLOR_BLUE หร
 // คีบกระป๋องและยกขึ้นข้ามแท่น (Grab Can)
 inline void grabCan() {
   servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
-  delay(120);
+  delay(200);
   servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงครอบตัวกระป๋อง
   delay(250);
   servoRun(SERVO_GRIPPER_CH, GRIPPER_GRAB_ANG); // หนีบกระป๋องแน่น
@@ -147,11 +147,12 @@ inline void get_Yellow(int speed) {
   Serial.println("\n[Action] >>> Step 1: Going to YELLOW from Color Scan Line <<<");
 
   // 1. เลี้ยวซ้าย ซ้าย ผ่าน 1 เลี้ยวขวา ผ่าน 4 เส้น
-  turnLeft(50);
-  turnLeft(50);
-  Fline_by_pass(speed, 1);
-  turnRight_by_stop(50);
-  Fline_by_pass(speed, 4);
+  turnLeft(40);
+  turnLeft(40);
+  Fline_by_pass(90, 1);
+  turnRight(40);
+   Fline_by_pass(100, 3);
+   Fline_by_pass(40, 1);
 
   // 2. เช็คว่ามีกระป๋องไหม
   bool has_can = (OUT_OF_STOCK_COLOR == COLOR_YELLOW) ? false : checkCanPresent();
@@ -160,6 +161,7 @@ inline void get_Yellow(int speed) {
     get_Warehouse2_Spare(COLOR_YELLOW, speed);
     return;
   } else {
+  
     // หากมีกระป๋อง:
     // วิ่ง PID ตามเอ็นโค้ดเดอร์เข้าไปเอานิดนึง
     Fline_by_Encoder(speed, ENCODER_CAN_APPROACH_PULSES);
@@ -171,8 +173,8 @@ inline void get_Yellow(int speed) {
     Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
 
     // หมุนตัวเพื่อให้หน้าอยู่ตรง HUB
-    turnLeft_by_stop(50);
-    turnLeft_by_stop(50);
+    turnLeft_by_stop(40);
+    turnLeft_by_stop(45);
   }
 
   Serial.println("[Action] Yellow can ready at HUB!");
@@ -344,28 +346,32 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
     // ช่อง 1: ผ่าน 2 เลี้ยวซ้าย เดินหน้าแบบ PID ตามเอ็นโค้ดเดอร์ แล้ววาง/ยก ถอย หมุนซ้าย ผ่าน 3 เส้น
     // ------------------------------------------------------------------------
     case 1:
-      Fline_by_pass(speed, 2);
-      turnLeft_by_stop(50);
-      Fline_by_Encoder(speed, ENCODER_CONSUMER_PULSES);
+      Fline_by_pass(speed, 1);
+      Fline_by_pass(57, 1);
+      turnLeft(37);
+       Fline_by_Encoder(speed, ENCODER_CONSUMER_PULSES);
 
       if (is_pickup) {
         grabCan();   // ยกขึ้น
       } else {
         releaseCan(); // วางลงหลุม
       }
-
+sw();
       Backword_Notline_by_Encoder(speed, ENCODER_CONSUMER_PULSES);
-      turnLeft_by_stop(50);
-      Fline_by_pass(speed, 3);
+      turnLeft_by_stop(45);
+      Fline_by_pass(speed, 2);
+      Fline( 50, 0);
       break;
 
     // ------------------------------------------------------------------------
     // ช่อง 2: ผ่าน 2 เลี้ยวขวา เดินหน้าแบบ PID ตามเอ็นโค้ดเดอร์ แล้ววาง/ยก ถอย หมุนขวา ผ่าน 3 เส้น
     // ------------------------------------------------------------------------
     case 2:
-      Fline_by_pass(speed, 2);
-      turnRight_by_stop(50);
+      Fline_by_pass(speed, 1);
+      Fline_by_pass(67, 1);
+      turnRight(45);
       Fline_by_Encoder(speed, ENCODER_CONSUMER_PULSES);
+      sw();
 
       if (is_pickup) {
         grabCan();
@@ -375,7 +381,8 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
 
       Backword_Notline_by_Encoder(speed, ENCODER_CONSUMER_PULSES);
       turnRight_by_stop(50);
-      Fline_by_pass(speed, 3);
+      Fline_by_pass(speed, 2);
+      Fline(50 , 0);
       break;
 
     // ------------------------------------------------------------------------
