@@ -1,4 +1,3 @@
-#pragma once
 // ============================================================================
 // ============================================================================
 // LOGISTICS ROBOT COMPETITION (ภารกิจหุ่นยนต์ Logistics Robot รุ่น 19)
@@ -113,7 +112,7 @@ inline int findConsumerForColor(RobotColor color, const RobotColor* order_list) 
 // ----------------------------------------------------------------------------
 // จัดการกรณีกระป๋องหมดสต็อกที่ Warehouse 1 -> ไปคลังสำรอง Warehouse 2
 // ----------------------------------------------------------------------------
-inline void get_Warehouse2_Spare(RobotColor color, int speed = SPEED_WAREHOUSE) {
+inline void get_Warehouse2_Spare(RobotColor color, int speed) {
   Serial.print("\n[Warehouse 2] Heading to Warehouse 2 for Spare Can (Color: ");
   Serial.print(getColorName(color));
   Serial.println(") ...");
@@ -131,11 +130,12 @@ inline void get_Warehouse2_Spare(RobotColor color, int speed = SPEED_WAREHOUSE) 
   turnLeft_by_stop(50);
   turnLeft_by_stop(50);
   Fline_by_pass(speed, 1);
-  turnLeft_by_stop(50);
+  turnRight(50);
   Fline_by_pass(speed, 2);
   
   Serial.println("[Warehouse 2] Spare can secured and robot returned to HUB!");
 }
+inline void get_Warehouse2_Spare(RobotColor color) { get_Warehouse2_Spare(color, SPEED_WAREHOUSE); }
 
 // ============================================================================
 // 5. ฟังก์ชันแยกสำหรับวิ่งไปหยิบสินค้าแต่ละสี (Warehouse 1)
@@ -143,12 +143,12 @@ inline void get_Warehouse2_Spare(RobotColor color, int speed = SPEED_WAREHOUSE) 
 
 // [5.1] สีเหลือง: วิ่งจากการอ่านค่าแถบสีเสร็จ เลี้ยวซ้าย ซ้าย ผ่าน 1 เลี้ยวขวา ผ่าน 4 เส้น
 //       -> เช็คกระป๋อง -> วิ่ง PID ตาม encoder นิดนึง -> ยกขึ้น -> ถอยหลังตาม encoder นิดนึง -> หมุนตัวเพื่อให้หน้าอยู่ตรง HUB
-inline void get_Yellow(int speed = SPEED_WAREHOUSE) {
+inline void get_Yellow(int speed) {
   Serial.println("\n[Action] >>> Step 1: Going to YELLOW from Color Scan Line <<<");
 
   // 1. เลี้ยวซ้าย ซ้าย ผ่าน 1 เลี้ยวขวา ผ่าน 4 เส้น
-  turnLeft_by_stop(50);
-  turnLeft_by_stop(50);
+  turnLeft(50);
+  turnLeft(50);
   Fline_by_pass(speed, 1);
   turnRight_by_stop(50);
   Fline_by_pass(speed, 4);
@@ -177,10 +177,11 @@ inline void get_Yellow(int speed = SPEED_WAREHOUSE) {
 
   Serial.println("[Action] Yellow can ready at HUB!");
 }
+inline void get_Yellow() { get_Yellow(SPEED_WAREHOUSE); }
 
 // [5.2] สีน้ำเงิน: พอหุ่นยนต์ไปวางเหลืองเสร็จแล้วหันหน้าออกมาที่จุด HUB
 //       หมุนซ้าย เลี้ยวขวา -> เช็คกระป๋อง -> วิ่ง PID ตาม encoder นิดนึง -> ยกขึ้น -> ถอยหลังตาม encoder นิดนึง -> หมุน เลี้ยวซ้าย เลี้ยวขวา หน้าจะอยู่ตรง HUB
-inline void get_Blue(int speed = SPEED_WAREHOUSE) {
+inline void get_Blue(int speed) {
   Serial.println("\n[Action] >>> Step 2: Going to BLUE from HUB <<<");
 
   // 1. หมุนซ้าย เลี้ยวขวา
@@ -207,9 +208,10 @@ inline void get_Blue(int speed = SPEED_WAREHOUSE) {
 
   Serial.println("[Action] Blue can ready at HUB!");
 }
+inline void get_Blue() { get_Blue(SPEED_WAREHOUSE); }
 
 // [5.3] สีดำ: หมุนขวา เลี้ยวซ้าย -> เช็คกระป๋อง -> วิ่ง PID ตาม encoder นิดนึง -> ยกขึ้น -> ถอยหลังตาม encoder นิดนึง -> หมุน เลี้ยวขวา เลี้ยวซ้าย หน้าจะอยู่ที่ HUB
-inline void get_Black(int speed = SPEED_WAREHOUSE) {
+inline void get_Black(int speed) {
   Serial.println("\n[Action] >>> Step 3: Going to BLACK from HUB <<<");
 
   // 1. หมุนขวา เลี้ยวซ้าย
@@ -236,9 +238,10 @@ inline void get_Black(int speed = SPEED_WAREHOUSE) {
 
   Serial.println("[Action] Black can ready at HUB!");
 }
+inline void get_Black() { get_Black(SPEED_WAREHOUSE); }
 
 // [5.4] สีเขียว: วิ่งผ่าน 1 เส้น -> เช็คกระป๋อง -> วิ่ง PID ตาม encoder นิดนึง -> ยกขึ้น -> ถอยหลังตาม encoder นิดนึง -> หมุน ผ่าน 2 เส้น หน้าจะอยู่ที่ HUB
-inline void get_Green(int speed = SPEED_WAREHOUSE) {
+inline void get_Green(int speed) {
   Serial.println("\n[Action] >>> Step 4: Going to GREEN from HUB <<<");
 
   // 1. วิ่งผ่าน 1 เส้น
@@ -263,9 +266,10 @@ inline void get_Green(int speed = SPEED_WAREHOUSE) {
 
   Serial.println("[Action] Green can ready at HUB!");
 }
+inline void get_Green() { get_Green(SPEED_WAREHOUSE); }
 
 // [5.5] สีแดง: ผ่าน 1 เส้น เลี้ยวซ้าย เลี้ยวขวา -> เช็คกระป๋อง -> วิ่ง PID ตาม encoder นิดนึง -> ยกขึ้น -> ถอยหลังตาม encoder นิดนึง -> หมุนขวา เลี้ยวขวา ผ่าน 1 เส้น เรียก HUB
-inline void get_Red(int speed = SPEED_WAREHOUSE) {
+inline void get_Red(int speed) {
   Serial.println("\n[Action] >>> Step 5: Going to RED from HUB <<<");
 
   // 1. ผ่าน 1 เส้น เลี้ยวซ้าย เลี้ยวขวา
@@ -292,9 +296,10 @@ inline void get_Red(int speed = SPEED_WAREHOUSE) {
 
   Serial.println("[Action] Red can ready at HUB!");
 }
+inline void get_Red() { get_Red(SPEED_WAREHOUSE); }
 
 // [5.6] สีขาว: เลี้ยวขวา เลี้ยวซ้าย -> เช็คกระป๋อง -> วิ่ง PID ตาม encoder นิดนึง -> ยกขึ้น -> ถอยหลังตาม encoder นิดนึง -> หมุนซ้าย เลี้ยวซ้าย ผ่าน 1 เส้น เรียก HUB
-inline void get_White(int speed = SPEED_WAREHOUSE) {
+inline void get_White(int speed) {
   Serial.println("\n[Action] >>> Step 6: Going to WHITE from HUB <<<");
 
   // 1. เลี้ยวขวา เลี้ยวซ้าย
@@ -320,6 +325,7 @@ inline void get_White(int speed = SPEED_WAREHOUSE) {
 
   Serial.println("[Action] White can ready at HUB!");
 }
+inline void get_White() { get_White(SPEED_WAREHOUSE); }
 
 // ============================================================================
 // 6. ฟังก์ชัน HUB แบบสวิตช์เคส ช่อง 1 ถึง 6 (มี if เช็คทุกช่องว่าจะเรียกวางหรือยก)
@@ -454,6 +460,8 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
   buzzer(2000, 60);
   Serial.println("[HUB] Operation completed. Robot is now back at HUB!");
 }
+inline void put_from_HUB(int slot, bool is_pickup) { put_from_HUB(slot, is_pickup, SPEED_CONSUMER); }
+inline void put_from_HUB(int slot) { put_from_HUB(slot, false, SPEED_CONSUMER); }
 
 // ============================================================================
 // 7. ภารกิจเรียกคืนสินค้าชำรุด (Product Recall Execution)
@@ -464,7 +472,7 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
 // -> ถอยหลัง PID ตามเอ็นโค้ดเดอร์ -> หมุนซ้าย ผ่าน 3 เส้น เลี้ยวขวา วิ่งเข้าไปตามเอ็นโค้ดเดอร์ -> ยก
 // -> ถอยหลังตามเอ็นโค้ดเดอร์ -> หมุนขวา ผ่าน 1 เลี้ยวขวา ผ่าน 1 -> ถึง HUB -> เรียก HUB ไปวาง!
 // ============================================================================
-inline void executeProductRecallExact(const RobotColor order_list[6], int speed = SPEED_RECALL) {
+inline void executeProductRecallExact(const RobotColor order_list[6], int speed) {
   Serial.println("\n***************************************************");
   Serial.println(">>> [PRODUCT RECALL] Starting Defective Recall Mission <<<");
   Serial.println("***************************************************");
@@ -532,7 +540,7 @@ inline void executeProductRecallExact(const RobotColor order_list[6], int speed 
 // ============================================================================
 // 8. เดินทางกลับเข้าจุด START (Return to Start Box) รับคะแนนโบนัส 10 คะแนน
 // ============================================================================
-inline void returnToStartBox(int speed = SPEED_RETURN) {
+inline void returnToStartBox(int speed) {
   Serial.println("[Nav] Mission Complete -> Returning to START Box (10 Bonus Points)...");
   // จากจุด Hub หันหน้าไปทางทิศตะวันตก มุ่งหน้าสู่แนวแกนของกล่อง START
   Fline_by_pass(speed, 3);
@@ -547,6 +555,8 @@ inline void returnToStartBox(int speed = SPEED_RETURN) {
   delay(150);
   buzzer(2600, 400);
 }
+inline void returnToStartBox() { returnToStartBox(SPEED_RETURN); }
+inline void executeProductRecallExact(const RobotColor order_list[6]) { executeProductRecallExact(order_list, SPEED_RECALL); }
 
 // ============================================================================
 // 9. ฟังก์ชันหลักสำหรับรันภารกิจทั้งหมดในสนาม (MASTER FIELD MISSION LOOP)

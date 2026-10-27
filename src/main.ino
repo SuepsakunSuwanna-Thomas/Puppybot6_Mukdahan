@@ -14,8 +14,42 @@ int selection_Encoder = 1;
 #include "serial_tester.h"
 #include "color_scanner.h"
 
-// ฟังก์ชันภารกิจหลักในสนาม
-#include "field_mission.h"
+// ============================================================================
+// ฟังก์ชันภารกิจหลักในสนาม (อยู่ในไฟล์ field_mission.ino)
+// ============================================================================
+void runFieldMission();
+void grabCan();
+void releaseCan();
+void up();
+void down();
+void keeb();
+void kang();
+bool checkCanPresent();
+
+void get_Warehouse2_Spare(RobotColor color, int speed);
+void get_Warehouse2_Spare(RobotColor color);
+
+void get_Yellow(int speed);
+void get_Yellow();
+void get_Blue(int speed);
+void get_Blue();
+void get_Black(int speed);
+void get_Black();
+void get_Green(int speed);
+void get_Green();
+void get_Red(int speed);
+void get_Red();
+void get_White(int speed);
+void get_White();
+
+void put_from_HUB(int slot, bool is_pickup, int speed);
+void put_from_HUB(int slot, bool is_pickup);
+void put_from_HUB(int slot);
+
+void executeProductRecallExact(const RobotColor order_list[6], int speed);
+void executeProductRecallExact(const RobotColor order_list[6]);
+void returnToStartBox(int speed);
+void returnToStartBox();
 
 // ============================================================================
 // SETUP: เริ่มต้นระบบฮาร์ดแวร์และเซนเซอร์
