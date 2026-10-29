@@ -81,12 +81,39 @@ inline void tr_4w(int speed) {
   drive4(speed, 0, speed, 0);
 }
 
-// หยุดมอเตอร์ทั้งหมด
+// หยุดมอเตอร์ทั้งหมดแบบ Free Run
 inline void stop_4w() {
   motor(1, 0);
   motor(2, 0);
   motor(3, 0);
   motor(4, 0);
+  ao();
+}
+
+// เบรกมอเตอร์แบบ Active Brake (ชอร์ตขั้วมอเตอร์) ล็อคล้อให้นิ่งสนิททันที
+inline void brake_4w(int brake_ms = 40) {
+  motorBreak(10); // H-Bridge High-Side/Low-Side clamp ทุกมอเตอร์
+  if (brake_ms > 0) {
+    delay(brake_ms);
+  }
+  ao();
+}
+
+// หยุดแบบสวนแรงเฉื่อย (Reverse Pulse Brake) แล้วล็อคล้อ - หยุดได้นิ่งและไวที่สุด
+inline void brake_reverse_4w(int forward_speed, int pulse_ms = 25, int hold_brake_ms = 40) {
+  if (forward_speed > 0) {
+    // จังหวะถอยสวนสั้นๆ ซับแรงเฉื่อย
+    bk_4w(constrain(forward_speed, 20, 70));
+    delay(pulse_ms);
+  } else if (forward_speed < 0) {
+    // หากก่อนหน้านี้กำลังถอยหลัง ให้เดินหน้าสวนสั้นๆ
+    fd_4w(constrain(abs(forward_speed), 20, 70));
+    delay(pulse_ms);
+  }
+  motorBreak(10);
+  if (hold_brake_ms > 0) {
+    delay(hold_brake_ms);
+  }
   ao();
 }
 

@@ -3,7 +3,7 @@
   "tasks": [
     {
       "type": "shell",
-      "command": "python upload.py",
+      "command": "C:\\Users\\ASUS\\.platformio\\penv\\Scripts\\platformio.exe run --target upload",
       "label": "PlatformIO: Upload",
       "group": {
         "kind": "build",
@@ -19,7 +19,7 @@
     },
     {
       "type": "shell",
-      "command": "pio run -j 8",
+      "command": "C:\\Users\\ASUS\\.platformio\\penv\\Scripts\\platformio.exe run",
       "label": "PlatformIO: Build",
       "group": {
         "kind": "build",

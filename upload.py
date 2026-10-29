@@ -34,9 +34,53 @@ def set_console_title(title: str):
         except BaseException:
             pass
 
-def check_pio():
-    """ตรวจสอบว่าคำสั่ง pio (PlatformIO Core) ติดตั้งอยู่ในระบบหรือไม่"""
-    return shutil.which("pio") is not None
+def find_pio():
+    """
+    ค้นหาคำสั่งสำหรับรัน PlatformIO Core
+    คืนค่าเป็น list คำสั่ง เช่น ['pio'] หรือ [python_path, '-m', 'platformio']
+    """
+    # 1. ค้นหาจาก PATH ในระบบ
+    pio_path = shutil.which("pio")
+    if pio_path:
+        try:
+            res = subprocess.run([pio_path, "--version"], capture_output=True, text=True)
+            if res.returncode == 0:
+                return [pio_path]
+        except Exception:
+            pass
+
+    # 2. ค้นหาจากตำแหน่งติดตั้งเริ่มต้นของ PlatformIO
+    home = os.path.expanduser("~")
+    if os.name == "nt":
+        penv_python = os.path.join(home, ".platformio", "penv", "Scripts", "python.exe")
+        pio_exe = os.path.join(home, ".platformio", "penv", "Scripts", "pio.exe")
+
+        # ตรวจสอบ python ใน penv ก่อน (ป้องกันปัญหา pio.exe โดน Windows Application Control บล็อก)
+        if os.path.isfile(penv_python):
+            try:
+                res = subprocess.run([penv_python, "-m", "platformio", "--version"], capture_output=True, text=True)
+                if res.returncode == 0:
+                    return [penv_python, "-m", "platformio"]
+            except Exception:
+                pass
+
+        if os.path.isfile(pio_exe):
+            try:
+                res = subprocess.run([pio_exe, "--version"], capture_output=True, text=True)
+                if res.returncode == 0:
+                    return [pio_exe]
+            except Exception:
+                pass
+    else:
+        candidates = [
+            os.path.join(home, ".platformio", "penv", "bin", "pio"),
+            os.path.join(home, ".platformio", "penv", "bin", "platformio"),
+        ]
+        for candidate in candidates:
+            if os.path.isfile(candidate):
+                return [candidate]
+
+    return None
 
 def run_upload():
     # เปลี่ยน Directory ไปยังโฟลเดอร์ของไฟล์นี้
@@ -51,24 +95,38 @@ def run_upload():
     print(f"Working Directory: {current_dir}\n")
 
     # ตรวจสอบ PlatformIO CLI
-    if not check_pio():
+    pio_cmd = find_pio()
+    if not pio_cmd:
         print(f"{RED}{BOLD}[ERROR] ไม่พบคำสั่ง 'pio' (PlatformIO CLI) ในระบบ!{RESET}")
         print("กรุณาติดตั้ง PlatformIO หรือเพิ่ม path ใน Environment Variable")
-        input("\nกด Enter เพื่อออกจากโปรแกรม...")
+        if sys.stdin.isatty():
+            try:
+                input("\nกด Enter เพื่อออกจากโปรแกรม...")
+            except (KeyboardInterrupt, EOFError):
+                pass
         sys.exit(1)
 
-    # ดึงจำนวน CPU Cores ทั้งหมดของเครื่องมาใช้ประมวลผล
-    cpu_cores = os.cpu_count() or 8
-    print(f"{GREEN}{BOLD}⚡ Multi-Core Acceleration: ใช้งาน CPU ทั้งหมด {cpu_cores} Cores เต็มกำลัง!{RESET}")
+    print(f"{GREEN}✔ พบ PlatformIO CLI: {' '.join(pio_cmd)}{RESET}\n")
+
+    # ดึงจำนวน CPU Cores มาใช้ประมวลผล (จำกัดไม่เกิน 4 Threads บน Windows ป้องกันปัญหา WinError 1455: paging file / memory exhausted)
+    detected_cores = os.cpu_count() or 4
+    cpu_cores = min(detected_cores, 4)
+    print(f"{GREEN}{BOLD}⚡ Multi-Core Acceleration: ใช้งาน CPU {cpu_cores} Cores!{RESET}")
     print(f"{GREEN}⚡ Turbo Caching: เปิดใช้งาน ccache ลดเวลาคอมไพล์สูงสุด{RESET}\n")
     print(f"{YELLOW}⏳ กำลังเริ่มทำการคอมไพล์แบบคู่ขนาน ({cpu_cores} Threads) และอัปโหลดโค้ดลงบอร์ด...{RESET}\n")
 
-    # สั่งรันคำสั่ง pio run -j <cpu_cores> --target upload แบบดึงทุกคอร์
-    cmd = ["pio", "run", "-j", str(cpu_cores), "--target", "upload"]
+    # สั่งรันคำสั่ง pio run -j <cpu_cores> --target upload
+    cmd = list(pio_cmd) + ["run", "-j", str(cpu_cores), "--target", "upload"]
     
     try:
-        process = subprocess.run(cmd, shell=True)
+        process = subprocess.run(cmd)
         return_code = process.returncode
+        if return_code != 0 and cpu_cores > 1:
+            # Fallback หากเกิดปัญหาเรื่อง memory / pagefile กับ multi-threading
+            print(f"\n{YELLOW}[RETRY] กำลังลองคอมไพล์และอัปโหลดใหม่อีกครั้งแบบ Single Thread (-j 1)...{RESET}")
+            cmd_single = list(pio_cmd) + ["run", "-j", "1", "--target", "upload"]
+            process = subprocess.run(cmd_single)
+            return_code = process.returncode
     except KeyboardInterrupt:
         print(f"\n{YELLOW}[CANCELLED] ผู้ใช้ยกเลิกการอัปโหลด{RESET}")
         sys.exit(0)

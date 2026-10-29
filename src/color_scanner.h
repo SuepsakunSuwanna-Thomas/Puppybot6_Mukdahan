@@ -559,9 +559,21 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
   if (found_count >= 5) {
     measured_step = ((found_strips[found_count - 1].pulse - found_strips[0].pulse) / (found_count - 1));
     if (measured_step < 120 || measured_step > 400) measured_step = strip_step;
-    long gap_threshold = (long)(measured_step * 1.45f);
 
-    // กรณีที่ 1: ตรวจหาว่ามีช่องว่างขนาดใหญ่ (>= 1.45 เท่าของก้าว) ระหว่างแถบสีหรือไม่
+    long p0 = found_strips[0].pulse;
+    long p_last = found_strips[found_count - 1].pulse;
+
+    // ตรวจสอบระยะพัลส์ของแถบแรก p0:
+    // หากช่อง 1 มีสี: p0 จะเริ่มที่ประมาณ first_strip (~1040p)
+    // หากช่อง 1 เป็นสีขาว: แถบสีแรกที่เจอคือช่อง 2 (p0 จะกระโดดไปที่ ~1280p)
+    long dist_to_slot1 = abs(p0 - first_strip);
+    long dist_to_slot2 = abs(p0 - (first_strip + measured_step));
+
+    // เช็คว่าแถบแรกเข้าข่ายเป็นช่อง 1 ชัดเจนหรือไม่
+    bool slot1_is_colored = (dist_to_slot1 < dist_to_slot2) && (p0 < first_strip + (long)(measured_step * 0.60f));
+
+    // ตรวจหาช่องว่างระหว่างแถบสี: เกณฑ์ต้องกว้าง >= 1.8 เท่าของก้าว และแถบแรกต้องไม่ใช่ช่อง 1 ที่ตรวจพบชัดเจน
+    long gap_threshold = (long)(measured_step * 1.80f);
     long max_gap = 0;
     int max_gap_after_idx = -1;
 
@@ -573,84 +585,33 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
       }
     }
 
-    if (max_gap >= gap_threshold && max_gap_after_idx >= 0) {
+    if (max_gap >= gap_threshold && max_gap_after_idx >= 0 && !slot1_is_colored) {
+      // มีช่องว่างกว้างมากผิดปกติระหว่างแถบ และไม่ใช่กรณีสีขาวอยู่ช่อง 1 หรือ 6
       white_slot_index = max_gap_after_idx + 1;
       Serial.printf(">> WHITE identified in Middle Slot #%d (Gap was %ld pulses, threshold: %ld)\n",
                     white_slot_index + 1, max_gap, gap_threshold);
     } else {
-      // หากระหว่างแม่สีไม่มีช่องว่างใหญ่ แสดงว่าสีขาวอยู่ที่หัวแถว (ช่อง 1) หรือท้ายแถว (ช่อง 6)
-      long p0 = found_strips[0].pulse;
-      long p_last = found_strips[found_count - 1].pulse;
-      long strip_center = (p0 + p_last) / 2;
-
-      // 1. คำนวณระยะก้าวเฉลี่ยต่อช่องจริงจากการวิ่งครั้งนี้ (Self-Calibrating Step)
-      float step_f = (float)(p_last - p0) / 4.0f;
-      if (step_f < 120.0f || step_f > 400.0f) step_f = (float)strip_step;
-
-      // 2. คำนวณสัดส่วนทางเรขาคณิตเทียบกับระยะก้าว (Dimensionless Geometric Ratios)
-      // ตามกติกา ระยะจากเส้นดำถึงช่อง 1 = 17cm, ระยะก้าว = ~4.5cm -> สัดส่วน = 17 / 4.5 = ~3.8 ก้าว
-      // ถ้าช่อง 1 มีสี: แถบแรก p0 คือช่อง 1 -> p0 / step ~ 3.8
-      // ถ้าช่อง 1 สีขาว: แถบแรก p0 คือช่อง 2 -> p0 / step ~ 4.8 (เลยไปอีก 1 ก้าวเต็มๆ)
-      float ratio_p0 = (float)p0 / step_f;
-      float ratio_last = (float)p_last / step_f;
-      float ratio_center = (float)strip_center / step_f;
-
-      // เปรียบเทียบสมมติฐาน First Strip (กรณี first_strip ถูกต้อง)
-      long err_slot1_white = abs((p0 - (long)step_f) - first_strip);
-      long err_slot6_white = abs(p0 - first_strip);
-
-      int vote_slot1 = 0;
-      // 1. สัดส่วนเรขาคณิต: แถบแรก p0 อยู่ไกลเกิน 4.2 ก้าว (เกณฑ์เด็ดขาด)
-      if (ratio_p0 >= 4.2f) vote_slot1 += 2;
-      // 2. สัดส่วนเรขาคณิต: แถบสุดท้าย p_last อยู่ไกลเกิน 8.2 ก้าว (วิ่งถึงช่อง 6)
-      if (ratio_last >= 8.2f) vote_slot1 += 2;
-      // 3. จุดกึ่งกลางแถบสีเกิน 6.2 ก้าว
-      if (ratio_center >= 6.2f) vote_slot1++;
-      // 4. เปรียบเทียบ error กับ first_strip
-      if (err_slot1_white < err_slot6_white) vote_slot1++;
-      // 5. ธงตรวจจับสดขณะวิ่งผ่านช่อง 1
-      if (slot1_passed_as_white) vote_slot1 += 2;
-
-      bool is_first_slot_white = (vote_slot1 >= 3);
-
-      if (is_first_slot_white) {
+      // สีขาวอยู่ที่หัวแถว (ช่อง 1) หรือท้ายแถว (ช่อง 6)
+      if (slot1_passed_as_white || !slot1_is_colored) {
         white_slot_index = 0; // สีขาวอยู่ที่ช่อง 1 (แถบสีแรกที่เจอคือช่อง 2)
-        Serial.printf(">> WHITE identified in First Slot #1 (Votes: %d/8, p0: %ld, p_last: %ld, step: %.1f, r_p0: %.2f, r_last: %.2f)\n",
-                      vote_slot1, p0, p_last, step_f, ratio_p0, ratio_last);
+        Serial.printf(">> WHITE identified in First Slot #1 (p0: %ld, first_strip: %ld, dist1: %ld, dist2: %ld, step: %ld)\n",
+                      p0, first_strip, dist_to_slot1, dist_to_slot2, measured_step);
       } else {
         white_slot_index = 5; // สีขาวอยู่ที่ช่อง 6 (ท้ายสุด)
-        Serial.printf(">> WHITE identified in Last Slot #6 (Votes: %d/8, p0: %ld, p_last: %ld, step: %.1f, r_p0: %.2f, r_last: %.2f)\n",
-                      vote_slot1, p0, p_last, step_f, ratio_p0, ratio_last);
+        Serial.printf(">> WHITE identified in Last Slot #6 (p0: %ld, first_strip: %ld, dist1: %ld, dist2: %ld, step: %ld)\n",
+                      p0, first_strip, dist_to_slot1, dist_to_slot2, measured_step);
       }
     }
   } else {
-    // กรณีเก็บแม่สีได้ 4 สี (หลุด 1 สี):
+    // กรณีเก็บแม่สีได้ 1-4 สี:
     float step_f = (found_count >= 2) ? ((float)(found_strips[found_count - 1].pulse - found_strips[0].pulse) / (float)(found_count - 1)) : (float)strip_step;
     if (step_f < 120.0f || step_f > 400.0f) step_f = (float)strip_step;
-    long gap_threshold = (long)(step_f * 1.45f);
-
-    long max_gap = 0;
-    int max_gap_after_idx = -1;
-    for (int i = 0; i < found_count - 1; i++) {
-      long gap = found_strips[i + 1].pulse - found_strips[i].pulse;
-      if (gap > max_gap) {
-        max_gap = gap;
-        max_gap_after_idx = i;
-      }
-    }
     long p0 = (found_count > 0) ? found_strips[0].pulse : 0;
-    long p_last = (found_count > 0) ? found_strips[found_count - 1].pulse : 0;
-    float ratio_p0 = (float)p0 / step_f;
-    float ratio_last = (float)p_last / step_f;
 
-    int vote_slot1 = 0;
-    if (ratio_p0 >= 4.2f) vote_slot1 += 2;
-    if (ratio_last >= 8.2f) vote_slot1 += 2;
-    if (slot1_passed_as_white) vote_slot1 += 2;
+    long dist_to_slot1 = abs(p0 - first_strip);
+    long dist_to_slot2 = abs(p0 - (first_strip + (long)step_f));
 
-    if (max_gap >= gap_threshold && max_gap_after_idx >= 0) {
-      white_slot_index = max_gap_after_idx + 1;
-    } else if (vote_slot1 >= 2) {
+    if (slot1_passed_as_white || (dist_to_slot2 < dist_to_slot1 && p0 >= first_strip + (long)(step_f * 0.55f))) {
       white_slot_index = 0; // สีขาวอยู่ที่ช่อง 1
     } else {
       white_slot_index = 5; // สีขาวอยู่ที่ช่อง 6

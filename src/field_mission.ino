@@ -22,12 +22,12 @@ const int SERVO_GRIPPER_CH = 2; // เซอร์โวมือจับหน
 
 // องศาเซอร์โว (สามารถปรับจูนตามกลไกของหุ่นได้ที่นี่)
 int GRIPPER_OPEN_ANG = 130;  // องศากางมือจับออกสุด
-int GRIPPER_GRAB_ANG = 65; // องศาหนีบกระป๋องแน่น
-int ARM_DOWN_ANG     = 100;  // องศาลดแขนลงระดับคีบ/วางลงหลุมแท่น 5 cm
+int GRIPPER_GRAB_ANG = 70; // องศาหนีบกระป๋องแน่น
+int ARM_DOWN_ANG     = 110;  // องศาลดแขนลงระดับคีบ/วางลงหลุมแท่น 5 cm
 int ARM_LIFT_ANG     = 10; // องศายกแขนขึ้นสูงพ้นแท่น 5 cm
 
 // ระยะพัลส์เอ็นโค้ดเดอร์สำหรับเข้าไปคีบและวางกระป๋อง
-long ENCODER_CAN_APPROACH_PULSES = 90; // ระยะ PID เดินหน้าเข้าไปเอากระป๋องนิดนึง
+long ENCODER_CAN_APPROACH_PULSES = 100; // ระยะ PID เดินหน้าเข้าไปเอากระป๋องนิดนึง
 long ENCODER_CAN_BACKUP_PULSES   = 80; // ระยะถอยหลังตามเอ็นโค้ดเดอร์นิดนึงหลังยก
 long ENCODER_CONSUMER_PULSES     = 200; // ระยะ PID เข้าไปวาง/ยกที่แท่นหลุมลูกค้า
 
@@ -38,6 +38,8 @@ int SPEED_WAREHOUSE  = 28;  // ความเร็วเข้าคลัง�
 int SPEED_CONSUMER   = 30;  // ความเร็วเข้าส่งลูกค้า
 int SPEED_RECALL     = 28;  // ความเร็วภารกิจเรียกคืนสินค้า
 int SPEED_RETURN     = 32;  // ความเร็ววิ่งกลับจุดสตาร์ท
+int speedl           = 50;  // ความเร็วเลี้ยงซ้าย
+int speedr           = 50;  // ความเร็วเลี้ยวขวา
 
 // กำหนดสีที่หมดสต็อก หรือสีชำรุดล่วงหน้า (หากต้องการบังคับทดสอบ)
 RobotColor OUT_OF_STOCK_COLOR = COLOR_UNKNOWN; // เช่น COLOR_RED หรือ COLOR_UNKNOWN (เช็คจริงด้วย IR)
@@ -50,10 +52,12 @@ RobotColor RECALLED_COLOR     = COLOR_UNKNOWN; // เช่น COLOR_BLUE หร
 
 // คีบกระป๋องและยกขึ้นข้ามแท่น (Grab Can)
 inline void grabCan() {
+  Fline_B_by_Encoder(50,80);
   servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
-  delay(200);
+  delay(300);
   servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงครอบตัวกระป๋อง
   delay(250);
+  Fline_by_Encoder(20,80);
   servoRun(SERVO_GRIPPER_CH, GRIPPER_GRAB_ANG); // หนีบกระป๋องแน่น
   delay(250);
   servoRun(SERVO_ARM_CH, ARM_LIFT_ANG);         // ยกแขนข้ามแท่น 5 cm
@@ -295,13 +299,12 @@ inline void get_Yellow(int speed) {
   Serial.println("\n[Action] >>> Step 1: Going to YELLOW from Color Scan Line <<<");
 
   // 1. เลี้ยวซ้าย ซ้าย ผ่าน 1 เลี้ยวขวา ผ่าน 4 เส้น
-  turnLeft(40);
-  turnLeft(40);
+  turnLeft(speedl);
+  turnLeft(speedr);
   Fline_by_pass(90, 1);
-  turnRight(40);
+  turnRight(speedr);
    Fline_by_pass(100, 3);
    Fline_by_pass(40, 1);
-
   // 2. เช็คว่ามีกระป๋องไหม
   bool has_can = (OUT_OF_STOCK_COLOR == COLOR_YELLOW) ? false : checkCanPresent();
   if (!has_can) {
@@ -312,7 +315,7 @@ inline void get_Yellow(int speed) {
   
     // หากมีกระป๋อง:
     // วิ่ง PID ตามเอ็นโค้ดเดอร์เข้าไปเอานิดนึง
-    Fline_by_Encoder(speed, ENCODER_CAN_APPROACH_PULSES);
+    Fline_by_Encoder(speed, 80);
 
     // ยกขึ้น
     grabCan();
@@ -335,25 +338,28 @@ inline void get_Blue(int speed) {
   Serial.println("\n[Action] >>> Step 2: Going to BLUE from HUB <<<");
 
   // 1. หมุนซ้าย เลี้ยวขวา
-  turnLeft_by_stop(50);
-  turnRight_by_stop(50);
+  turnLeft_by_stop(speedl);
+  turnRight(speedr);
 
   // 2. เช็คว่ามีกระป๋องไหม
-  bool has_can = (OUT_OF_STOCK_COLOR == COLOR_BLUE) ? false : checkCanPresent();
+  bool has_can = (OUT_OF_STOCK_COLOR == COLOR_YELLOW) ? false : checkCanPresent();
   if (!has_can) {
-    get_Warehouse2_Spare(COLOR_BLUE, speed);
+    // หากไม่มี ไปเอาที่คลังสำรอง แล้ว return ทันที ป้องกันคำสั่งด้านล่างทำงานซ้ำ!
+    get_Warehouse2_Spare(COLOR_YELLOW, speed);
     return;
   } else {
+  
     // หากมีกระป๋อง:
-    Fline_by_Encoder(speed, ENCODER_CAN_APPROACH_PULSES);
+
+    // ยกขึ้น
     grabCan();
+
+    // ถอยหลังตามเอ็นโค้ดเดอร์นิดนึง
     Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
 
     // หมุน เลี้ยวซ้าย เลี้ยวขวา หน้าจะอยู่ตรง HUB
-    turnLeft_by_stop(50);
-    turnLeft_by_stop(50);
-    turnLeft_by_stop(50);
     turnRight_by_stop(50);
+    turnRight(55);
   }
 
   Serial.println("[Action] Blue can ready at HUB!");
@@ -365,8 +371,8 @@ inline void get_Black(int speed) {
   Serial.println("\n[Action] >>> Step 3: Going to BLACK from HUB <<<");
 
   // 1. หมุนขวา เลี้ยวซ้าย
-  turnRight_by_stop(50);
-  turnLeft_by_stop(50);
+  turnRight_by_stop(speedr);
+  turnLeft(speedl);
 
   // 2. เช็คว่ามีกระป๋องไหม
   bool has_can = (OUT_OF_STOCK_COLOR == COLOR_BLACK) ? false : checkCanPresent();
@@ -375,16 +381,17 @@ inline void get_Black(int speed) {
     return;
   }
 
-  // หากมีกระป๋อง:
-  Fline_by_Encoder(speed, ENCODER_CAN_APPROACH_PULSES);
-  grabCan();
-  Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
+    // หากมีกระป๋อง:
+
+    // ยกขึ้น
+    grabCan();
+
+    // ถอยหลังตามเอ็นโค้ดเดอร์นิดนึง
+    Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
 
   // หมุน เลี้ยวขวา เลี้ยวซ้าย หน้าจะอยู่ที่ HUB
   turnLeft_by_stop(50);
-  turnLeft_by_stop(50);
-  turnRight_by_stop(50);
-  turnLeft_by_stop(50);
+  turnLeft(55);
 
   Serial.println("[Action] Black can ready at HUB!");
 }
@@ -394,8 +401,9 @@ inline void get_Black() { get_Black(SPEED_WAREHOUSE); }
 inline void get_Green(int speed) {
   Serial.println("\n[Action] >>> Step 4: Going to GREEN from HUB <<<");
 
-  // 1. วิ่งผ่าน 1 เส้น
-  Fline_by_pass(speed, 1);
+  // 1. วิ่งผ่าน 1 เส้นถอยหลังตามเอ็นโค้ดเดอร์นิดนึง
+  Fline_by_pass(40, 1);
+
 
   // 2. เช็คว่ามีกระป๋องไหม
   bool has_can = (OUT_OF_STOCK_COLOR == COLOR_GREEN) ? false : checkCanPresent();
@@ -404,15 +412,20 @@ inline void get_Green(int speed) {
     return;
   }
 
-  // หากมีกระป๋อง:
-  Fline_by_Encoder(speed, ENCODER_CAN_APPROACH_PULSES);
-  grabCan();
-  Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
+    // หากมีกระป๋อง:
+    // วิ่ง PID ตามเอ็นโค้ดเดอร์เข้าไปเอานิดนึง
+    Fline_by_Encoder(speed, 80);
+
+    // ยกขึ้น
+    grabCan();
+
+    // ถอยหลังตามเอ็นโค้ดเดอร์นิดนึง
+    Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
 
   // หมุน ผ่าน 2 เส้น หน้าจะอยู่ที่ HUB
   turnLeft_by_stop(50);
   turnLeft_by_stop(50);
-  Fline_by_pass(speed, 2);
+  Fline_by_pass(speed, 1);
 
   Serial.println("[Action] Green can ready at HUB!");
 }
@@ -423,9 +436,11 @@ inline void get_Red(int speed) {
   Serial.println("\n[Action] >>> Step 5: Going to RED from HUB <<<");
 
   // 1. ผ่าน 1 เส้น เลี้ยวซ้าย เลี้ยวขวา
-  Fline_by_pass(speed, 1);
-  turnLeft_by_stop(50);
-  turnRight_by_stop(50);
+  turnLeft(35);
+  Fline(30,6);
+  turnRight(55);
+
+
 
   // 2. เช็คว่ามีกระป๋องไหม
   bool has_can = (OUT_OF_STOCK_COLOR == COLOR_RED) ? false : checkCanPresent();
@@ -434,14 +449,13 @@ inline void get_Red(int speed) {
     return;
   }
 
-  // หากมีกระป๋อง:
-  Fline_by_Encoder(speed, ENCODER_CAN_APPROACH_PULSES);
-  grabCan();
-  Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
+    // หากมีกระป๋อง:
+    // ยกขึ้น
+    grabCan();
 
   // หมุนขวา เลี้ยวขวา ผ่าน 1 เส้น เรียก HUB
   turnRight_by_stop(50);
-  turnRight_by_stop(50);
+  turnRight(50);
   Fline_by_pass(speed, 1);
 
   Serial.println("[Action] Red can ready at HUB!");
@@ -453,8 +467,9 @@ inline void get_White(int speed) {
   Serial.println("\n[Action] >>> Step 6: Going to WHITE from HUB <<<");
 
   // 1. เลี้ยวขวา เลี้ยวซ้าย
-  turnRight_by_stop(50);
-  turnLeft_by_stop(50);
+  turnRight(45);
+  turnLeft(37);
+  Backword_Notline_by_Encoder(speed, 170);
 
   // 2. เช็คว่ามีกระป๋องไหม
   bool has_can = (OUT_OF_STOCK_COLOR == COLOR_WHITE) ? false : checkCanPresent();
@@ -464,14 +479,13 @@ inline void get_White(int speed) {
   }
 
   // หากมีกระป๋อง:
-  Fline_by_Encoder(speed, ENCODER_CAN_APPROACH_PULSES);
   grabCan();
-  Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
+
 
   // หมุนซ้าย เลี้ยวซ้าย ผ่าน 1 เส้น เรียก HUB
   turnLeft_by_stop(50);
-  turnLeft_by_stop(50);
-  Fline_by_pass(speed, 1);
+  turnLeft(50);
+  Fline_by_pass(100, 1);
 
   Serial.println("[Action] White can ready at HUB!");
 }
@@ -497,7 +511,10 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
       Fline_by_pass(speed, 1);
       Fline_by_pass(57, 1);
       turnLeft(37);
-       Fline_by_Encoder(speed, ENCODER_CONSUMER_PULSES);
+      sl(40);
+      delay(60);
+      ao();
+      //  Fline_by_Encoder(speed, ENCODER_CONSUMER_PULSES);
 
       if (is_pickup) {
         grabCan();   // ยกขึ้น

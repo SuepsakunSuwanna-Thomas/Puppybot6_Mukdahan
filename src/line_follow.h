@@ -202,13 +202,13 @@ inline void Fline_by_pass(int speed, int pass_lines) {
       }
       // วิ่งหน่วงอีก 40ms เพื่อป้องกันการสะท้อนขอบเส้นตัดนับซ้ำ
       unsigned long t_clear = millis();
-      while (millis() - t_clear < 40) {
+      while (millis() - t_clear < 70) {
         lineFollow_PID_auto(speed);
       }
     }
   }
   stop_4w();
-  delay(50);
+ delay(30);
 }
 
 // โอเวอร์โหลด Fline_by_pass แบบ 3 พารามิเตอร์ ตามสไตล์ Sisakat 4WD: Fline_by_pass(speed, count, sensor)
@@ -272,7 +272,7 @@ inline void Fline_by_pass_B(int speed, int pass_lines) {
 // 4. ฟังก์ชันวิ่งจนกว่าเซนเซอร์ที่กำหนดจะเจอเส้นแล้วหยุด (Fline & Fline_B)
 // ============================================================================
 
-// Fline: วิ่งตามเส้นไปข้างหน้า จนกว่าเซนเซอร์ไหนเจอ (0-6 หรือ -1 สำหรับ crossing) คือ เจอเส้นแล้วหยุด
+// Fline: วิ่งตามเส้นไปข้างหน้า จนกว่าเซนเซอร์ไหนเจอ (0-6 หรือ -1 สำหรับ crossing) คือ เจอเส้นแล้วหยุดนิ่ง
 inline void Fline(int speed, int sensor) {
   if (sensor >= 0 && sensor < NUM_FRONT_SENSORS) {
     while (!isFrontSensorOnLine(sensor)) {
@@ -284,7 +284,8 @@ inline void Fline(int speed, int sensor) {
       lineFollow_PID_auto(speed);
     }
   }
-  stop_4w();
+  // หยุดนิ่งสนิท: สวนแรงเฉื่อยสั้นๆ + Active Brake ล็อคล้อ
+  brake_reverse_4w(speed, 25, 40);
 }
 
 // Fline_B: วิ่งถอยหลังตามเส้นจนกว่าเซนเซอร์หลังที่ระบุจะเจอเส้นแล้วหยุด
@@ -423,8 +424,8 @@ inline void turnLeft(int speed) {
   stop_4w();
   delay(40);
 
-  int fast_spin = (speed > 75) ? speed : 75; // สะบัดตัวเร็ว 75-80% เหมือน Sisaket
-  int slow_spin = 25;                         // ผ่อนความเร็วจับเส้นนุ่มนวล
+  int fast_spin = (speed > 55) ? speed : 55; // สะบัดตัวเร็ว 75-80% เหมือน Sisaket
+  int slow_spin = 20;                         // ผ่อนความเร็วจับเส้นนุ่มนวล
 
   // 2. จังหวะที่ 1: สะบัดตัวซ้ายอย่างเร็ว (sl) หลุดจากเส้นเดิมและกวาดหาเส้นใหม่
   sl_4w(fast_spin);
@@ -441,7 +442,7 @@ inline void turnLeft(int speed) {
     delay(1);
   }
   stop_4w();
-  delay(30);
+  delay(50);
 }
 
 // turnRight: วิ่ง PID ตามเส้น พอเจอแยก/เส้นตัดแล้วสะบัดเลี้ยวขวาอย่างรวดเร็ว (Two-Stage Turn ตามแบบ Sisaket)
@@ -453,8 +454,8 @@ inline void turnRight(int speed) {
   stop_4w();
   delay(40);
 
-  int fast_spin = (speed > 75) ? speed : 75; // สะบัดตัวเร็ว 75% เหมือน Sisaket
-  int slow_spin = 25;                         // ผ่อนความเร็วจับเส้นนุ่มนวล
+  int fast_spin = (speed > 55) ? speed : 55; // สะบัดตัวเร็ว 75% เหมือน Sisaket
+  int slow_spin = 20;                         // ผ่อนความเร็วจับเส้นนุ่มนวล
 
   // 2. จังหวะที่ 1: สะบัดตัวขวาอย่างเร็ว (sr) หลุดจากเส้นเดิมและกวาดหาเส้นใหม่
   sr_4w(fast_spin);
@@ -471,7 +472,7 @@ inline void turnRight(int speed) {
     delay(1);
   }
   stop_4w();
-  delay(30);
+  delay(50);
 }
 
 // turnLeft_B: วิ่งถอยหลัง PID ตามเส้น พอเจอเส้นตัดแล้วสะบัดเลี้ยวซ้ายอย่างรวดเร็ว
