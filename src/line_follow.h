@@ -374,6 +374,37 @@ inline void Fline_by_time_B(int speed, unsigned long duration_ms) { Fline_B_by_t
 inline void Fline_by_Encoder_B(int speed, long target_pulses) { Fline_B_by_Encoder(speed, target_pulses); }
 
 // ============================================================================
+// 8. วิ่งตามเส้นจนกว่าจะเจอกระป๋องด้วยเซนเซอร์ IR (Fline_until_can)
+// ============================================================================
+// วิ่งตามเส้นด้วยความเร็ว speed จนกว่าระยะเซนเซอร์วัดระยะข้างหน้าจะน้อยกว่าหรือเท่ากับ stop_dist_cm แล้วหยุด (นิ่งสนิท 100% ไร้อาการสะดุด)
+inline void Fline_until_can(int speed = 25, float stop_dist_cm = 8.0f) {
+  reset_PID_state(); // รีเซ็ต Error ของ PID ป้องกันอาการหักเลี้ยว/กระตุกตอนเริ่ม
+  
+  // แปลงระยะ stop_dist_cm เป็นเกณฑ์ ADC โดยประมาณ (ระยะ 8-10 ซม. ADC จะอยู่ราวๆ 330-450)
+  int threshold_adc = (stop_dist_cm <= 6.0f) ? 550 : ((stop_dist_cm <= 8.0f) ? 450 : 350);
+
+  while (true) {
+    // อ่าน ADC ขา 14 โดยตรง (1 microsecond) ไม่มี delay ไม่คำนวณซับซ้อน ลูป PID ลื่น 100%
+    int raw = ADC(IR_DISTANCE_PIN);
+    if (raw >= threshold_adc) {
+      break;
+    }
+    lineFollow_PID_auto(speed);
+  }
+  brake_reverse_4w(speed, 20, 30);
+  stop_4w();
+}
+
+// เดินหน้าตรงๆ (ไม่ต้องเกาะเส้น) จนกว่าจะเจอกระป๋องแล้วหยุด
+inline void fd_until_can(int speed = 25, float stop_dist_cm = 6.0f) {
+  while (get_ir_distance_cm() > stop_dist_cm) {
+    fd_4w(speed);
+    delay(1);
+  }
+  stop_4w();
+}
+
+// ============================================================================
 // 8. วิ่งแบบไม่ใช้ PID (Follow_Notline & Backword_Notline)
 // ============================================================================
 

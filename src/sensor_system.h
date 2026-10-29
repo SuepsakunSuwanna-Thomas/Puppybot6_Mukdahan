@@ -345,12 +345,12 @@ inline int readRawIR() {
   return ADC(IR_DISTANCE_PIN);
 }
 
-// อ่านค่าเฉลี่ยดิบหลายรอบเพื่อความเสถียร
-inline int readRawIRAverage(int samples = 15) {
+// อ่านค่าเฉลี่ยดิบหลายรอบเพื่อความเสถียร (ไม่มี delay เพื่อไม่ให้มอเตอร์กระตุกขณะวิ่ง PID)
+inline int readRawIRAverage(int samples = 5) {
   long sum = 0;
   for (int i = 0; i < samples; i++) {
     sum += ADC(IR_DISTANCE_PIN);
-    delay(3);
+    delayMicroseconds(50);
   }
   return (int)(sum / samples);
 }

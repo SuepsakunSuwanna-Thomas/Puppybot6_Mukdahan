@@ -352,7 +352,7 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
     if (isButtonPressed()) { stop_4w(); return; }
     lineFollow_PID_auto(speed);
   }
-
+ 
   // วิ่งต่อเนื่องเข้าสู่โซนแถบสีทันที (สแกนสีแบบต่อเนื่อง ไหลลื่น ไร้ดีเลย์)
   long scan_start_pulse = abs(get_pulse_Encoder(selection_Encoder) - baseline_pulse);
   long max_scan_pulse = scan_start_pulse + 2600; // ระยะสิ้นสุดของแผ่นเพลทคำสั่งซื้อ วิ่งพ้นแถบสีที่ 6 แน่นอน
@@ -563,45 +563,34 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
     long p0 = found_strips[0].pulse;
     long p_last = found_strips[found_count - 1].pulse;
 
-    // ตรวจสอบระยะพัลส์ของแถบแรก p0:
-    // หากช่อง 1 มีสี: p0 จะเริ่มที่ประมาณ first_strip (~1040p)
-    // หากช่อง 1 เป็นสีขาว: แถบสีแรกที่เจอคือช่อง 2 (p0 จะกระโดดไปที่ ~1280p)
-    long dist_to_slot1 = abs(p0 - first_strip);
-    long dist_to_slot2 = abs(p0 - (first_strip + measured_step));
+    // ตรวจสอบว่าในบรรดา 6 ช่อง (TARGET_COLOR_PULSES 0 ถึง 5) ช่องไหนที่ไม่มีแถบสีใดๆ ตกอยู่เลย
+    // นั่นคือช่องที่เป็น "สีขาว" แน่นอน 100%!
+    long min_total_error = 999999999L;
+    int best_white_slot = 0;
 
-    // เช็คว่าแถบแรกเข้าข่ายเป็นช่อง 1 ชัดเจนหรือไม่
-    bool slot1_is_colored = (dist_to_slot1 < dist_to_slot2) && (p0 < first_strip + (long)(measured_step * 0.60f));
+    for (int candidate_white = 0; candidate_white < 6; candidate_white++) {
+      int test_nw_slots[5];
+      int t_idx = 0;
+      for (int s = 0; s < 6; s++) {
+        if (s != candidate_white) test_nw_slots[t_idx++] = s;
+      }
 
-    // ตรวจหาช่องว่างระหว่างแถบสี: เกณฑ์ต้องกว้าง >= 1.8 เท่าของก้าว และแถบแรกต้องไม่ใช่ช่อง 1 ที่ตรวจพบชัดเจน
-    long gap_threshold = (long)(measured_step * 1.80f);
-    long max_gap = 0;
-    int max_gap_after_idx = -1;
+      long total_error = 0;
+      for (int i = 0; i < 5; i++) {
+        long expected_p = TARGET_COLOR_PULSES[test_nw_slots[i]];
+        long actual_p = found_strips[i].pulse;
+        total_error += abs(expected_p - actual_p);
+      }
 
-    for (int i = 0; i < found_count - 1; i++) {
-      long gap = found_strips[i + 1].pulse - found_strips[i].pulse;
-      if (gap > max_gap) {
-        max_gap = gap;
-        max_gap_after_idx = i;
+      if (total_error < min_total_error) {
+        min_total_error = total_error;
+        best_white_slot = candidate_white;
       }
     }
 
-    if (max_gap >= gap_threshold && max_gap_after_idx >= 0 && !slot1_is_colored) {
-      // มีช่องว่างกว้างมากผิดปกติระหว่างแถบ และไม่ใช่กรณีสีขาวอยู่ช่อง 1 หรือ 6
-      white_slot_index = max_gap_after_idx + 1;
-      Serial.printf(">> WHITE identified in Middle Slot #%d (Gap was %ld pulses, threshold: %ld)\n",
-                    white_slot_index + 1, max_gap, gap_threshold);
-    } else {
-      // สีขาวอยู่ที่หัวแถว (ช่อง 1) หรือท้ายแถว (ช่อง 6)
-      if (slot1_passed_as_white || !slot1_is_colored) {
-        white_slot_index = 0; // สีขาวอยู่ที่ช่อง 1 (แถบสีแรกที่เจอคือช่อง 2)
-        Serial.printf(">> WHITE identified in First Slot #1 (p0: %ld, first_strip: %ld, dist1: %ld, dist2: %ld, step: %ld)\n",
-                      p0, first_strip, dist_to_slot1, dist_to_slot2, measured_step);
-      } else {
-        white_slot_index = 5; // สีขาวอยู่ที่ช่อง 6 (ท้ายสุด)
-        Serial.printf(">> WHITE identified in Last Slot #6 (p0: %ld, first_strip: %ld, dist1: %ld, dist2: %ld, step: %ld)\n",
-                      p0, first_strip, dist_to_slot1, dist_to_slot2, measured_step);
-      }
-    }
+    white_slot_index = best_white_slot;
+    Serial.printf(">> [WHITE SLOT CONFIRMED] Slot #%d (Fitting Total Error: %ld, p0: %ld, p_last: %ld)\n",
+                  white_slot_index + 1, min_total_error, p0, p_last);
   } else {
     // กรณีเก็บแม่สีได้ 1-4 สี:
     float step_f = (found_count >= 2) ? ((float)(found_strips[found_count - 1].pulse - found_strips[0].pulse) / (float)(found_count - 1)) : (float)strip_step;

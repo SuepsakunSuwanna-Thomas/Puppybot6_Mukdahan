@@ -115,18 +115,12 @@ def run_upload():
     print(f"{GREEN}⚡ Turbo Caching: เปิดใช้งาน ccache ลดเวลาคอมไพล์สูงสุด{RESET}\n")
     print(f"{YELLOW}⏳ กำลังเริ่มทำการคอมไพล์แบบคู่ขนาน ({cpu_cores} Threads) และอัปโหลดโค้ดลงบอร์ด...{RESET}\n")
 
-    # สั่งรันคำสั่ง pio run -j <cpu_cores> --target upload
-    cmd = list(pio_cmd) + ["run", "-j", str(cpu_cores), "--target", "upload"]
+    # สั่งรันคำสั่ง pio run -e adafruit_metro_rp2350 -j <cpu_cores> --target upload
+    cmd = list(pio_cmd) + ["run", "-e", "adafruit_metro_rp2350", "-j", str(cpu_cores), "--target", "upload"]
     
     try:
         process = subprocess.run(cmd)
         return_code = process.returncode
-        if return_code != 0 and cpu_cores > 1:
-            # Fallback หากเกิดปัญหาเรื่อง memory / pagefile กับ multi-threading
-            print(f"\n{YELLOW}[RETRY] กำลังลองคอมไพล์และอัปโหลดใหม่อีกครั้งแบบ Single Thread (-j 1)...{RESET}")
-            cmd_single = list(pio_cmd) + ["run", "-j", "1", "--target", "upload"]
-            process = subprocess.run(cmd_single)
-            return_code = process.returncode
     except KeyboardInterrupt:
         print(f"\n{YELLOW}[CANCELLED] ผู้ใช้ยกเลิกการอัปโหลด{RESET}")
         sys.exit(0)
