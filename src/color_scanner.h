@@ -561,16 +561,10 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
     if (measured_step < 120 || measured_step > 400) measured_step = strip_step;
 
     long p0 = found_strips[0].pulse;
-
-    // ตรวจสอบระยะพัลส์ของแถบแรก p0:
-    long dist_to_slot1 = abs(p0 - first_strip);
-    long dist_to_slot2 = abs(p0 - (first_strip + measured_step));
-
-    // เช็คว่าแถบแรกเข้าข่ายเป็นช่อง 1 หรือไม่
-    bool slot1_is_colored = (dist_to_slot1 < dist_to_slot2) && (p0 < first_strip + (long)(measured_step * 0.45f));
+    long p_last = found_strips[found_count - 1].pulse;
 
     // ตรวจหาช่องว่างระหว่างแถบสีที่อยู่ตรงกลาง (ช่อง 2, 3, 4, 5)
-    long gap_threshold = (long)(measured_step * 1.65f);
+    long gap_threshold = (long)(measured_step * 1.60f);
     long max_gap = 0;
     int max_gap_after_idx = -1;
 
@@ -587,12 +581,22 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
       Serial.printf(">> WHITE identified in Middle Slot #%d (Gap: %ld pulses)\n",
                     white_slot_index + 1, max_gap);
     } else {
-      if (slot1_passed_as_white || !slot1_is_colored || p0 >= first_strip + (long)(measured_step * 0.45f)) {
+      // ไม่มีช่องว่างตรงกลาง: สีขาวต้องอยู่ช่อง 1 หรือช่อง 6
+      // คาดการณ์พิกัดช่อง 6: first_strip + 5 * measured_step
+      long expected_slot6 = first_strip + (5 * measured_step);
+      long dist_last_to_slot6 = abs(p_last - expected_slot6);
+      long dist_first_to_slot1 = abs(p0 - first_strip);
+
+      // ถ้าแถบสุดท้าย p_last วิ่งไปถึงแถวช่อง 6 หรือ แถบแรก p0 ออกตัวเลยช่อง 1 มาเยอะ
+      // แสดงว่าแถบแรกคือช่อง 2 ดังนั้นช่อง 1 = ขาว!
+      if (slot1_passed_as_white || p0 >= (first_strip + (long)(measured_step * 0.35f)) || (dist_last_to_slot6 < dist_first_to_slot1)) {
         white_slot_index = 0; // สีขาวอยู่ที่ช่อง 1
-        Serial.printf(">> WHITE identified in First Slot #1 (p0: %ld, first_strip: %ld)\n", p0, first_strip);
+        Serial.printf(">> WHITE identified in First Slot #1 (p0: %ld, p_last: %ld, exp_slot6: %ld)\n",
+                      p0, p_last, expected_slot6);
       } else {
-        white_slot_index = 5; // สีขาวอยู่ที่ช่อง 6 (ท้ายสุด)
-        Serial.printf(">> WHITE identified in Last Slot #6 (p0: %ld, first_strip: %ld)\n", p0, first_strip);
+        white_slot_index = 5; // สีขาวอยู่ที่ช่อง 6
+        Serial.printf(">> WHITE identified in Last Slot #6 (p0: %ld, p_last: %ld, exp_slot6: %ld)\n",
+                      p0, p_last, expected_slot6);
       }
     }
   } else {
@@ -600,11 +604,10 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
     float step_f = (found_count >= 2) ? ((float)(found_strips[found_count - 1].pulse - found_strips[0].pulse) / (float)(found_count - 1)) : (float)strip_step;
     if (step_f < 120.0f || step_f > 400.0f) step_f = (float)strip_step;
     long p0 = (found_count > 0) ? found_strips[0].pulse : 0;
+    long p_last = (found_count > 0) ? found_strips[found_count - 1].pulse : 0;
+    long expected_slot6 = first_strip + (long)(5 * step_f);
 
-    long dist_to_slot1 = abs(p0 - first_strip);
-    long dist_to_slot2 = abs(p0 - (first_strip + (long)step_f));
-
-    if (slot1_passed_as_white || (dist_to_slot2 < dist_to_slot1) || (p0 >= first_strip + (long)(step_f * 0.45f))) {
+    if (slot1_passed_as_white || p0 >= (first_strip + (long)(step_f * 0.35f)) || (abs(p_last - expected_slot6) < abs(p0 - first_strip))) {
       white_slot_index = 0; // สีขาวอยู่ที่ช่อง 1
     } else {
       white_slot_index = 5; // สีขาวอยู่ที่ช่อง 6
