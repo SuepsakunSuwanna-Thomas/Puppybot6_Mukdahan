@@ -9,7 +9,6 @@ import os
 import sys
 import shutil
 import subprocess
-import json
 
 # ป้องกันปัญหา UnicodeEncodeError บน Windows Console (cp1252 / cp874)
 if hasattr(sys.stdout, "reconfigure"):
@@ -35,56 +34,9 @@ def set_console_title(title: str):
         except BaseException:
             pass
 
-def find_pio():
-    """ค้นหา path คำสั่ง PlatformIO CLI"""
-    # 1. ค้นหาจากตำแหน่งติดตั้งเริ่มต้นของ PlatformIO ก่อน (เสถียรกว่า)
-    home = os.path.expanduser("~")
-    if os.name == "nt":
-        pio_exe = os.path.join(home, ".platformio", "penv", "Scripts", "platformio.exe")
-        if not os.path.isfile(pio_exe):
-            pio_exe = os.path.join(home, ".platformio", "penv", "Scripts", "pio.exe")
-        penv_python = os.path.join(home, ".platformio", "penv", "Scripts", "python.exe")
-
-        if os.path.isfile(pio_exe):
-            return [pio_exe]
-        if os.path.isfile(penv_python):
-            return [penv_python, "-m", "platformio"]
-
-    # 2. ค้นหาจาก PATH ในระบบ
-    pio_path = shutil.which("pio") or shutil.which("platformio")
-    if pio_path:
-        return [pio_path]
-
-    # 3. ค้นหาจากโฟลเดอร์สำหรับ Linux / macOS
-    if os.name != "nt":
-        candidates = [
-            os.path.join(home, ".platformio", "penv", "bin", "pio"),
-            os.path.join(home, ".platformio", "penv", "bin", "platformio"),
-        ]
-        for candidate in candidates:
-            if os.path.isfile(candidate):
-                return [candidate]
-
-    return None
-
-def find_upload_port(pio_cmd):
-    """ค้นหาพอร์ต COM ของบอร์ด RP2350 อัตโนมัติ"""
-    try:
-        res = subprocess.run(list(pio_cmd) + ["device", "list", "--json-output"],
-                             capture_output=True, text=True, timeout=5)
-        if res.returncode == 0:
-            devices = json.loads(res.stdout)
-            for d in devices:
-                port = d.get("port", "")
-                hwid = d.get("hwid", "")
-                desc = d.get("description", "")
-                if "239A" in hwid.upper() or "RP2350" in desc.upper() or "SERIAL" in desc.upper():
-                    return port
-            if devices and "port" in devices[0]:
-                return devices[0]["port"]
-    except Exception:
-        pass
-    return None
+def check_pio():
+    """ตรวจสอบว่าคำสั่ง pio (PlatformIO Core) ติดตั้งอยู่ในระบบหรือไม่"""
+    return shutil.which("pio") is not None
 
 def run_upload():
     # เปลี่ยน Directory ไปยังโฟลเดอร์ของไฟล์นี้
@@ -99,40 +51,23 @@ def run_upload():
     print(f"Working Directory: {current_dir}\n")
 
     # ตรวจสอบ PlatformIO CLI
-    pio_cmd = find_pio()
-    if not pio_cmd:
+    if not check_pio():
         print(f"{RED}{BOLD}[ERROR] ไม่พบคำสั่ง 'pio' (PlatformIO CLI) ในระบบ!{RESET}")
         print("กรุณาติดตั้ง PlatformIO หรือเพิ่ม path ใน Environment Variable")
-        if sys.stdin.isatty():
-            try:
-                input("\nกด Enter เพื่อออกจากโปรแกรม...")
-            except (KeyboardInterrupt, EOFError):
-                pass
+        input("\nกด Enter เพื่อออกจากโปรแกรม...")
         sys.exit(1)
 
-    print(f"{GREEN}✔ พบ PlatformIO CLI: {' '.join(pio_cmd)}{RESET}\n")
-
-    # ค้นหาพอร์ต COM อัตโนมัติ
-    upload_port = find_upload_port(pio_cmd)
-    if upload_port:
-        print(f"{GREEN}✔ ตรวจพบพอร์ตของบอร์ด: {BOLD}{upload_port}{RESET}\n")
-    else:
-        print(f"{YELLOW}ℹ ไม่พบพอร์ตระบุเจาะจง กำลังค้นหาบอร์ดอัตโนมัติ...{RESET}\n")
-
-    # ดึงจำนวน CPU Cores มาใช้ประมวลผล (จำกัดไม่เกิน 4 Threads บน Windows ป้องกันปัญหา WinError 1455: paging file / memory exhausted)
-    detected_cores = os.cpu_count() or 4
-    cpu_cores = min(detected_cores, 4)
-    print(f"{GREEN}{BOLD}⚡ Multi-Core Acceleration: ใช้งาน CPU {cpu_cores} Cores!{RESET}")
+    # ดึงจำนวน CPU Cores ทั้งหมดของเครื่องมาใช้ประมวลผล
+    cpu_cores = os.cpu_count() or 8
+    print(f"{GREEN}{BOLD}⚡ Multi-Core Acceleration: ใช้งาน CPU ทั้งหมด {cpu_cores} Cores เต็มกำลัง!{RESET}")
     print(f"{GREEN}⚡ Turbo Caching: เปิดใช้งาน ccache ลดเวลาคอมไพล์สูงสุด{RESET}\n")
     print(f"{YELLOW}⏳ กำลังเริ่มทำการคอมไพล์แบบคู่ขนาน ({cpu_cores} Threads) และอัปโหลดโค้ดลงบอร์ด...{RESET}\n")
 
-    # สั่งรันคำสั่ง pio run -e adafruit_metro_rp2350 -j <cpu_cores> --target upload
-    cmd = list(pio_cmd) + ["run", "-e", "adafruit_metro_rp2350", "-j", str(cpu_cores), "--target", "upload"]
-    if upload_port:
-        cmd += ["--upload-port", upload_port]
+    # สั่งรันคำสั่ง pio run -j <cpu_cores> --target upload แบบดึงทุกคอร์
+    cmd = ["pio", "run", "-j", str(cpu_cores), "--target", "upload"]
     
     try:
-        process = subprocess.run(cmd)
+        process = subprocess.run(cmd, shell=True)
         return_code = process.returncode
     except KeyboardInterrupt:
         print(f"\n{YELLOW}[CANCELLED] ผู้ใช้ยกเลิกการอัปโหลด{RESET}")

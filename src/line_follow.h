@@ -455,8 +455,8 @@ inline void turnLeft(int speed) {
   stop_4w();
   delay(40);
 
-  int fast_spin = (speed > 55) ? speed : 55; // สะบัดตัวเร็ว 75-80% เหมือน Sisaket
-  int slow_spin = 20;                         // ผ่อนความเร็วจับเส้นนุ่มนวล
+  int fast_spin = (speed > 60) ? speed : 60; // สะบัดตัวเร็ว 75-80% เหมือน Sisaket
+  int slow_spin = 25;                         // ผ่อนความเร็วจับเส้นนุ่มนวล
 
   // 2. จังหวะที่ 1: สะบัดตัวซ้ายอย่างเร็ว (sl) หลุดจากเส้นเดิมและกวาดหาเส้นใหม่
   sl_4w(fast_spin);
@@ -485,8 +485,8 @@ inline void turnRight(int speed) {
   stop_4w();
   delay(40);
 
-  int fast_spin = (speed > 55) ? speed : 55; // สะบัดตัวเร็ว 75% เหมือน Sisaket
-  int slow_spin = 20;                         // ผ่อนความเร็วจับเส้นนุ่มนวล
+  int fast_spin = (speed > 60) ? speed : 60; // สะบัดตัวเร็ว 75% เหมือน Sisaket
+  int slow_spin = 25;                         // ผ่อนความเร็วจับเส้นนุ่มนวล
 
   // 2. จังหวะที่ 1: สะบัดตัวขวาอย่างเร็ว (sr) หลุดจากเส้นเดิมและกวาดหาเส้นใหม่
   sr_4w(fast_spin);

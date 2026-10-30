@@ -386,6 +386,12 @@ inline void calibrateTCSColorSensor(bool isSideSensor) {
   const char* headerTitle = isSideSensor ? "CALIB TCS SIDE (CANS)" : "CALIB TCS FLOOR (FLD)";
   const char* placeHint   = isSideSensor ? "SIDE OBJECT/CAN" : "FLOOR SURFACE";
 
+  // หากเป็นเซนเซอร์ด้านข้าง (ตัวที่ 2) ให้กางแขน/เลื่อนเซอร์โว 3 ไปที่ 5 องศาเพื่ออ่านสี
+  if (isSideSensor) {
+    servoRun(3, 5);
+    delay(200);
+  }
+
   for (int c = 0; c < NUM_CALIB_COLORS; c++) {
     tft_.fillScreen(ST7735_BLACK);
     drawHeaderBar(headerTitle, isSideSensor ? ST7735_YELLOW : ST7735_CYAN, ST7735_WHITE);
@@ -450,6 +456,12 @@ inline void calibrateTCSColorSensor(bool isSideSensor) {
   }
 
   saveCalibrationToEEPROM();
+
+  // เมื่อบันทึกลง EEPROM เรียบร้อยแล้ว ให้สั่งเซอร์โว 3 กลับตำแหน่ง 95 องศา
+  if (isSideSensor) {
+    servoRun(3, 95);
+    delay(200);
+  }
 
   tft_.fillScreen(ST7735_BLACK);
   drawHeaderBar(isSideSensor ? "TCS SIDE SAVED!" : "TCS FLOOR SAVED!", ST7735_GREEN, ST7735_GREEN);

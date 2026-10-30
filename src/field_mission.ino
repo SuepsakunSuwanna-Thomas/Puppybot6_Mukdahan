@@ -22,9 +22,9 @@ const int SERVO_GRIPPER_CH = 2; // เซอร์โวมือจับหน
 
 // องศาเซอร์โว (สามารถปรับจูนตามกลไกของหุ่นได้ที่นี่)
 int GRIPPER_OPEN_ANG = 165;  // องศากางมือจับออกสุด
-int GRIPPER_GRAB_ANG = 122; // องศาหนีบกระป๋องแน่น
-int ARM_DOWN_ANG     = 100;  // องศาลดแขนลงระดับคีบ/วางลงหลุมแท่น 5 cm
-int ARM_LIFT_ANG     = 55; // องศายกแขนขึ้นสูงพ้นแท่น 5 cm
+int GRIPPER_GRAB_ANG = 120; // องศาหนีบกระป๋องแน่น
+int ARM_DOWN_ANG     = 110;  // องศาลดแขนลงระดับคีบ/วางลงหลุมแท่น 5 cm
+int ARM_LIFT_ANG     = 60; // องศายกแขนขึ้นสูงพ้นแท่น 5 cm
 
 // ระยะพัลส์เอ็นโค้ดเดอร์สำหรับเข้าไปคีบและวางกระป๋อง
 long ENCODER_CAN_APPROACH_PULSES = 100; // ระยะ PID เดินหน้าเข้าไปเอากระป๋องนิดนึง
@@ -53,12 +53,10 @@ RobotColor RECALLED_COLOR     = COLOR_UNKNOWN; // เช่น COLOR_BLUE หร
 
 // คีบกระป๋องและยกขึ้นข้ามแท่น (Grab Can)
 inline void grabCan() {
-  Fline_B_by_Encoder(50,80);
   servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
   delay(300);
   servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงครอบตัวกระป๋อง
   delay(250);
-  Fline_by_Encoder(20,100);
   servoRun(SERVO_GRIPPER_CH, GRIPPER_GRAB_ANG); // หนีบกระป๋องแน่น
   delay(250);
   servoRun(SERVO_ARM_CH, ARM_LIFT_ANG);         // ยกแขนข้ามแท่น 5 cm
@@ -139,14 +137,14 @@ inline void get_Warehouse2_Spare(RobotColor color, int speed) {
 
 
       grabCan();
-      // Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
-      // // 4. หันหลังกลับและวิ่งกลับมาตั้งลำที่จุด HUB (หันหน้าเข้าหา Consumer)
-      // turnLeft_by_stop(50);
-      // turnLeft_by_stop(50);
-      // Fline_by_pass(speed, 1);
-      // turnRight(50);
-      // Fline_by_pass(speed, 2);
-      // break;
+      Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
+      // 4. หันหลังกลับและวิ่งกลับมาตั้งลำที่จุด HUB (หันหน้าเข้าหา Consumer)
+      turnLeft_by_stop(50);
+      turnLeft_by_stop(50);
+      Fline_by_pass(speed, 1);
+      turnRight(50);
+      Fline_by_pass(speed, 2);
+      break;
 
     // ------------------------------------------------------------------------
     // กรณีสีน้ำเงินหมดสต็อก: หุ่นยนต์หยุดตรวจจับที่ช่อง Blue (เส้นบน)
@@ -301,12 +299,18 @@ inline void get_Yellow(int speed) {
   Serial.println("\n[Action] >>> Step 1: Going to YELLOW from Color Scan Line <<<");
 
   // 1. เลี้ยวซ้าย ซ้าย ผ่าน 1 เลี้ยวขวา ผ่าน 4 เส้น
-  // turnLeft(speedl);
-  // turnLeft(speedr);
-  // Fline_by_pass(90, 1);
-  // turnRight(speedr);
-  //  Fline_by_pass(100, 3);
-   Fline_by_pass(40, 1);
+  turnLeft(40);
+  turnLeft(35);
+  Fline_by_pass(50, 1);
+  turnRight(35);
+   Fline_by_pass(100, 3);
+   Fline_by_pass(50, 1);
+  delay(250);             
+  Fline_B_by_time(20, 150);
+  servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
+  delay(300);
+  servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงครอบตัวกระป๋อง
+  delay(250); 
   // 2. เช็คว่ามีกระป๋องไหม
   bool has_can = (OUT_OF_STOCK_COLOR == COLOR_YELLOW) ? false : checkCanPresent();
   if (!has_can) {
@@ -340,8 +344,16 @@ inline void get_Blue(int speed) {
   Serial.println("\n[Action] >>> Step 2: Going to BLUE from HUB <<<");
 
   // 1. หมุนซ้าย เลี้ยวขวา
-  turnLeft_by_stop(speedl);
-  turnRight(speedr);
+  turnLeft_by_stop(15);
+  turnRight(55);
+  delay(250);             
+  Fline_B_by_time(50, 200);
+  servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
+  delay(300);
+  servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงครอบตัวกระป๋อง
+  delay(250);
+  Fline_by_time(20, 500);    
+
 
   // 2. เช็คว่ามีกระป๋องไหม
   bool has_can = (OUT_OF_STOCK_COLOR == COLOR_YELLOW) ? false : checkCanPresent();
@@ -356,8 +368,8 @@ inline void get_Blue(int speed) {
     // ยกขึ้น
     grabCan();
 
-    // ถอยหลังตามเอ็นโค้ดเดอร์นิดนึง
-    // Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
+    //  ถอย
+    Fline_B_by_time(40, 200);
 
     // หมุน เลี้ยวซ้าย เลี้ยวขวา หน้าจะอยู่ตรง HUB
     turnRight_by_stop(50);
@@ -373,8 +385,15 @@ inline void get_Black(int speed) {
   Serial.println("\n[Action] >>> Step 3: Going to BLACK from HUB <<<");
 
   // 1. หมุนขวา เลี้ยวซ้าย
-  turnRight_by_stop(speedr);
-  turnLeft(speedl);
+  turnRight_by_stop(15);
+  turnLeft(35);
+  delay(250);             
+  Fline_B_by_time(50, 250);
+  servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
+  delay(300);
+  servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงครอบตัวกระป๋อง
+  delay(250);
+  Fline_by_time(20, 500); 
 
   // 2. เช็คว่ามีกระป๋องไหม
   bool has_can = (OUT_OF_STOCK_COLOR == COLOR_BLACK) ? false : checkCanPresent();
@@ -392,8 +411,8 @@ inline void get_Black(int speed) {
     Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
 
   // หมุน เลี้ยวขวา เลี้ยวซ้าย หน้าจะอยู่ที่ HUB
-  turnLeft_by_stop(50);
-  turnLeft(55);
+  turnLeft_by_stop(35);
+  turnLeft(50);
 
   Serial.println("[Action] Black can ready at HUB!");
 }
@@ -515,9 +534,15 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
     // ช่อง 1: ผ่าน 2 เลี้ยวซ้าย เดินหน้าแบบ PID ตามเอ็นโค้ดเดอร์ แล้ววาง/ยก ถอย หมุนซ้าย ผ่าน 3 เส้น
     // ------------------------------------------------------------------------
     case 1:
+      Fline_by_pass(30, 1);
       Fline_by_pass(80, 1);
-      Fline_by_pass(speed1, 1);
-      turnLeft(45);
+      Fline(15, 6);
+      turnLeft_by_stop(25);
+      delay(500);
+      Backword_Notline_by_Encoder(90, 500);
+      delay(150);
+      Fline_B_by_time(50, 270);
+      Fline_by_time(40, 220); 
 
       if (is_pickup) {
         grabCan();   // ยกขึ้น
@@ -765,54 +790,54 @@ inline void runFieldMission() {
   // ขั้นตอนที่ 2 & 3: วิ่งไปเอาเรียงลำดับ: เหลือง -> น้ำเงิน -> ดำ -> เขียว -> แดง -> ขาว
   // --------------------------------------------------------------------------
   Serial.println("\n>>> [PHASE 2 & 3] Sequential Delivery: Yellow -> Blue -> Black -> Green -> Red -> White <<<");
-
+ 
   // [1] สีเหลือง: วิ่งจากการอ่านค่าแถบสีเสร็จ ไปเอาเหลือง -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
   get_Yellow(SPEED_WAREHOUSE);
   put_from_HUB(findConsumerForColor(COLOR_YELLOW, order_list), false, SPEED_CONSUMER);
 
-  // [2] สีน้ำเงิน: จาก HUB วิ่งไปเอาน้ำเงิน -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
-  get_Blue(SPEED_WAREHOUSE);
-  put_from_HUB(findConsumerForColor(COLOR_BLUE, order_list), false, SPEED_CONSUMER);
+  // // [2] สีน้ำเงิน: จาก HUB วิ่งไปเอาน้ำเงิน -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
+  // get_Blue(SPEED_WAREHOUSE);
+  // put_from_HUB(findConsumerForColor(COLOR_BLUE, order_list), false, SPEED_CONSUMER);
 
-  // [3] สีดำ: จาก HUB วิ่งไปเอาดำ -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
-  get_Black(SPEED_WAREHOUSE);
-  put_from_HUB(findConsumerForColor(COLOR_BLACK, order_list), false, SPEED_CONSUMER);
+  // // [3] สีดำ: จาก HUB วิ่งไปเอาดำ -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
+  // get_Black(SPEED_WAREHOUSE);
+  // put_from_HUB(findConsumerForColor(COLOR_BLACK, order_list), false, SPEED_CONSUMER);
 
-  // [4] สีเขียว: จาก HUB วิ่งไปเอาเขียว -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
-  get_Green(SPEED_WAREHOUSE);
-  put_from_HUB(findConsumerForColor(COLOR_GREEN, order_list), false, SPEED_CONSUMER);
+  // // [4] สีเขียว: จาก HUB วิ่งไปเอาเขียว -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
+  // get_Green(SPEED_WAREHOUSE);
+  // put_from_HUB(findConsumerForColor(COLOR_GREEN, order_list), false, SPEED_CONSUMER);
 
-  // [5] สีแดง: จาก HUB วิ่งไปเอาแดง -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
-  get_Red(SPEED_WAREHOUSE);
-  put_from_HUB(findConsumerForColor(COLOR_RED, order_list), false, SPEED_CONSUMER);
+  // // [5] สีแดง: จาก HUB วิ่งไปเอาแดง -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
+  // get_Red(SPEED_WAREHOUSE);
+  // put_from_HUB(findConsumerForColor(COLOR_RED, order_list), false, SPEED_CONSUMER);
 
-  // [6] สีขาว: จาก HUB วิ่งไปเอาขาว -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
-  get_White(SPEED_WAREHOUSE);
-  put_from_HUB(findConsumerForColor(COLOR_WHITE, order_list), false, SPEED_CONSUMER);
+  // // [6] สีขาว: จาก HUB วิ่งไปเอาขาว -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
+  // get_White(SPEED_WAREHOUSE);
+  // put_from_HUB(findConsumerForColor(COLOR_WHITE, order_list), false, SPEED_CONSUMER);
 
-  // --------------------------------------------------------------------------
-  // ขั้นตอนที่ 4: ภารกิจเรียกคืนสินค้าชำรุด (Product Recall)
-  // --------------------------------------------------------------------------
-  if (ENABLE_PRODUCT_RECALL) {
-    executeProductRecallExact(order_list, SPEED_RECALL);
-  }
+  // // --------------------------------------------------------------------------
+  // // ขั้นตอนที่ 4: ภารกิจเรียกคืนสินค้าชำรุด (Product Recall)
+  // // --------------------------------------------------------------------------
+  // if (ENABLE_PRODUCT_RECALL) {
+  //   executeProductRecallExact(order_list, SPEED_RECALL);
+  // }
 
-  // --------------------------------------------------------------------------
-  // ขั้นตอนที่ 5: กลับเข้าจุดเริ่มต้น (Return to Start) รับคะแนนโบนัส 10 คะแนน
-  // --------------------------------------------------------------------------
-  Serial.println("\n>>> [PHASE 5] Returning to START Box <<<");
-  returnToStartBox(SPEED_RETURN);
+  // // --------------------------------------------------------------------------
+  // // ขั้นตอนที่ 5: กลับเข้าจุดเริ่มต้น (Return to Start) รับคะแนนโบนัส 10 คะแนน
+  // // --------------------------------------------------------------------------
+  // Serial.println("\n>>> [PHASE 5] Returning to START Box <<<");
+  // returnToStartBox(SPEED_RETURN);
 
-  // บันทึกสรุปผลภารกิจและแสดงบนจอ TFT
-  mission_summary.duration_ms = millis() - mission_start_time;
-  mission_summary.distance_cm = getDistanceCm();
-  mission_summary.pulses      = abs(get_pulse_Encoder(selection_Encoder));
-  mission_summary.completed   = true;
-  snprintf(mission_summary.finishReason, sizeof(mission_summary.finishReason), "MISSION FINISHED");
+  // // บันทึกสรุปผลภารกิจและแสดงบนจอ TFT
+  // mission_summary.duration_ms = millis() - mission_start_time;
+  // mission_summary.distance_cm = getDistanceCm();
+  // mission_summary.pulses      = abs(get_pulse_Encoder(selection_Encoder));
+  // mission_summary.completed   = true;
+  // snprintf(mission_summary.finishReason, sizeof(mission_summary.finishReason), "MISSION FINISHED");
 
-  buzzer(2400, 200);
-  delay(100);
-  buzzer(2400, 200);
+  // buzzer(2400, 200);
+  // delay(100);
+  // buzzer(2400, 200);
 
-  drawColorSummaryScreen();
+  // drawColorSummaryScreen();
 }
