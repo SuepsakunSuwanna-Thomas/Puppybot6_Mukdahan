@@ -584,22 +584,23 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
       Serial.printf(">> WHITE identified in Middle Slot #%d (Gap: %ld pulses)\n",
                     white_slot_index + 1, max_gap);
     } else {
-      // ไม่มีช่องว่างตรงกลาง: สีขาวต้องอยู่ช่อง 1 หรือช่อง 6
-      // คาดการณ์พิกัดช่อง 6: first_strip + 5 * measured_step
-      long expected_slot6 = first_strip + (5 * measured_step);
-      long dist_last_to_slot6 = abs(p_last - expected_slot6);
-      long dist_first_to_slot1 = abs(p0 - first_strip);
+      // ไม่มีช่องว่างตรงกลาง: สีขาวต้องอยู่หัวแถว (ช่อง 1) หรือท้ายแถว (ช่อง 6)
+      // ใช้จุดกึ่งกลางของกลุ่ม 5 แถบสี (Cluster Center) เทียบกับจุดกึ่งกลางของเพลท 6 ช่อง:
+      // เพลท 6 ช่องมีระยะจากช่อง 1 ถึงช่อง 6 รวม 5 ก้าว -> กึ่งกลางเพลทอยู่ที่ first_strip + 2.5 * measured_step
+      // หากสีขาวอยู่ช่อง 6 -> แถบสีคือช่อง 1..5 -> กึ่งกลางกลุ่มจะอยู่ที่ first_strip + 2.0 * measured_step (ค่อนมาทางหน้า)
+      // หากสีขาวอยู่ช่อง 1 -> แถบสีคือช่อง 2..6 -> กึ่งกลางกลุ่มจะอยู่ที่ first_strip + 3.0 * measured_step (ค่อนไปทางหลัง)
+      long plate_midpoint = first_strip + (long)(2.5f * measured_step);
+      long cluster_midpoint = (p0 + p_last) / 2;
 
-      // ถ้าแถบสุดท้าย p_last วิ่งไปถึงแถวช่อง 6 หรือ แถบแรก p0 ออกตัวเลยช่อง 1 มาเยอะ
-      // แสดงว่าแถบแรกคือช่อง 2 ดังนั้นช่อง 1 = ขาว!
-      if (slot1_passed_as_white || p0 >= (first_strip + (long)(measured_step * 0.35f)) || (dist_last_to_slot6 < dist_first_to_slot1)) {
-        white_slot_index = 0; // สีขาวอยู่ที่ช่อง 1
-        Serial.printf(">> WHITE identified in First Slot #1 (p0: %ld, p_last: %ld, exp_slot6: %ld)\n",
-                      p0, p_last, expected_slot6);
+      Serial.printf(">> [WHITE END EVAL] Cluster Mid: %ld vs Plate Mid: %ld (p0: %ld, p_last: %ld, step: %ld)\n",
+                    cluster_midpoint, plate_midpoint, p0, p_last, measured_step);
+
+      if (cluster_midpoint >= plate_midpoint) {
+        white_slot_index = 0; // กลุ่มแถบสีค่อนไปทางหลัง -> สีขาวอยู่ที่ช่อง 1
+        Serial.println(">> Decision: WHITE is in Slot #1");
       } else {
-        white_slot_index = 5; // สีขาวอยู่ที่ช่อง 6
-        Serial.printf(">> WHITE identified in Last Slot #6 (p0: %ld, p_last: %ld, exp_slot6: %ld)\n",
-                      p0, p_last, expected_slot6);
+        white_slot_index = 5; // กลุ่มแถบสีค่อนมาทางหน้า -> สีขาวอยู่ที่ช่อง 6
+        Serial.println(">> Decision: WHITE is in Slot #6");
       }
     }
   } else {
@@ -608,9 +609,10 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
     if (step_f < 120.0f || step_f > 400.0f) step_f = (float)strip_step;
     long p0 = (found_count > 0) ? found_strips[0].pulse : 0;
     long p_last = (found_count > 0) ? found_strips[found_count - 1].pulse : 0;
-    long expected_slot6 = first_strip + (long)(5 * step_f);
+    long plate_mid = first_strip + (long)(2.5f * step_f);
+    long cluster_mid = (p0 + p_last) / 2;
 
-    if (slot1_passed_as_white || p0 >= (first_strip + (long)(step_f * 0.35f)) || (abs(p_last - expected_slot6) < abs(p0 - first_strip))) {
+    if (cluster_mid >= plate_mid) {
       white_slot_index = 0; // สีขาวอยู่ที่ช่อง 1
     } else {
       white_slot_index = 5; // สีขาวอยู่ที่ช่อง 6
