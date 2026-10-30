@@ -355,11 +355,13 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
 
   // วิ่งต่อเนื่องเข้าสู่โซนแถบสีทันที (สแกนสีแบบต่อเนื่อง ไหลลื่น ไร้ดีเลย์)
   long scan_start_pulse = abs(get_pulse_Encoder(selection_Encoder) - baseline_pulse);
-  long max_scan_pulse = scan_start_pulse + 2600; // ระยะสิ้นสุดของแผ่นเพลทคำสั่งซื้อ วิ่งพ้นแถบสีที่ 6 แน่นอน
+  // ระยะสิ้นสุดปลอดภัย: วิ่งพ้นขอบช่อง 6 เพียงเล็กน้อย ป้องกันการวิ่งเลย
+  long max_scan_pulse = first_strip + (long)(strip_step * 5.4f);
+  if (max_scan_pulse < scan_start_pulse + 1500) max_scan_pulse = scan_start_pulse + 1800;
   long white_gap_threshold = 400; // เกณฑ์ตัดสินช่องสีขาว (ปกติก้าวละ ~240p ถ้ามีขาวแทรกจะกว้าง ~480-500p)
 
-  Serial.printf("\n=== AUTO SCAN STARTED (Start: %ld p, Step: %ld p, White Gap Threshold: %ld p) ===\n",
-                scan_start_pulse, strip_step, white_gap_threshold);
+  Serial.printf("\n=== AUTO SCAN STARTED (Start: %ld p, Step: %ld p, Limit: %ld p) ===\n",
+                scan_start_pulse, strip_step, max_scan_pulse);
   Serial.println("--- Active EEPROM Calibrated TCS Floor Values ---");
   const char* cnames[6] = {"RED", "GREEN", "BLUE", "YELLOW", "WHITE", "BLACK"};
   for (int c = 0; c < 6; c++) {
@@ -564,7 +566,8 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
     long p_last = found_strips[found_count - 1].pulse;
 
     // ตรวจหาช่องว่างระหว่างแถบสีที่อยู่ตรงกลาง (ช่อง 2, 3, 4, 5)
-    long gap_threshold = (long)(measured_step * 1.60f);
+    // ช่องว่างสีขาวจริงจะกว้างประมาณ 2.0 เท่าขึ้นไป ใช้เกณฑ์ 1.85f ป้องกันการแทรกมั่วจากล้อฟรี
+    long gap_threshold = (long)(measured_step * 1.85f);
     long max_gap = 0;
     int max_gap_after_idx = -1;
 
