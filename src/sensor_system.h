@@ -437,8 +437,9 @@ inline RobotColor detectColorFront() {
     return COLOR_UNKNOWN;
   }
 
-  // 1. ตรวจสอบสีดำก่อนเป็นอันดับแรก (แสงสะท้อนต่ำกว่าเกณฑ์สีดำ)
-  if (clear_val < 130) {
+  // 1. ตรวจสอบสีดำ (แสงสะท้อนรวมต่ำชัดเจน)
+  // ปกติพื้นขาว clear_val จะอยู่ช่วง 200 - 1000+, สีดำจะอยู่ต่ำกว่า 120
+  if (clear_val < 90) {
     return COLOR_BLACK;
   }
 
@@ -453,19 +454,12 @@ inline RobotColor detectColorFront() {
     long db = b - calib.tcs_front_rgb[c][2];
     long diff = dr * dr + dg * dg + db * db;
 
-    // หากเป็นสีดำ (c = 5): แสงสะท้อนรวมต้องต่ำ (clear_val < 140)
+    // หากเป็นสีดำ (c = 5): แสงสะท้อนรวมต้องต่ำ
     if (c == 5) {
       if (clear_val < 140) {
         diff /= 2;
       } else {
-        diff += 100000; // แสงสว่างห้ามเป็นสีดำ
-      }
-    }
-
-    // หากเป็นสีขาว (c = 4): แสงสะท้อนต้องสว่าง (clear_val >= 140)
-    if (c == 4) {
-      if (clear_val < 140) {
-        diff += 100000;
+        diff += 100000; // แสงสว่างเกินไป ไม่ใช่สีดำ
       }
     }
 
@@ -475,12 +469,14 @@ inline RobotColor detectColorFront() {
     }
   }
 
-  // 3. กรองพื้นขาวธรรมชาติ (Neutral White): ค่า R,G,B สมดุลกันมากและแสงสะท้อนสูง
+  // 3. กรองพื้นขาวธรรมชาติ (Neutral White): ค่า R,G,B เกาะกลุ่มกันมากและแสงสะท้อนสูง
   int max_rgb = max(r, max(g, b));
   int min_rgb = min(r, min(g, b));
   int delta = max_rgb - min_rgb;
 
-  if (delta < 15 && clear_val >= 140) {
+  // แถบสีสดจริง (แดง, เขียว, น้ำเงิน, เหลือง) delta มักจะเกิน 25 เสมอ
+  // ถ้า delta ต่ำมากๆ (< 12) และค่าสีใกล้กับ White ใน EEPROM ถึงจะตัดสินเป็นขาว
+  if (delta < 12 && clear_val >= 160 && bestColor == COLOR_WHITE) {
     return COLOR_WHITE;
   }
 
