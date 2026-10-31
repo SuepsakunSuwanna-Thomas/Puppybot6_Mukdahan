@@ -278,8 +278,9 @@ inline void Fline(float speed, int sensor) {
       lineFollow_PID_auto(speed);
     }
   }
-  // หยุดนิ่งสนิท: สวนแรงเฉื่อยสั้นๆ + Active Brake ล็อคล้อ
-  brake_reverse_4w(speed, 25, 40);
+  // หยุดนิ่งสนิทแบบนุ่มนวล ไม่กระตุกถอยหลัง
+  stop_4w();
+  delay(30);
 }
 
 // Fline_B: วิ่งถอยหลังตามเส้นจนกว่าเซนเซอร์หลังที่ระบุจะเจอเส้นแล้วหยุด

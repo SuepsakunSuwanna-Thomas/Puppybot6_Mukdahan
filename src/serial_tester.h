@@ -379,7 +379,7 @@ inline void processCommand(const String& cmdLine) {
     if (cmdLine.indexOf("\"m2\"") != -1) motor_trim_M2 = getJsonInt(cmdLine, "m2", motor_trim_M2);
     if (cmdLine.indexOf("\"m3\"") != -1) motor_trim_M3 = getJsonInt(cmdLine, "m3", motor_trim_M3);
     if (cmdLine.indexOf("\"m4\"") != -1) motor_trim_M4 = getJsonInt(cmdLine, "m4", motor_trim_M4);
-    if (cmdLine.indexOf("\"offset\"") != -1) speed_offset_pct = getJsonInt(cmdLine, "offset", speed_offset_pct);
+    if (cmdLine.indexOf("\"offset\"") != -1) speed_offset_pct = getJsonFloat(cmdLine, "offset", speed_offset_pct);
 
     buzzer(1800, 80);
     Serial.println("{\"type\":\"RES\",\"status\":\"CONFIG_SAVED\",\"msg\":\"Configurations Updated\"}");
