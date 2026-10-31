@@ -10,9 +10,9 @@
 // M3: ซ้ายหลัง (Left Back)
 // M4: ขวาหลัง (Right Back)
 int motor_trim_M1 = 0;
-int motor_trim_M2 = -1;
+int motor_trim_M2 = -2;
 int motor_trim_M3 = 0;
-int motor_trim_M4 = -1;
+int motor_trim_M4 = -2;
 
 // เปอร์เซ็นต์ปรับเพิ่ม/ลดความเร็วมอเตอร์ทั้งหมด (Battery Compensation)
 // เช่น ใส่ 5 คือเพิ่มความเร็วขึ้น 5%, ใส่ -10 คือลดความเร็วลง 10%

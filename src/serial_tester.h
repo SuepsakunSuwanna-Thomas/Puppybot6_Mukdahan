@@ -27,7 +27,7 @@ struct ActiveTask {
   bool hasCommand = false;
   String cmdType = "";     // "TEST_PID", "TEST_MOTOR", "SERVO"
   String mode = "";        // "phase", "pass", "time", "turnLeft", etc.
-  int speed = 50;
+  float speed = 50.0f;
   float val = 0.0f;
   float kp = 0.40f;
   float kd = -1.0f;
@@ -171,7 +171,7 @@ inline void drawTaskReadyScreen() {
   if (activeTask.cmdType == "TEST_PID") {
     printText(4, 17, "MODE: " + activeTask.mode, 1, ST7735_YELLOW, ST7735_BLACK);
     char pBuf[32];
-    snprintf(pBuf, sizeof(pBuf), "Spd:%d Val:%.1f P:%.2f", activeTask.speed, activeTask.val, activeTask.kp);
+    snprintf(pBuf, sizeof(pBuf), "Spd:%.1f Val:%.1f P:%.2f", activeTask.speed, activeTask.val, activeTask.kp);
     printText(4, 28, pBuf, 1, ST7735_WHITE, ST7735_BLACK);
   } else if (activeTask.cmdType == "TEST_MOTOR") {
     printText(4, 17, "MODE: 4WD MOTOR TEST", 1, ST7735_YELLOW, ST7735_BLACK);
@@ -269,7 +269,7 @@ inline void executeActiveTask() {
     line_KD_B = activeTask.kd_b;
 
     String mode = activeTask.mode;
-    int speed = activeTask.speed;
+    float speed = activeTask.speed;
     float val = activeTask.val;
 
     if (mode.equalsIgnoreCase("phase")) {
@@ -414,7 +414,7 @@ inline void processCommand(const String& cmdLine) {
     activeTask.hasCommand = true;
     activeTask.cmdType = "TEST_PID";
     activeTask.mode = getJsonStr(cmdLine, "mode");
-    activeTask.speed = getJsonInt(cmdLine, "speed", 50);
+    activeTask.speed = getJsonFloat(cmdLine, "speed", 50.0f);
     activeTask.kp = getJsonFloat(cmdLine, "kp", line_KP);
     activeTask.kp_b = getJsonFloat(cmdLine, "kp_b", line_KP_B);
     activeTask.kd = getJsonFloat(cmdLine, "kd", line_KD);

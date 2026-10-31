@@ -8,24 +8,24 @@
 // ============================================================================
 // ฟังก์ชันคำนวณความเร็วพร้อมชดเชย Trim และ Speed Scale
 // ============================================================================
-// s: ความเร็วที่ต้องการ (-100 ถึง 100)
+// s: ความเร็วที่ต้องการ (-100.0 ถึง 100.0)
 // trim: ค่าชดเชยของมอเตอร์ตัวนั้นๆ (-100 ถึง 100)
-static inline int calc_motor_output(int s, int trim) {
-  if (s == 0) return 0;
+static inline int calc_motor_output(float s, int trim) {
+  if (fabs(s) < 0.001f) return 0;
 
-  int sign = (s > 0) ? 1 : -1;
-  int mag = abs(s);
+  float sign = (s > 0.0f) ? 1.0f : -1.0f;
+  float mag = fabs(s);
 
   // 1. ชดเชยเปอร์เซ็นต์ความเร็วแบตเตอรี่ (speed_offset_pct)
   // หากปกติ 100 แล้วบวก 5 จะถูก clamp ที่ 100 สูงสุด
   mag = mag + speed_offset_pct;
-  mag = constrain(mag, 0, 100);
+  mag = constrain(mag, 0.0f, 100.0f);
 
   // 2. ชดเชยค่า Trim ของแต่ละล้อเพื่อให้วิ่งตรง
   mag = mag + trim;
-  mag = constrain(mag, 0, 100);
+  mag = constrain(mag, 0.0f, 100.0f);
 
-  return sign * mag;
+  return (int)roundf(sign * mag);
 }
 
 // ============================================================================
@@ -35,7 +35,7 @@ static inline int calc_motor_output(int s, int trim) {
 // M3: ซ้ายหลัง (Left Back)
 // M4: ขวาหลัง (Right Back)
 // ============================================================================
-inline void drive4(int m1_target, int m2_target, int m3_target, int m4_target) {
+inline void drive4(float m1_target, float m2_target, float m3_target, float m4_target) {
   int out1 = calc_motor_output(m1_target, motor_trim_M1);
   int out2 = calc_motor_output(m2_target, motor_trim_M2);
   int out3 = calc_motor_output(m3_target, motor_trim_M3);
@@ -52,32 +52,32 @@ inline void drive4(int m1_target, int m2_target, int m3_target, int m4_target) {
 // ============================================================================
 
 // เดินหน้า 4 ล้อ
-inline void fd_4w(int speed) {
+inline void fd_4w(float speed) {
   drive4(speed, speed, speed, speed);
 }
 
 // ถอยหลัง 4 ล้อ
-inline void bk_4w(int speed) {
+inline void bk_4w(float speed) {
   drive4(-speed, -speed, -speed, -speed);
 }
 
 // หมุนซ้ายอยู่กับที่ (Spin Left) 4 ล้อ: ซ้ายถอย หลัง/ขวาเดินหน้า
-inline void sl_4w(int speed) {
+inline void sl_4w(float speed) {
   drive4(-speed, speed, -speed, speed);
 }
 
 // หมุนขวาอยู่กับที่ (Spin Right) 4 ล้อ: ซ้ายเดินหน้า ขวาถอยหลัง
-inline void sr_4w(int speed) {
+inline void sr_4w(float speed) {
   drive4(speed, -speed, speed, -speed);
 }
 
 // เลี้ยวซ้ายแบบเบี้ยว (Turn Left Pivot)
-inline void tl_4w(int speed) {
+inline void tl_4w(float speed) {
   drive4(0, speed, 0, speed);
 }
 
 // เลี้ยวขวาแบบเบี้ยว (Turn Right Pivot)
-inline void tr_4w(int speed) {
+inline void tr_4w(float speed) {
   drive4(speed, 0, speed, 0);
 }
 
@@ -100,14 +100,14 @@ inline void brake_4w(int brake_ms = 40) {
 }
 
 // หยุดแบบสวนแรงเฉื่อย (Reverse Pulse Brake) แล้วล็อคล้อ - หยุดได้นิ่งและไวที่สุด
-inline void brake_reverse_4w(int forward_speed, int pulse_ms = 25, int hold_brake_ms = 40) {
-  if (forward_speed > 0) {
+inline void brake_reverse_4w(float forward_speed, int pulse_ms = 25, int hold_brake_ms = 40) {
+  if (forward_speed > 0.0f) {
     // จังหวะถอยสวนสั้นๆ ซับแรงเฉื่อย
-    bk_4w(constrain(forward_speed, 20, 70));
+    bk_4w(constrain(forward_speed, 20.0f, 70.0f));
     delay(pulse_ms);
-  } else if (forward_speed < 0) {
+  } else if (forward_speed < 0.0f) {
     // หากก่อนหน้านี้กำลังถอยหลัง ให้เดินหน้าสวนสั้นๆ
-    fd_4w(constrain(abs(forward_speed), 20, 70));
+    fd_4w(constrain(fabs(forward_speed), 20.0f, 70.0f));
     delay(pulse_ms);
   }
   motorBreak(10);

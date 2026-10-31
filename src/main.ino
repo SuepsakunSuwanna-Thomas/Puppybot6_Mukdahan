@@ -92,9 +92,11 @@ void setup() {
    // เริ่มต้นภารกิจหลักในสนาม (เขียนคำสั่งภารกิจได้ที่ไฟล์ field_mission.ino)
   //  runFieldMission();
   //  test_auto_scan_6colors(40, 405); // หากสีหายไปนานเกินระยะห่างช่องสี (560p) จะนับเป็น "สีขาว" ทันที
- Fline_by_pass(30,1);
-  get_Blue();
-   put_from_HUB(1, false, 80);
+    Fline_by_pass(100,2);
+     get_Blue();
+     put_from_HUB(1, false, 80);
+
+
 
 
 

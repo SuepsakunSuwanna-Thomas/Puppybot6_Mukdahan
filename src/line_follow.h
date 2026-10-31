@@ -11,26 +11,26 @@
 // 1. ตาราง KD แยกตามความเร็ว (ตามข้อกำหนดของผู้ใช้)
 // ============================================================================
 // ตาราง KD ด้านหน้า
-inline float get_KD_for_speed(int speed) {
-  if (speed >= 100) {
+inline float get_KD_for_speed(float speed) {
+  if (speed >= 100.0f) {
     return 16.5f;
-  } else if (speed >= 90) {
+  } else if (speed >= 90.0f) {
     return 14.5f;
-  } else if (speed >= 80) {
+  } else if (speed >= 80.0f) {
     return 12.9f;
-  } else if (speed >= 70) {
+  } else if (speed >= 70.0f) {
     return 10.5f;
-  } else if (speed >= 60) {
+  } else if (speed >= 60.0f) {
     return 8.8f;
-  } else if (speed >= 50) {
+  } else if (speed >= 50.0f) {
     return 7.5f;
-  } else if (speed >= 40) {
+  } else if (speed >= 40.0f) {
     return 7.5f;
-  } else if (speed >= 30) {
+  } else if (speed >= 30.0f) {
     return 5.5f;
-  } else if (speed >= 20) {
+  } else if (speed >= 20.0f) {
     return 3.2f;
-  } else if (speed >= 10) {
+  } else if (speed >= 10.0f) {
     return 1.0f;
   } else {
     return 6.10f; // ค่ามาตรฐาน
@@ -38,26 +38,26 @@ inline float get_KD_for_speed(int speed) {
 }
 
 // ตาราง KD ด้านหลัง (เซนเซอร์หลัง / วิ่งถอยหลัง)
-inline float get_KD_for_speed_B(int speed) {
-  if (speed >= 100) {
+inline float get_KD_for_speed_B(float speed) {
+  if (speed >= 100.0f) {
     return 1.5f;
-  } else if (speed >= 90) {
+  } else if (speed >= 90.0f) {
     return 14.5f;
-  } else if (speed >= 80) {
+  } else if (speed >= 80.0f) {
     return 12.9f;
-  } else if (speed >= 70) {
+  } else if (speed >= 70.0f) {
     return 10.5f;
-  } else if (speed >= 60) {
+  } else if (speed >= 60.0f) {
     return 8.8f;
-  } else if (speed >= 50) {
+  } else if (speed >= 50.0f) {
     return 7.5f;
-  } else if (speed >= 40) {
+  } else if (speed >= 40.0f) {
     return 7.5f;
-  } else if (speed >= 30) {
+  } else if (speed >= 30.0f) {
     return 5.5f;
-  } else if (speed >= 20) {
+  } else if (speed >= 20.0f) {
     return 3.2f;
-  } else if (speed >= 10) {
+  } else if (speed >= 10.0f) {
     return 1.0f;
   } else {
     return 6.10f; // ค่ามาตรฐาน
@@ -109,7 +109,7 @@ inline void reset_PID_state() {
 }
 
 // ด้านหน้า: lineFollow_PID_auto (คำนวณตามสมการ PID แท้ 100% สั่งการเลี้ยวเชิงรุกตามตำแหน่งเส้น)
-inline void lineFollow_PID_auto(int speed) {
+inline void lineFollow_PID_auto(float speed) {
   float KP = line_KP; // ค่า KP (0.40f)
   float KD = (line_KD >= 0.0f) ? line_KD : get_KD_for_speed(speed);
 
@@ -135,19 +135,16 @@ inline void lineFollow_PID_auto(int speed) {
   _line_prev_err = err;
 
   // ควบคุมกำลังมอเตอร์ซ้าย-ขวาตามสมการ PID
-  int motorL = constrain((int)(speed + out), -speed, speed);
-  int motorR = constrain((int)(speed - out), -speed, speed);
+  float motorL = constrain(speed + out, -speed, speed);
+  float motorR = constrain(speed - out, -speed, speed);
 
   // สั่งงานมอเตอร์ทั้ง 4 ล้อ
-  motor(1, motorL - motor_trim_M1);
-  motor(2, motorR - motor_trim_M2);
-  motor(3, motorL - motor_trim_M3);
-  motor(4, motorR - motor_trim_M4);
+  drive4(motorL, motorR, motorL, motorR);
   delay(1);
 }
 
 // ด้านหลัง: lineFollow_PID_B_auto (วิ่งถอยหลังตามเส้นด้วยสมการ PID เต็มรูปแบบ)
-inline void lineFollow_PID_B_auto(int speed) {
+inline void lineFollow_PID_B_auto(float speed) {
   float KP = line_KP_B; // ค่า KP (0.40f)
   float KD = (line_KD_B >= 0.0f) ? line_KD_B : get_KD_for_speed_B(speed);
 
@@ -159,13 +156,10 @@ inline void lineFollow_PID_B_auto(int speed) {
   float out_B = KP * err_B + KD * deriv_B;
   _line_prev_err_B = err_B;
 
-  int m1Speed = constrain((int)(speed - out_B), -speed, speed);
-  int m2Speed = constrain((int)(speed + out_B), -speed, speed);
+  float m1Speed = constrain(speed - out_B, -speed, speed);
+  float m2Speed = constrain(speed + out_B, -speed, speed);
 
-  motor(1, -m1Speed + motor_trim_M1);
-  motor(2, -m2Speed + motor_trim_M2);
-  motor(3, -m1Speed + motor_trim_M3);
-  motor(4, -m2Speed + motor_trim_M4);
+  drive4(-m1Speed, -m2Speed, -m1Speed, -m2Speed);
   delay(1);
 }
 
@@ -174,7 +168,7 @@ inline void lineFollow_PID_B_auto(int speed) {
 // ============================================================================
 
 // Fline_by_pass: วิ่งตามเส้นจนกว่าจะผ่านเส้นตัดครบตามจำนวนที่กำหนด
-inline void Fline_by_pass(int speed, int pass_lines) {
+inline void Fline_by_pass(float speed, int pass_lines) {
   for (int count = 0; count < pass_lines; count++) {
     // หากเริ่มคำสั่งขณะที่ตัวหุ่นอยู่บนเส้นตัดอยู่แล้ว ให้วิ่งพ้นเส้นตัดเดิมออกไปก่อน
     if (count == 0 && isFrontCrossing()) {
@@ -208,11 +202,11 @@ inline void Fline_by_pass(int speed, int pass_lines) {
     }
   }
   stop_4w();
- delay(30);
+  delay(30);
 }
 
 // โอเวอร์โหลด Fline_by_pass แบบ 3 พารามิเตอร์ ตามสไตล์ Sisakat 4WD: Fline_by_pass(speed, count, sensor)
-inline void Fline_by_pass(int speed, int pass_lines, int sensor) {
+inline void Fline_by_pass(float speed, int pass_lines, int sensor) {
   if (sensor < 0) {
     Fline_by_pass(speed, pass_lines);
     return;
@@ -236,7 +230,7 @@ inline void Fline_by_pass(int speed, int pass_lines, int sensor) {
 }
 
 // Fline_by_pass_B: วิ่งตามเส้นถอยหลังจนกว่าจะผ่านเส้นตัดครบตามจำนวน
-inline void Fline_by_pass_B(int speed, int pass_lines) {
+inline void Fline_by_pass_B(float speed, int pass_lines) {
   for (int count = 0; count < pass_lines; count++) {
     // หากเริ่มคำสั่งขณะที่ตัวหุ่นอยู่บนเส้นตัดด้านหลังอยู่แล้ว ให้วิ่งพ้นเส้นตัดเดิมออกไปก่อน
     if (count == 0 && isBackCrossing()) {
@@ -273,7 +267,7 @@ inline void Fline_by_pass_B(int speed, int pass_lines) {
 // ============================================================================
 
 // Fline: วิ่งตามเส้นไปข้างหน้า จนกว่าเซนเซอร์ไหนเจอ (0-6 หรือ -1 สำหรับ crossing) คือ เจอเส้นแล้วหยุดนิ่ง
-inline void Fline(int speed, int sensor) {
+inline void Fline(float speed, int sensor) {
   if (sensor >= 0 && sensor < NUM_FRONT_SENSORS) {
     while (!isFrontSensorOnLine(sensor)) {
       lineFollow_PID_auto(speed);
@@ -289,7 +283,7 @@ inline void Fline(int speed, int sensor) {
 }
 
 // Fline_B: วิ่งถอยหลังตามเส้นจนกว่าเซนเซอร์หลังที่ระบุจะเจอเส้นแล้วหยุด
-inline void Fline_B(int speed, int sensor) {
+inline void Fline_B(float speed, int sensor) {
   if (sensor >= 0 && sensor < NUM_BACK_SENSORS) {
     while (!isBackSensorOnLine(sensor)) {
       lineFollow_PID_B_auto(speed);
@@ -307,7 +301,7 @@ inline void Fline_B(int speed, int sensor) {
 // ============================================================================
 
 // Fline_by_phase: วิ่งตามเส้นจนกว่าระยะจะถึงตามที่ตั้ง (ระยะเป็น ซม.)
-inline void Fline_by_phase(int speed, float distance_cm) {
+inline void Fline_by_phase(float speed, float distance_cm) {
   resetDistance();
   while (getDistanceCm() < distance_cm) {
     lineFollow_PID_auto(speed);
@@ -316,7 +310,7 @@ inline void Fline_by_phase(int speed, float distance_cm) {
 }
 
 // Fline_B_by_phase: วิ่งตามเส้นถอยหลังจนกว่าระยะจะถึงตามที่ตั้ง (ระยะเป็น ซม.)
-inline void Fline_B_by_phase(int speed, float distance_cm) {
+inline void Fline_B_by_phase(float speed, float distance_cm) {
   resetDistance();
   while (getDistanceCm() < distance_cm) {
     lineFollow_PID_B_auto(speed);
@@ -329,7 +323,7 @@ inline void Fline_B_by_phase(int speed, float distance_cm) {
 // ============================================================================
 
 // Fline_by_time: วิ่งตามเส้นตามเวลา (delay ms)
-inline void Fline_by_time(int speed, unsigned long duration_ms) {
+inline void Fline_by_time(float speed, unsigned long duration_ms) {
   unsigned long start = millis();
   while (millis() - start < duration_ms) {
     lineFollow_PID_auto(speed);
@@ -338,7 +332,7 @@ inline void Fline_by_time(int speed, unsigned long duration_ms) {
 }
 
 // Fline_B_by_time: วิ่งตามเส้นถอยหลังตามเวลา (delay ms)
-inline void Fline_B_by_time(int speed, unsigned long duration_ms) {
+inline void Fline_B_by_time(float speed, unsigned long duration_ms) {
   unsigned long start = millis();
   while (millis() - start < duration_ms) {
     lineFollow_PID_B_auto(speed);
@@ -351,7 +345,7 @@ inline void Fline_B_by_time(int speed, unsigned long duration_ms) {
 // ============================================================================
 
 // Fline_by_Encoder: วิ่งตามเส้นตามระยะของ Encoder (pulse)
-inline void Fline_by_Encoder(int speed, long target_pulses) {
+inline void Fline_by_Encoder(float speed, long target_pulses) {
   long initialPulses = get_pulse_Encoder(selection_Encoder);
   while (abs(get_pulse_Encoder(selection_Encoder) - initialPulses) < target_pulses) {
     lineFollow_PID_auto(speed);
@@ -360,7 +354,7 @@ inline void Fline_by_Encoder(int speed, long target_pulses) {
 }
 
 // Fline_B_by_Encoder: วิ่งตามเส้นถอยหลังตาม Encoder (pulse)
-inline void Fline_B_by_Encoder(int speed, long target_pulses) {
+inline void Fline_B_by_Encoder(float speed, long target_pulses) {
   long initialPulses = get_pulse_Encoder(selection_Encoder);
   while (abs(get_pulse_Encoder(selection_Encoder) - initialPulses) < target_pulses) {
     lineFollow_PID_B_auto(speed);
@@ -369,34 +363,49 @@ inline void Fline_B_by_Encoder(int speed, long target_pulses) {
 }
 
 // ชื่อฟังก์ชันทางเลือก (Aliases)
-inline void Fline_by_phase_B(int speed, float distance_cm) { Fline_B_by_phase(speed, distance_cm); }
-inline void Fline_by_time_B(int speed, unsigned long duration_ms) { Fline_B_by_time(speed, duration_ms); }
-inline void Fline_by_Encoder_B(int speed, long target_pulses) { Fline_B_by_Encoder(speed, target_pulses); }
+inline void Fline_by_phase_B(float speed, float distance_cm) { Fline_B_by_phase(speed, distance_cm); }
+inline void Fline_by_time_B(float speed, unsigned long duration_ms) { Fline_B_by_time(speed, duration_ms); }
+inline void Fline_by_Encoder_B(float speed, long target_pulses) { Fline_B_by_Encoder(speed, target_pulses); }
 
 // ============================================================================
 // 8. วิ่งตามเส้นจนกว่าจะเจอกระป๋องด้วยเซนเซอร์ IR (Fline_until_can)
 // ============================================================================
-// วิ่งตามเส้นด้วยความเร็ว speed จนกว่าระยะเซนเซอร์วัดระยะข้างหน้าจะน้อยกว่าหรือเท่ากับ stop_dist_cm แล้วหยุด (นิ่งสนิท 100% ไร้อาการสะดุด)
-inline void Fline_until_can(int speed = 25, float stop_dist_cm = 8.0f) {
-  reset_PID_state(); // รีเซ็ต Error ของ PID ป้องกันอาการหักเลี้ยว/กระตุกตอนเริ่ม
-  
-  // แปลงระยะ stop_dist_cm เป็นเกณฑ์ ADC โดยประมาณ (ระยะ 8-10 ซม. ADC จะอยู่ราวๆ 330-450)
-  int threshold_adc = (stop_dist_cm <= 6.0f) ? 550 : ((stop_dist_cm <= 8.0f) ? 450 : 350);
+// วิ่งตามเส้นจนกว่าจะเจอกระป๋อง โดยผ่อนความเร็วลงเป็นระดับตั้งแต่เนิ่นๆ เข้าแตะนุ่มนวล ไม่ชน ไม่กระตุก
+inline void Fline_until_can(float speed = 25.0f, float stop_dist_cm = 5.0f, unsigned long timeout_ms = 4500) {
+  reset_PID_state();
+  unsigned long startT = millis();
 
-  while (true) {
-    // อ่าน ADC ขา 14 โดยตรง (1 microsecond) ไม่มี delay ไม่คำนวณซับซ้อน ลูป PID ลื่น 100%
-    int raw = ADC(IR_DISTANCE_PIN);
-    if (raw >= threshold_adc) {
+  while (millis() - startT < timeout_ms) {
+    float dist = get_ir_distance_cm();
+
+    // 1. ถึงระยะเป้าหมายแล้ว หยุดนิ่งสนิททันที
+    if (dist <= stop_dist_cm) {
       break;
     }
-    lineFollow_PID_auto(speed);
+
+    // 2. ปรับลดความเร็วตามระยะทางแบบอัตโนมัติ (ยิ่งใกล้ยิ่งช้า)
+    float run_speed = speed;
+    if (dist <= stop_dist_cm + 3.0f) {
+      // ระยะประชิด (ห่างเป้าหมายไม่เกิน 3 cm): ย่องเบาๆ เข้าแตะ
+      run_speed = 12.0f;
+    } else if (dist <= stop_dist_cm + 8.0f) {
+      // ระยะเริ่มเห็น (ห่างเป้าหมาย 4 - 8 cm): ผ่อนความเร็วลงครึ่งหนึ่ง
+      run_speed = (speed > 18.0f) ? 18.0f : speed;
+    } else if (dist <= stop_dist_cm + 14.0f) {
+      // ระยะเริ่มเข้าใกล้: ผ่อนความเร็วลงเล็กน้อย
+      run_speed = (speed > 22.0f) ? 22.0f : speed;
+    }
+
+    lineFollow_PID_auto(run_speed);
   }
-  brake_reverse_4w(speed, 20, 30);
+
+  // หยุดนิ่งสนิท ล็อคมอเตอร์นิ่มนวล ไร้อาการสะบัด/กระตุก
   stop_4w();
+  delay(40);
 }
 
 // เดินหน้าตรงๆ (ไม่ต้องเกาะเส้น) จนกว่าจะเจอกระป๋องแล้วหยุด
-inline void fd_until_can(int speed = 25, float stop_dist_cm = 6.0f) {
+inline void fd_until_can(float speed = 25.0f, float stop_dist_cm = 6.0f) {
   while (get_ir_distance_cm() > stop_dist_cm) {
     fd_4w(speed);
     delay(1);
@@ -409,21 +418,21 @@ inline void fd_until_can(int speed = 25, float stop_dist_cm = 6.0f) {
 // ============================================================================
 
 // Follow_Notline: วิ่งไปข้างหน้าแบบ ไม่ใช้ PID ตามเวลา (delay ms)
-inline void Follow_Notline(int speed, unsigned long duration_ms) {
+inline void Follow_Notline(float speed, unsigned long duration_ms) {
   fd_4w(speed);
   delay(duration_ms);
   stop_4w();
 }
 
 // Backword_Notline: วิ่งถอยหลังแบบ ไม่ใช้ PID ตามเวลา (delay ms)
-inline void Backword_Notline(int speed, unsigned long duration_ms) {
+inline void Backword_Notline(float speed, unsigned long duration_ms) {
   bk_4w(speed);
   delay(duration_ms);
   stop_4w();
 }
 
 // Follow_Notline_by_Encoder: วิ่งไปข้างหน้าแบบ ไม่ใช้ PID ตามระยะ (pulse หรือ cm)
-inline void Follow_Notline_by_Encoder(int speed, long target_pulses) {
+inline void Follow_Notline_by_Encoder(float speed, long target_pulses) {
   long initialPulses = get_pulse_Encoder(selection_Encoder);
   fd_4w(speed);
   while (abs(get_pulse_Encoder(selection_Encoder) - initialPulses) < target_pulses) {
@@ -433,7 +442,7 @@ inline void Follow_Notline_by_Encoder(int speed, long target_pulses) {
 }
 
 // Backword_Notline_by_Encoder: วิ่งถอยหลังแบบ ไม่ใช้ PID ตามระยะ (pulse)
-inline void Backword_Notline_by_Encoder(int speed, long target_pulses) {
+inline void Backword_Notline_by_Encoder(float speed, long target_pulses) {
   long initialPulses = get_pulse_Encoder(selection_Encoder);
   bk_4w(speed);
   while (abs(get_pulse_Encoder(selection_Encoder) - initialPulses) < target_pulses) {
@@ -447,28 +456,28 @@ inline void Backword_Notline_by_Encoder(int speed, long target_pulses) {
 // ============================================================================
 
 // turnLeft: วิ่ง PID ตามเส้น พอเจอแยก/เส้นตัดแล้วสะบัดเลี้ยวซ้ายอย่างรวดเร็ว (Two-Stage Turn ตามแบบ Sisaket)
-inline void turnLeft(int speed) {
+inline void turnLeft(float speed) {
   // 1. วิ่ง PID ตามเส้นจนกว่าจะเจอเส้นตัดหรือเซนเซอร์ซ้ายสุด (ADC 0) แตะเส้น
   while (!isFrontCrossing() && !isFrontSensorOnLine(0)) {
     lineFollow_PID_auto(speed);
   }
   stop_4w();
-  delay(40);
+  delay(70);
 
-  int fast_spin = (speed > 60) ? speed : 60; // สะบัดตัวเร็ว 75-80% เหมือน Sisaket
-  int slow_spin = 25;                         // ผ่อนความเร็วจับเส้นนุ่มนวล
+  float fast_spin = (speed > 60.0f) ? speed : 60.0f; // สะบัดตัวเร็ว 75-80% เหมือน Sisaket
+  float slow_spin = 25.0f;                           // ผ่อนความเร็วจับเส้นนุ่มนวล
 
   // 2. จังหวะที่ 1: สะบัดตัวซ้ายอย่างเร็ว (sl) หลุดจากเส้นเดิมและกวาดหาเส้นใหม่
   sl_4w(fast_spin);
   delay(60); // หลุดออกจากขอบเดิมเล็กน้อย
   unsigned long timeout = millis();
-  while (!isFrontSensorOnLine(0) && !isFrontSensorOnLine(1) && (millis() - timeout < 2500)) {
+  while (!isFrontSensorOnLine(0)) {
     sl_4w(fast_spin);
     delay(1);
   }
 
   // 3. จังหวะที่ 2: ผ่อนความเร็วลงเพื่อจับเส้นอย่างนุ่มนวล (หยุดเมื่อเซนเซอร์ 1 หรือ 2 เจอเส้น)
-  while (!isFrontSensorOnLine(1) && !isFrontSensorOnLine(2) && !isFrontSensorOnLine(FRONT_CENTER_INDEX) && (millis() - timeout < 2500)) {
+  while (!isFrontSensorOnLine(1)) {
     sl_4w(slow_spin);
     delay(1);
   }
@@ -477,7 +486,7 @@ inline void turnLeft(int speed) {
 }
 
 // turnRight: วิ่ง PID ตามเส้น พอเจอแยก/เส้นตัดแล้วสะบัดเลี้ยวขวาอย่างรวดเร็ว (Two-Stage Turn ตามแบบ Sisaket)
-inline void turnRight(int speed) {
+inline void turnRight(float speed) {
   // 1. วิ่ง PID ตามเส้นจนกว่าจะเจอเส้นตัดหรือเซนเซอร์ขวาสุด (ADC 6) แตะเส้น
   while (!isFrontCrossing() && !isFrontSensorOnLine(6)) {
     lineFollow_PID_auto(speed);
@@ -485,8 +494,8 @@ inline void turnRight(int speed) {
   stop_4w();
   delay(40);
 
-  int fast_spin = (speed > 60) ? speed : 60; // สะบัดตัวเร็ว 75% เหมือน Sisaket
-  int slow_spin = 25;                         // ผ่อนความเร็วจับเส้นนุ่มนวล
+  float fast_spin = (speed > 60.0f) ? speed : 60.0f; // สะบัดตัวเร็ว 75% เหมือน Sisaket
+  float slow_spin = 25.0f;                           // ผ่อนความเร็วจับเส้นนุ่มนวล
 
   // 2. จังหวะที่ 1: สะบัดตัวขวาอย่างเร็ว (sr) หลุดจากเส้นเดิมและกวาดหาเส้นใหม่
   sr_4w(fast_spin);
@@ -507,15 +516,15 @@ inline void turnRight(int speed) {
 }
 
 // turnLeft_B: วิ่งถอยหลัง PID ตามเส้น พอเจอเส้นตัดแล้วสะบัดเลี้ยวซ้ายอย่างรวดเร็ว
-inline void turnLeft_B(int speed) {
+inline void turnLeft_B(float speed) {
   while (!isBackCrossing() && !isBackSensorOnLine(0)) {
     lineFollow_PID_B_auto(speed);
   }
   stop_4w();
   delay(40);
 
-  int fast_spin = (speed > 75) ? speed : 75;
-  int slow_spin = 25;
+  float fast_spin = (speed > 75.0f) ? speed : 75.0f;
+  float slow_spin = 25.0f;
 
   // ถอยหลังแล้วเลี้ยวซ้าย: ท้ายรถต้องเบี่ยงซ้าย หัวรถเบี่ยงขวา -> ใช้ sr_4w
   sr_4w(fast_spin);
@@ -534,15 +543,15 @@ inline void turnLeft_B(int speed) {
 }
 
 // turnRight_B: วิ่งถอยหลัง PID ตามเส้น พอเจอเส้นตัดแล้วสะบัดเลี้ยวขวาอย่างรวดเร็ว
-inline void turnRight_B(int speed) {
+inline void turnRight_B(float speed) {
   while (!isBackCrossing() && !isBackSensorOnLine(6)) {
     lineFollow_PID_B_auto(speed);
   }
   stop_4w();
   delay(40);
 
-  int fast_spin = (speed > 75) ? speed : 75;
-  int slow_spin = 25;
+  float fast_spin = (speed > 75.0f) ? speed : 75.0f;
+  float slow_spin = 25.0f;
 
   // ถอยหลังแล้วเลี้ยวขวา: ท้ายรถต้องเบี่ยงขวา หัวรถเบี่ยงซ้าย -> ใช้ sl_4w
   sl_4w(fast_spin);
@@ -561,9 +570,9 @@ inline void turnRight_B(int speed) {
 }
 
 // turnLeft_by_stop: หมุนไปทางซ้าย (sl) จากจุดหยุดนิ่ง เข้าหาเส้นใหม่ (Two-Stage)
-inline void turnLeft_by_stop(int speed = 50) {
-  int fast_spin = (speed > 50) ? speed : 50;
-  int slow_spin = 25;
+inline void turnLeft_by_stop(float speed = 50.0f) {
+  float fast_spin = (speed > 50.0f) ? speed : 50.0f;
+  float slow_spin = 25.0f;
 
   sl_4w(fast_spin);
   delay(60); // หลุดออกจากขอบเดิมเล็กน้อย
@@ -581,9 +590,9 @@ inline void turnLeft_by_stop(int speed = 50) {
 }
 
 // turnRight_by_stop: หมุนไปทางขวา (sr) จากจุดหยุดนิ่ง เข้าหาเส้นใหม่ (Two-Stage)
-inline void turnRight_by_stop(int speed = 50) {
-  int fast_spin = (speed > 50) ? speed : 50;
-  int slow_spin = 25;
+inline void turnRight_by_stop(float speed = 50.0f) {
+  float fast_spin = (speed > 50.0f) ? speed : 50.0f;
+  float slow_spin = 25.0f;
 
   sr_4w(fast_spin);
   delay(60); // หลุดออกจากขอบเดิมเล็กน้อย
@@ -605,7 +614,7 @@ inline void turnRight_by_stop(int speed = 50) {
 // ============================================================================
 
 // checkLine: อ่านค่าเซนเซอร์แล้วหมุนแบบ tl/tr เพื่อให้เซนเซอร์หน้าตรงกลาง (ADC 3) อยู่ที่เส้น
-inline void checkLine(int speed = 30) {
+inline void checkLine(float speed = 30.0f) {
   // หากเซนเซอร์ตรงกลางอยู่บนเส้นแล้ว ให้หยุด
   if (isFrontSensorOnLine(FRONT_CENTER_INDEX)) {
     stop_4w();
@@ -633,7 +642,7 @@ inline void checkLine(int speed = 30) {
 }
 
 // checkLine_B: อ่านค่าเซนเซอร์แล้วหมุนแบบ tl/tr เพื่อให้เซนเซอร์หลังตรงกลาง (ADC 10) อยู่ที่เส้น
-inline void checkLine_B(int speed = 30) {
+inline void checkLine_B(float speed = 30.0f) {
   if (isBackSensorOnLine(BACK_CENTER_INDEX)) {
     stop_4w();
     return;
