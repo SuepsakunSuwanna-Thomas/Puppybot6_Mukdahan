@@ -72,7 +72,7 @@ void setup() {
 
    // 4. สั่งเซอร์โวเข้าตำแหน่งเริ่มต้น
    servoRun(1, 60);
-   servoRun(2, 85);
+   servoRun(2, 86);
    servoRun(3, 95);
 
 //   // ==========================================================================
@@ -93,13 +93,15 @@ void setup() {
   //  runFieldMission();
   //  test_auto_scan_6colors(40, 405); // หากสีหายไปนานเกินระยะห่างช่องสี (560p) จะนับเป็น "สีขาว" ทันท
      get_Yellow();
+    //  put_from_HUB(2, false, 80);
+    //  get_Blue();
+    //  put_from_HUB(1, false, 80);
+    //  get_Black();
+    //  put_from_HUB(2, false, 80);     
+    //  get_Green();
+    //  get_Red();
+    //  get_White();
      put_from_HUB(1, false, 80);
-     get_Blue();
-     put_from_HUB(3, false, 80);
-     get_Black();
-    //  put_from_HUB(5, false, 80);     
-
-
        
 
 
@@ -130,17 +132,23 @@ inline void update_TCS_B() {
 
 void setup1(){
   delay(1000);
+  mutex_enter_blocking(&wire1_mtx);
   initIMU();
   set_TCS_back();
   updateIMU_fine_offset_Yaw(200);
+  mutex_exit(&wire1_mtx);
   offset_yaw_loop1 = getOffsetYaw();
 }
 
 void loop1(){
+  // [FIX] ล็อก Wire1 ระหว่างอ่าน IMU กันชนกับการอ่าน TCS ด้านข้างบน Core0
+  mutex_enter_blocking(&wire1_mtx);
   yaw_loop1 = getYaw();
   Con_yaw_loop1 = getContinuousYaw();
   if(status_resetYaw == 1){
     status_resetYaw = 0;
     resetContinuousYaw();
   }
+  mutex_exit(&wire1_mtx);
+  delayMicroseconds(200); // เว้นช่องให้ Core0 ได้จังหวะใช้บัส
 }

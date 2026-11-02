@@ -23,6 +23,10 @@ extern int motor_trim_M4; // ค่า trim มอเตอร์ 4 (ขวา�
 // กรณีวิ่ง 100 แล้วบวกอีก 5 มอเตอร์จะถูกจำกัดที่ 100% สูงสุด
 extern float speed_offset_pct;
 
+// ตัวแปรแยกปรับเพิ่ม/ลดความเร็วในการเลี้ยวซ้ายและขวา (Turn Speed Offset รวมทั้งปกติและ bySTOP)
+extern float speed_offset_turn_left;        // เลี้ยวซ้ายทั้งหมด (turnLeft, turnLeft_B, turnLeft_by_stop)
+extern float speed_offset_turn_right;       // เลี้ยวขวาทั้งหมด (turnRight, turnRight_B, turnRight_by_stop)
+
 // ค่า KP และ KD สำหรับการวิ่งตามเส้น (สามารถปรับแต่งได้ที่นี่ ไม่ต้องไล่แก้ในโค้ด)
 extern float line_KP;   // ค่า KP วิ่งตามเส้นเดินหน้า (ค่าตั้งต้น 0.4)
 extern float line_KP_B; // ค่า KP วิ่งตามเส้นถอยหลัง (ค่าตั้งต้น 0.4)

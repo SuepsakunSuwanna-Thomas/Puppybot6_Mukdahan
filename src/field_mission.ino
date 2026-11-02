@@ -22,7 +22,7 @@ const int SERVO_GRIPPER_CH = 2; // เซอร์โวมือจับหน
 
 // องศาเซอร์โว (สามารถปรับจูนตามกลไกของหุ่นได้ที่นี่)
 int GRIPPER_OPEN_ANG = 165;  // องศากางมือจับออกสุด
-int GRIPPER_GRAB_ANG = 85; // องศาหนีบกระป๋องแน่น
+int GRIPPER_GRAB_ANG = 86; // องศาหนีบกระป๋องแน่น
 int ARM_DOWN_ANG     = 110;  // องศาลดแขนลงระดับคีบ/วางลงหลุมแท่น 5 cm
 int ARM_LIFT_ANG     = 60; // องศายกแขนขึ้นสูงพ้นแท่น 5 cm
 
@@ -127,13 +127,12 @@ inline void get_Warehouse2_Spare(RobotColor color, int speed) {
     // ------------------------------------------------------------------------
     case COLOR_YELLOW:
       Serial.println("[W2 Route] Out of stock at YELLOW -> Heading to Warehouse 2...");
-      // 1. หมุนตัว 180 องศากลับมาที่จุด HUB
+      // 2. เลี้ยวขวามุ่งหน้าสู่คลังสำรอง W2
       turnRight(40);
       Fline_by_pass(speed1,2);
-      // 2. เลี้ยวขวามุ่งหน้าสู่คลังสำรอง W2
      Fline(20,0);
      turnLeft_by_stop(35);
-    Fline_until_can(20,10);   
+     Fline_until_can(35, 7);
 
 
       grabCan();
@@ -299,10 +298,10 @@ inline void get_Yellow(int speed) {
   Serial.println("\n[Action] >>> Step 1: Going to YELLOW from Color Scan Line <<<");
 
   // 1. เลี้ยวซ้าย ซ้าย ผ่าน 1 เลี้ยวขวา ผ่าน 4 เส้น
-  turnLeft(40);
-  turnLeft(35);
-  Fline_by_pass(50, 1);
-  turnRight(35);
+  // turnLeft(40);
+  // turnLeft(35);
+  // Fline_by_pass(50, 1);
+  // turnRight(35);
   Fline_by_pass(100, 2);
   Fline_by_pass(65, 1);             
   servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
@@ -328,8 +327,9 @@ inline void get_Yellow(int speed) {
     Fline_B_by_time(40, 30);
     // // หมุนตัวเพื่อให้หน้าอยู่ตรง HUB
     turnLeft_by_stop(40);
-    Backword_Notline_by_Encoder(40, 160);
+    Fline_B_by_time(40, 40);
     turnLeft_by_stop(40);
+    delay(50);
   }
 
   Serial.println("[Action] Yellow can ready at HUB!");
@@ -344,7 +344,7 @@ inline void get_Blue(int speed) {
   // 1. หมุนซ้าย เลี้ยวขวา
   servoRun(SERVO_ARM_CH, 50); 
   turnLeft(45);
-  turnRight(53);
+  turnRight(45);
   delay(250);             
   Fline_B_by_time(50, 270);
   servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
@@ -355,10 +355,10 @@ inline void get_Blue(int speed) {
 
 
   // 2. เช็คว่ามีกระป๋องไหม
-  bool has_can = (OUT_OF_STOCK_COLOR == COLOR_YELLOW) ? false : checkCanPresent();
+  bool has_can = (OUT_OF_STOCK_COLOR == COLOR_BLUE) ? false : checkCanPresent();
   if (!has_can) {
     // หากไม่มี ไปเอาที่คลังสำรอง แล้ว return ทันที ป้องกันคำสั่งด้านล่างทำงานซ้ำ!
-    get_Warehouse2_Spare(COLOR_YELLOW, speed);
+    get_Warehouse2_Spare(COLOR_BLUE, speed);
     return;
   } else {
   
@@ -371,8 +371,9 @@ inline void get_Blue(int speed) {
     Fline_B_by_time(20, 100);
 
     // หมุน เลี้ยวซ้าย เลี้ยวขวา หน้าจะอยู่ตรง HUB
-    turnRight_by_stop(55);
-    turnRight(55);
+    turnRight_by_stop(45);
+    turnRight(45);
+    delay(50);
   }
 
   Serial.println("[Action] Blue can ready at HUB!");
@@ -386,7 +387,7 @@ inline void get_Black(int speed) {
   // 1. หมุนขวา เลี้ยวซ้าย
   servoRun(SERVO_ARM_CH, 50); 
   turnRight(45);
-  turnLeft(38);
+  turnLeft(45);
   delay(250);             
   Fline_B_by_time(50,300);
   servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
@@ -413,6 +414,7 @@ inline void get_Black(int speed) {
     // หมุน เลี้ยวขวา เลี้ยวซ้าย หน้าจะอยู่ที่ HUB
     turnLeft_by_stop(55);
     turnLeft(40);
+    delay(50);                          
 
   Serial.println("[Action] Black can ready at HUB!");
 }
@@ -423,10 +425,14 @@ inline void get_Green(int speed) {
   Serial.println("\n[Action] >>> Step 4: Going to GREEN from HUB <<<");
 
   // 1. วิ่งผ่าน 1 เส้นถอยหลังตามเอ็นโค้ดเดอร์นิดนึง
-  Fline_by_pass(speed, 1);
-
-
+  Fline_by_pass(65, 1);             
+  servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
+  delay(300);
+  servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงครอบตัวกระป๋อง
+  Fline(40,6), 
+  Fline_until_can(15, 7);
   // 2. เช็คว่ามีกระป๋องไหม
+
   bool has_can = (OUT_OF_STOCK_COLOR == COLOR_GREEN) ? false : checkCanPresent();
   if (!has_can) {
     get_Warehouse2_Spare(COLOR_GREEN, speed);
@@ -439,12 +445,15 @@ inline void get_Green(int speed) {
     grabCan();
 
     // ถอยหลังตามเอ็นโค้ดเดอร์นิดนึง
-    Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
-
-  // หมุน ผ่าน 2 เส้น หน้าจะอยู่ที่ HUB
-  turnLeft_by_stop(50);
-  turnLeft_by_stop(50);
-  Fline_by_pass(80, 1);
+    // Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
+    Fline_B_by_time(40, 30);
+    // // หมุนตัวเพื่อให้หน้าอยู่ตรง HUB
+    turnLeft_by_stop(40);
+    // Backword_Notline_by_Encoder(40, 160);
+    Fline_B_by_time(40,50);
+    turnLeft_by_stop(40);
+    Fline_by_pass(60,1);
+    delay(50);
 
   Serial.println("[Action] Green can ready at HUB!");
 }
@@ -455,10 +464,17 @@ inline void get_Red(int speed) {
   Serial.println("\n[Action] >>> Step 5: Going to RED from HUB <<<");
 
   // 1. หมุนซ้าย เลี้ยวขวา ผ่าน1
-  turnLeft_by_stop(speedl);
-  turnRight(speedr);
-  Fline_by_pass(45,1);
-  Fline_by_pass(43,1);
+  servoRun(SERVO_ARM_CH, 50); 
+  turnLeft(45);
+  turnRight(45);
+  Fline(40,6),
+  delay(250);             
+  Fline_B_by_time(50, 115);
+  servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
+  delay(300);
+  servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงครอบตัวกระป๋อง
+  delay(250);
+  Fline_until_can(25, 7);   
 
 
   // 2. เช็คว่ามีกระป๋องไหม
@@ -469,16 +485,18 @@ inline void get_Red(int speed) {
   }
 
     // หากมีกระป๋อง:
+
     // ยกขึ้น
     grabCan();
 
-    // ถอยหลังตามเอ็นโค้ดเดอร์นิดนึง
-    Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
+    //  ถอย
+    Fline_B_by_time(20, 100);
 
-  // หมุนขวา เลี้ยวขวา ผ่าน 1 เส้น เรียก HUB
-  turnRight_by_stop(50);
-  turnRight(50);
-  Fline_by_pass(80, 1);
+    // หมุน เลี้ยวซ้าย เลี้ยวขวา หน้าจะอยู่ตรง HUB
+    turnRight_by_stop(45);
+    turnRight(45);
+    Fline_by_pass(60,1);
+    delay(50);
 
   Serial.println("[Action] Red can ready at HUB!");
 }
@@ -489,11 +507,18 @@ inline void get_White(int speed) {
   Serial.println("\n[Action] >>> Step 6: Going to WHITE from HUB <<<");
 
   // 1. หมุนซ้าย เลี้ยวขวา ผ่าน1
-  turnRight_by_stop(speedl);
-  turnLeft(speedr);
-  Fline_by_pass(45,1);
-  Fline_by_pass(58,1);
-
+  servoRun(SERVO_ARM_CH, 50); 
+  turnRight(45);
+  turnLeft(45);
+  Fline(40,6),
+  delay(250);             
+  Fline_B_by_time(50, 100);
+  servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
+  delay(300);
+  servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงครอบตัวกระป๋อง
+  delay(250);
+  Fline_until_can(25, 7);   
+  
   // 2. เช็คว่ามีกระป๋องไหม
   bool has_can = (OUT_OF_STOCK_COLOR == COLOR_WHITE) ? false : checkCanPresent();
   if (!has_can) {
@@ -502,16 +527,18 @@ inline void get_White(int speed) {
   }
 
     // หากมีกระป๋อง:
+
     // ยกขึ้น
     grabCan();
 
-    // ถอยหลังตามเอ็นโค้ดเดอร์นิดนึง
-    Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
+    //  ถอย
+    Fline_B_by_time(20, 100);
 
-  // หมุนซ้าย เลี้ยวซ้าย ผ่าน 1 เส้น เรียก HUB
-  turnLeft_by_stop(50);
-  turnLeft(50);
-  Fline_by_pass(100, 1);
+    // หมุน เลี้ยวขวา เลี้ยวซ้าย หน้าจะอยู่ที่ HUB
+    turnLeft_by_stop(55);
+    turnLeft(40);
+    Fline_by_pass(60,1);
+    delay(50);    
 
   Serial.println("[Action] White can ready at HUB!");
 }
@@ -536,10 +563,10 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
     case 1:
       Fline_by_pass(100, 1);
       Fline_by_pass(50, 1);
-      turnLeft(38);
+      turnLeft(36);
       delay(200);
-       Fline_B_by_time(60, 300);
-       Fline_until_can(40, 5);
+       Fline_B_by_time(60, 150);
+       Fline_until_can(45, 5);
 
       if (is_pickup) {
         grabCan();   // ยกขึ้น
@@ -547,31 +574,33 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
         releaseCan(); // วางลงหลุม
       }
 
-      Fline_B_by_time(40, 180);
+      Fline_B_by_time(40, 100);
       turnLeft_by_stop(55);
       Fline_by_pass(80, 2);
+      delay(50);
       break;
 
     // ------------------------------------------------------------------------
     // ช่อง 2: ผ่าน 2 เลี้ยวขวา เดินหน้าแบบ PID ตามเอ็นโค้ดเดอร์ แล้ววาง/ยก ถอย หมุนขวา ผ่าน 3 เส้น
     // ------------------------------------------------------------------------
     case 2:
-      Fline_by_pass(speed, 1);
-      Fline_by_pass(67, 1);
-      turnRight(45);
-      Fline_by_Encoder(speed, ENCODER_CONSUMER_PULSES);
-      sw();
+      Fline_by_pass(100, 1);
+      Fline_by_pass(50, 1);
+      turnRight(32);
+      delay(200);
+       Fline_B_by_time(60, 100);
+       Fline_until_can(60, 5);
 
       if (is_pickup) {
-        grabCan();
+        grabCan();   // ยกขึ้น
       } else {
-        releaseCan();
+        releaseCan(); // วางลงหลุม
       }
 
-      Backword_Notline_by_Encoder(speed, ENCODER_CONSUMER_PULSES);
-      turnRight_by_stop(50);
-      Fline_by_pass(speed, 2);
-      Fline(50 , 0);
+      Fline_B_by_time(40, 115);
+      turnRight_by_stop(55);
+      Fline_by_pass(80, 2);
+      delay(50);
       break;
 
     // ------------------------------------------------------------------------
@@ -579,10 +608,10 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
     // ------------------------------------------------------------------------
     case 3:
       Fline_by_pass(50, 1);
-      turnLeft(31);
+      turnLeft(35);
       delay(200);
-       Fline_B_by_time(52, 300);
-       Fline_until_can(40, 5);
+       Fline_B_by_time(52, 150);
+       Fline_until_can(45, 5);
 
       if (is_pickup) {
         grabCan();   // ยกขึ้น
@@ -590,9 +619,11 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
         releaseCan(); // วางลงหลุม
       }
 
-      Fline_B_by_time(40, 180);
+      Fline_B_by_time(40, 100);
       turnLeft_by_stop(55);
       Fline_by_pass(80, 1);
+      delay(50);
+      
       break;
 
 
@@ -600,55 +631,62 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
     // ช่อง 4: ผ่าน 1 เลี้ยวขวา เดินหน้าแบบ PID ตามเอ็นโค้ดเดอร์ แล้ววาง/ยก ถอย หมุนขวา ผ่าน 2 เส้น
     // ------------------------------------------------------------------------
     case 4:
-      Fline_by_pass(speed, 1);
-      turnRight_by_stop(50);
-      Fline_by_Encoder(speed, ENCODER_CONSUMER_PULSES);
+      Fline_by_pass(50, 1);
+      turnRight(33);
+      delay(200);
+       Fline_B_by_time(60, 100);
+       Fline_until_can(60, 5);
 
       if (is_pickup) {
-        grabCan();
+        grabCan();   // ยกขึ้น
       } else {
-        releaseCan();
+        releaseCan(); // วางลงหลุม
       }
 
-      Backword_Notline_by_Encoder(speed, ENCODER_CONSUMER_PULSES);
-      turnRight_by_stop(50);
-      Fline_by_pass(speed, 2);
+      Fline_B_by_time(40, 105);
+      turnRight_by_stop(55);
+      Fline_by_pass(80, 1);
+      delay(50);
       break;
 
     // ------------------------------------------------------------------------
     // ช่อง 5: เลี้ยวซ้าย เดินหน้าแบบ PID ตามเอ็นโค้ดเดอร์ แล้ววาง/ยก ถอย หมุนซ้าย ผ่าน 1 เส้น
     // ------------------------------------------------------------------------
     case 5:
-      turnLeft_by_stop(50);
-      Fline_by_Encoder(speed, ENCODER_CONSUMER_PULSES);
+      turnLeft(35);
+      delay(200);
+       Fline_B_by_time(52, 150);
+       Fline_until_can(45, 5);
 
       if (is_pickup) {
-        grabCan();
+        grabCan();   // ยกขึ้น
       } else {
-        releaseCan();
+        releaseCan(); // วางลงหลุม
       }
 
-      Backword_Notline_by_Encoder(speed, ENCODER_CONSUMER_PULSES);
-      turnLeft_by_stop(50);
-      Fline_by_pass(speed, 1);
+      Fline_B_by_time(40, 100);
+      turnLeft_by_stop(48);
+      delay(50);
       break;
 
     // ------------------------------------------------------------------------
     // ช่อง 6: เลี้ยวขวา เดินหน้าแบบ PID ตามเอ็นโค้ดเดอร์ แล้ววาง/ยก ถอย หมุนขวา ผ่าน 1 เส้น
     // ------------------------------------------------------------------------
     case 6:
-      turnRight_by_stop(50);
-      Fline_by_Encoder(speed, ENCODER_CONSUMER_PULSES);
+       turnRight(35);
+      delay(200);
+       Fline_B_by_time(52, 150);
+       Fline_until_can(45, 5);
 
       if (is_pickup) {
-        grabCan();
+        grabCan();   // ยกขึ้น
       } else {
-        releaseCan();
+        releaseCan(); // วางลงหลุม
       }
 
-      Backword_Notline_by_Encoder(speed, ENCODER_CONSUMER_PULSES);
-      turnRight_by_stop(50);
-      Fline_by_pass(speed, 1);
+      Fline_B_by_time(40, 90);
+      turnRight_by_stop(48);
+      delay(50);
       break;
 
     default:

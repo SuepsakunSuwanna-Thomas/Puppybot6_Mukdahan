@@ -2,6 +2,11 @@
 #include <Servo.h>
 // #include "TFT_eSPI.h" 
 #include <Wire.h>
+#include <pico/mutex.h>
+
+// [FIX] Wire1 (IO6/IO7) ใช้ร่วมกันระหว่าง IMU (อ่านตลอดใน loop1/Core1) และ TCS ด้านข้าง (Core0)
+// ถ้าไม่ล็อก สองคอร์จะส่ง I2C ชนกัน -> ค่า RGB เพี้ยน/ไม่นิ่ง
+auto_init_mutex(wire1_mtx);
 
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_ST7735.h> // Hardware-specific library for ST7735
@@ -80,13 +85,14 @@ bool tcs_back_found = false;
 
 // ฟังก์ชันสแกนหา I2C Address อัตโนมัติสำหรับ TCS3472 / TCS34725
 // ฟังก์ชันสแกนหาและเชื่อมต่อ TCS3472 / TCS34725 แบบปลอดภัย (เฉพาะแอดเดรสที่ถูกต้อง)
-inline uint8_t init_TCS_sensor(Adafruit_TCS34725 &sensor, TwoWire &wireBus, bool &foundFlag) {
+inline uint8_t init_TCS_sensor(Adafruit_TCS34725 &sensor, TwoWire &wireBus, bool &foundFlag,
+                               uint8_t itime = TCS34725_INTEGRATIONTIME_2_4MS) {
   // แอดเดรสมาตรฐานทั้งหมดของตระกูล TCS3472 / TCS34725
   const uint8_t validAddrs[] = {0x29, 0x39, 0x49, 0x10};
   for (uint8_t addr : validAddrs) {
     if (sensor.begin(addr, &wireBus)) {
       foundFlag = true;
-      sensor.setIntegrationTime(TCS34725_INTEGRATIONTIME_2_4MS); // [HIGH SPEED] สุ่มวัดค่าแสงทุก 2.4ms (เร็วขึ้น 10 เท่า)
+      sensor.setIntegrationTime(itime);
       sensor.setGain(TCS34725_GAIN_16X); // [GAIN 16X] ขยายสัญญาณแสงให้คมชัด ชดเชยเวลา integration สั้น
       sensor.setInterrupt(false); // [FIX] สั่งเปิดไฟ LED สีขาวส่องสว่างของเซนเซอร์
       return addr;
@@ -139,11 +145,13 @@ void set_TCS_back(){
   Wire1.setSDA(6);
   Wire1.setSCL(7);
   Wire1.begin();
-  Wire1.setClock(400000); // [FAST I2C] เร่งสปีด I2C บัสเป็น 400 kHz (Fast Mode)
+  // [FIX] initIMU() ตั้ง Wire1 ไว้ 1MHz ซึ่งเกินสเปก TCS34725 (สูงสุด 400kHz) -> บังคับกลับเป็น 400kHz
+  Wire1.setClock(400000);
   delay(15);
 
-  // ตรวจสอบเซนเซอร์สีด้านหลัง (SDA=6, SCL=7)
-  tcs_back_addr = init_TCS_sensor(tcsB, Wire1, tcs_back_found);
+  // ตรวจสอบเซนเซอร์สีด้านข้าง (SDA=6, SCL=7)
+  // [FIX] ใช้ integration 24ms แทน 2.4ms: ค่า count สูงขึ้น ~10 เท่า ลดสัญญาณรบกวน (ค่าไม่รวน)
+  tcs_back_addr = init_TCS_sensor(tcsB, Wire1, tcs_back_found, TCS34725_INTEGRATIONTIME_24MS);
   if (tcs_back_found) {
     Serial.printf("[TCS Back] Found & initialized TCS3472 at I2C: 0x%02X (SDA=6, SCL=7, 400kHz)\n", tcs_back_addr);
   } else {
@@ -161,8 +169,11 @@ bool isConnected(uint8_t addr = 0) {
 bool isConnected_B(uint8_t addr = 0) {
   if (!tcs_back_found) return false;
   if (addr == 0) addr = tcs_back_addr;
+  mutex_enter_blocking(&wire1_mtx);
   Wire1.beginTransmission(addr);
-  return (Wire1.endTransmission() == 0);
+  bool ok = (Wire1.endTransmission() == 0);
+  mutex_exit(&wire1_mtx);
+  return ok;
 }
 
 // แคชผลการอ่านค่าสี เพื่อให้ R, G, B และ Lux เป็นข้อมูลเฟรมเดียวกันเป๊ะ และไม่สแปมบัส I2C
@@ -215,19 +226,34 @@ int Read_Color_TCS_B(int color_of_sensor)
   if (!tcs_back_found) return 0;
 
   unsigned long now = millis();
-  // อัปเดตเฟรมใหม่ทุก ~2ms
-  if (now - _tcs_b_last_read >= 2 || _tcs_b_last_read == 0) {
+  // [FIX] อ่านเฉพาะเมื่อครบรอบ integration (24ms) และเซนเซอร์แจ้งว่าข้อมูลใหม่พร้อม (AVALID)
+  if (now - _tcs_b_last_read >= 25 || _tcs_b_last_read == 0) {
+    mutex_enter_blocking(&wire1_mtx);
+    bool ready = tcsB.read8(TCS34725_STATUS) & TCS34725_STATUS_AVALID;
     uint16_t clearcol_lib = 0, red_lib = 0, green_lib = 0, blue_lib = 0;
-    if (readColorDirect(tcsB, red_lib, green_lib, blue_lib, clearcol_lib)) {
-      float average_lib = ((float)red_lib + (float)green_lib + (float)blue_lib) / 3.0f;
-      if (average_lib < 1.0f) average_lib = 1.0f;
+    bool ok = ready && readColorDirect(tcsB, red_lib, green_lib, blue_lib, clearcol_lib);
+    mutex_exit(&wire1_mtx);
+    if (ok) {
+      {
+        float average_lib = ((float)red_lib + (float)green_lib + (float)blue_lib) / 3.0f;
+        if (average_lib < 1.0f) average_lib = 1.0f;
 
-      _tcs_b_cached_r = (long)(((float)red_lib / average_lib) * 100.0f);
-      _tcs_b_cached_g = (long)(((float)green_lib / average_lib) * 100.0f);
-      _tcs_b_cached_b = (long)(((float)blue_lib / average_lib) * 100.0f);
-      _tcs_b_cached_temp = 0;
-      _tcs_b_cached_lux = (long)clearcol_lib;
-      _tcs_b_last_read = now;
+        long r = (long)(((float)red_lib / average_lib) * 100.0f);
+        long g = (long)(((float)green_lib / average_lib) * 100.0f);
+        long b = (long)(((float)blue_lib / average_lib) * 100.0f);
+        if (_tcs_b_last_read == 0) {
+          _tcs_b_cached_r = r; _tcs_b_cached_g = g; _tcs_b_cached_b = b;
+          _tcs_b_cached_lux = clearcol_lib;
+        } else {
+          // [FIX] กรองค่าแบบ EMA (50/50) ลดการกระโดดของค่า
+          _tcs_b_cached_r = (_tcs_b_cached_r + r) / 2;
+          _tcs_b_cached_g = (_tcs_b_cached_g + g) / 2;
+          _tcs_b_cached_b = (_tcs_b_cached_b + b) / 2;
+          _tcs_b_cached_lux = (_tcs_b_cached_lux + (long)clearcol_lib) / 2;
+        }
+        _tcs_b_cached_temp = 0;
+        _tcs_b_last_read = now;
+      }
     }
   }
 

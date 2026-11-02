@@ -465,8 +465,9 @@ inline void turnLeft(float speed) {
   stop_4w();
   delay(70);
 
-  float fast_spin = (speed > 60.0f) ? speed : 60.0f; // สะบัดตัวเร็ว 75-80% เหมือน Sisaket
-  float slow_spin = 25.0f;                           // ผ่อนความเร็วจับเส้นนุ่มนวล
+  float base_fast = (speed > 60.0f) ? speed : 60.0f; // สะบัดตัวเร็ว 75-80% เหมือน Sisaket
+  float fast_spin = constrain(base_fast + speed_offset_turn_left, 0.0f, 100.0f);
+  float slow_spin = constrain(25.0f + speed_offset_turn_left, 0.0f, 100.0f); // ผ่อนความเร็วจับเส้นนุ่มนวล
 
   // 2. จังหวะที่ 1: สะบัดตัวซ้ายอย่างเร็ว (sl) หลุดจากเส้นเดิมและกวาดหาเส้นใหม่
   sl_4w(fast_spin);
@@ -495,8 +496,9 @@ inline void turnRight(float speed) {
   stop_4w();
   delay(40);
 
-  float fast_spin = (speed > 60.0f) ? speed : 60.0f; // สะบัดตัวเร็ว 75% เหมือน Sisaket
-  float slow_spin = 25.0f;                           // ผ่อนความเร็วจับเส้นนุ่มนวล
+  float base_fast = (speed > 60.0f) ? speed : 60.0f; // สะบัดตัวเร็ว 75% เหมือน Sisaket
+  float fast_spin = constrain(base_fast + speed_offset_turn_right, 0.0f, 100.0f);
+  float slow_spin = constrain(25.0f + speed_offset_turn_right, 0.0f, 100.0f); // ผ่อนความเร็วจับเส้นนุ่มนวล
 
   // 2. จังหวะที่ 1: สะบัดตัวขวาอย่างเร็ว (sr) หลุดจากเส้นเดิมและกวาดหาเส้นใหม่
   sr_4w(fast_spin);
@@ -524,8 +526,9 @@ inline void turnLeft_B(float speed) {
   stop_4w();
   delay(40);
 
-  float fast_spin = (speed > 75.0f) ? speed : 75.0f;
-  float slow_spin = 25.0f;
+  float base_fast = (speed > 75.0f) ? speed : 75.0f;
+  float fast_spin = constrain(base_fast + speed_offset_turn_left, 0.0f, 100.0f);
+  float slow_spin = constrain(25.0f + speed_offset_turn_left, 0.0f, 100.0f);
 
   // ถอยหลังแล้วเลี้ยวซ้าย: ท้ายรถต้องเบี่ยงซ้าย หัวรถเบี่ยงขวา -> ใช้ sr_4w
   sr_4w(fast_spin);
@@ -551,8 +554,9 @@ inline void turnRight_B(float speed) {
   stop_4w();
   delay(40);
 
-  float fast_spin = (speed > 75.0f) ? speed : 75.0f;
-  float slow_spin = 25.0f;
+  float base_fast = (speed > 75.0f) ? speed : 75.0f;
+  float fast_spin = constrain(base_fast + speed_offset_turn_right, 0.0f, 100.0f);
+  float slow_spin = constrain(25.0f + speed_offset_turn_right, 0.0f, 100.0f);
 
   // ถอยหลังแล้วเลี้ยวขวา: ท้ายรถต้องเบี่ยงขวา หัวรถเบี่ยงซ้าย -> ใช้ sl_4w
   sl_4w(fast_spin);
@@ -572,8 +576,9 @@ inline void turnRight_B(float speed) {
 
 // turnLeft_by_stop: หมุนไปทางซ้าย (sl) จากจุดหยุดนิ่ง เข้าหาเส้นใหม่ (Two-Stage)
 inline void turnLeft_by_stop(float speed = 50.0f) {
-  float fast_spin = (speed > 50.0f) ? speed : 50.0f;
-  float slow_spin = 25.0f;
+  float base_fast = (speed > 50.0f) ? speed : 50.0f;
+  float fast_spin = constrain(base_fast + speed_offset_turn_left, 0.0f, 100.0f);
+  float slow_spin = constrain(25.0f + speed_offset_turn_left, 0.0f, 100.0f);
 
   sl_4w(fast_spin);
   delay(60); // หลุดออกจากขอบเดิมเล็กน้อย
@@ -592,8 +597,9 @@ inline void turnLeft_by_stop(float speed = 50.0f) {
 
 // turnRight_by_stop: หมุนไปทางขวา (sr) จากจุดหยุดนิ่ง เข้าหาเส้นใหม่ (Two-Stage)
 inline void turnRight_by_stop(float speed = 50.0f) {
-  float fast_spin = (speed > 50.0f) ? speed : 50.0f;
-  float slow_spin = 25.0f;
+  float base_fast = (speed > 50.0f) ? speed : 50.0f;
+  float fast_spin = constrain(base_fast + speed_offset_turn_right, 0.0f, 100.0f);
+  float slow_spin = constrain(25.0f + speed_offset_turn_right, 0.0f, 100.0f);
 
   sr_4w(fast_spin);
   delay(60); // หลุดออกจากขอบเดิมเล็กน้อย
