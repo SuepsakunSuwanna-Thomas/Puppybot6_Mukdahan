@@ -372,7 +372,7 @@ inline void Fline_by_Encoder_B(float speed, long target_pulses) { Fline_B_by_Enc
 // 8. วิ่งตามเส้นจนกว่าจะเจอกระป๋องด้วยเซนเซอร์ IR (Fline_until_can)
 // ============================================================================
 // วิ่งตามเส้นจนกว่าจะเจอกระป๋อง โดยผ่อนความเร็วลงเป็นระดับตั้งแต่เนิ่นๆ เข้าแตะนุ่มนวล ไม่ชน ไม่กระตุก
-inline void Fline_until_can(float speed = 25.0f, float stop_dist_cm = 5.0f, unsigned long timeout_ms = 4500) {
+inline void Fline_until_can(float speed = 30.0f, float stop_dist_cm = 5.0f, unsigned long timeout_ms = 4500) {
   reset_PID_state();
   unsigned long startT = millis();
 
@@ -384,17 +384,14 @@ inline void Fline_until_can(float speed = 25.0f, float stop_dist_cm = 5.0f, unsi
       break;
     }
 
-    // 2. ปรับลดความเร็วตามระยะทางแบบอัตโนมัติ (ยิ่งใกล้ยิ่งช้า)
+    // 2. ปรับลดความเร็วตามระยะทาง โดยคงแรงบิดไม่ให้มอเตอร์หยุดหมุน
     float run_speed = speed;
     if (dist <= stop_dist_cm + 3.0f) {
-      // ระยะประชิด (ห่างเป้าหมายไม่เกิน 3 cm): ย่องเบาๆ เข้าแตะ
-      run_speed = 12.0f;
-    } else if (dist <= stop_dist_cm + 8.0f) {
-      // ระยะเริ่มเห็น (ห่างเป้าหมาย 4 - 8 cm): ผ่อนความเร็วลงครึ่งหนึ่ง
-      run_speed = (speed > 18.0f) ? 18.0f : speed;
-    } else if (dist <= stop_dist_cm + 14.0f) {
-      // ระยะเริ่มเข้าใกล้: ผ่อนความเร็วลงเล็กน้อย
+      // ระยะประชิด (ห่างเป้าหมายไม่เกิน 3 cm): ความเร็วแตะนิ่มนวลแต่ยังมีแรงบิดหมุนล้อต่อเนื่อง
       run_speed = (speed > 22.0f) ? 22.0f : speed;
+    } else if (dist <= stop_dist_cm + 8.0f) {
+      // ระยะเริ่มเห็น (ห่างเป้าหมาย 4 - 8 cm): ผ่อนความเร็วลง
+      run_speed = (speed > 28.0f) ? 28.0f : speed;
     }
 
     lineFollow_PID_auto(run_speed);

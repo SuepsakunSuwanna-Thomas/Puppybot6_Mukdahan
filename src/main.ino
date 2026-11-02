@@ -72,7 +72,7 @@ void setup() {
 
    // 4. สั่งเซอร์โวเข้าตำแหน่งเริ่มต้น
    servoRun(1, 60);
-   servoRun(2, 86);
+   servoRun(2, 40);
    servoRun(3, 95);
 
 //   // ==========================================================================
@@ -92,16 +92,18 @@ void setup() {
    // เริ่มต้นภารกิจหลักในสนาม (เขียนคำสั่งภารกิจได้ที่ไฟล์ field_mission.ino)
   //  runFieldMission();
   //  test_auto_scan_6colors(40, 405); // หากสีหายไปนานเกินระยะห่างช่องสี (560p) จะนับเป็น "สีขาว" ทันท
-     get_Yellow();
-    //  put_from_HUB(2, false, 80);
-    //  get_Blue();
+    //  get_Yellow();
     //  put_from_HUB(1, false, 80);
+     get_Blue();
+    //  put_from_HUB(5, false, 80);
     //  get_Black();
     //  put_from_HUB(2, false, 80);     
     //  get_Green();
+    //  put_from_HUB(6, false, 80);
     //  get_Red();
+    //  put_from_HUB(3, false, 80);
     //  get_White();
-     put_from_HUB(1, false, 80);
+    //  put_from_HUB(4, false, 80);
        
 
 
