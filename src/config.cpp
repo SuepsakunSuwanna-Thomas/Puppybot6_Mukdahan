@@ -17,12 +17,12 @@ int motor_trim_M4 = -2;
 // เปอร์เซ็นต์ปรับเพิ่ม/ลดความเร็วมอเตอร์ทั้งหมด (Battery Compensation)
 // เช่น ใส่ 5.5 คือเพิ่มความเร็วขึ้น 5.5%, ใส่ -10.2 คือลดความเร็วลง 10.2%
 // หากวิ่ง 100 แล้วใส่ +5 จะถูกจำกัดที่ 100% สูงสุด
-float speed_offset_pct = -5.0f;
+float speed_offset_pct = 0.0f;
 
 // ตัวแปรแยกปรับเพิ่ม/ลดความเร็วในการเลี้ยวซ้ายและขวา (Turn Speed Offset รวมทั้งปกติและ bySTOP)
 // เช่น ใส่ 5.0 คือเร่งแรงสะบัดเลี้ยวขึ้น 5%, ใส่ -5.0 คือลดแรงสะบัดเลี้ยวลง 5%
-float speed_offset_turn_left = 10.0f;        // เลี้ยวซ้ายทั้งหมด (turnLeft, turnLeft_B, turnLeft_by_stop)
-float speed_offset_turn_right = 10.0f;       // เลี้ยวขวาทั้งหมด (turnRight, turnRight_B, turnRight_by_stop)
+float speed_offset_turn_left = 0.0f;        // เลี้ยวซ้ายทั้งหมด (turnLeft, turnLeft_B, turnLeft_by_stop)
+float speed_offset_turn_right = 0.0f;       // เลี้ยวขวาทั้งหมด (turnRight, turnRight_B, turnRight_by_stop)
 
 // ค่า KP และ KD สำหรับการวิ่งตามเส้น (เปลี่ยนที่นี่ค่าเดียว มีผลกับทุกฟังก์ชันวิ่งเส้น)
 float line_KP = 0.40f;   // KP วิ่งเดินหน้า (สูตร Sisaket: 0.40 - 0.45)

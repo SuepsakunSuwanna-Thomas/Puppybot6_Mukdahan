@@ -71,8 +71,8 @@ void setup() {
    set_data_for_turnDirection(1, 20, 70, 3, 5);
 
    // 4. สั่งเซอร์โวเข้าตำแหน่งเริ่มต้น
-   servoRun(1, 60);
-   servoRun(2, 40);
+   servoRun(1, 50);
+   servoRun(2, 20);
    servoRun(3, 95);
 
 //   // ==========================================================================
@@ -94,10 +94,10 @@ void setup() {
   //  test_auto_scan_6colors(40, 405); // หากสีหายไปนานเกินระยะห่างช่องสี (560p) จะนับเป็น "สีขาว" ทันท
     //  get_Yellow();
     //  put_from_HUB(1, false, 80);
-     get_Blue();
+    //  get_Blue();
     //  put_from_HUB(5, false, 80);
-    //  get_Black();
-    //  put_from_HUB(2, false, 80);     
+     get_Black();
+     put_from_HUB(2, false, 80);     
     //  get_Green();
     //  put_from_HUB(6, false, 80);
     //  get_Red();
