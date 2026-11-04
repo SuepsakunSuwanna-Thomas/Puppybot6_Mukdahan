@@ -22,9 +22,9 @@ const int SERVO_GRIPPER_CH = 2; // เซอร์โวมือจับหน
 
 // องศาเซอร์โว (สามารถปรับจูนตามกลไกของหุ่นได้ที่นี่)
 int GRIPPER_OPEN_ANG = 75; // องศากางมือจับออกสุด
-int GRIPPER_GRAB_ANG = 20;  // องศาหนีบกระป๋องแน่น
-int ARM_DOWN_ANG = 100;     // องศาลดแขนลงระดับคีบ/วางลงหลุมแท่น 5 cm
-int ARM_LIFT_ANG = 50;      // องศายกแขนขึ้นสูงพ้นแท่น 5 cm
+int GRIPPER_GRAB_ANG = 20; // องศาหนีบกระป๋องแน่น
+int ARM_DOWN_ANG = 100;    // องศาลดแขนลงระดับคีบ/วางลงหลุมแท่น 5 cm
+int ARM_LIFT_ANG = 50;     // องศายกแขนขึ้นสูงพ้นแท่น 5 cm
 
 // ระยะพัลส์เอ็นโค้ดเดอร์สำหรับเข้าไปคีบและวางกระป๋อง
 long ENCODER_CAN_APPROACH_PULSES = 100; // ระยะ PID เดินหน้าเข้าไปเอากระป๋องนิดนึง
@@ -38,13 +38,16 @@ int SPEED_WAREHOUSE = 28; // ความเร็วเข้าคลังส
 int SPEED_CONSUMER = 30;  // ความเร็วเข้าส่งลูกค้า
 int SPEED_RECALL = 28;    // ความเร็วภารกิจเรียกคืนสินค้า
 int SPEED_RETURN = 32;    // ความเร็ววิ่งกลับจุดสตาร์ท
-int speedl = 45;          // ความเร็วเลี้ยงซ้าย
+int speedl = 18;          // ความเร็วเลี้ยงซ้าย
 int speedr = 45;          // ความเร็วเลี้ยวขวา
 int speed1 = 60;          // ความเร็วก่อนเลี้ยว
 
 // การตั้งค่าระยะ IR สำหรับตรวจสอบกระป๋องในคลัง (ปรับจูนง่ายจากจุดนี้)
-float ir1 = 9.0f;  // ระยะต่ำสุดที่นับว่าเจอกระป๋อง (ซม.)
-float ir2 = 6.9f; // ระยะสูงสุดที่นับว่าเจอกระป๋อง (ซม.) หากเกินนี้ถือว่าไม่มีกระป๋อง
+float can_check_max_cm =
+    11.0f;        // ระยะสูงสุดที่นับว่าเจอกระป๋อง (ซม.) ถ้าไม่มีกระป๋องจะยิงทะลุเกินค่านี้
+float ir1 = 9.0f; // ระยะหยุดเมื่อเดินหน้าเข้าหากระป๋อง W1
+float ir2 = 6.5f; // ระยะหยุดเมื่อเดินหน้าเข้าหากระป๋อง W2
+float ir3 = 6.3f;
 
 // กำหนดสีที่หมดสต็อก หรือสีชำรุดล่วงหน้า (หากต้องการบังคับทดสอบ)
 RobotColor OUT_OF_STOCK_COLOR =
@@ -59,6 +62,7 @@ RobotColor RECALLED_COLOR =
 
 // คีบกระป๋องและยกขึ้นข้ามแท่น (Grab Can)
 inline void grabCan() {
+  delay(50);
   servoRun(SERVO_GRIPPER_CH, GRIPPER_GRAB_ANG); // หนีบกระป๋องแน่น
   delay(250);
   servoRun(SERVO_ARM_CH, ARM_LIFT_ANG); // ยกแขนข้ามแท่น 5 cm
@@ -73,6 +77,15 @@ inline void releaseCan() {
   delay(220);
   servoRun(SERVO_ARM_CH, ARM_LIFT_ANG); // ยกแขนขึ้นหลบขอบแท่น ไม่ให้เกี่ยวชน
   delay(150);
+}
+
+inline void to_hub() {
+    // 4. หันหลังกลับและวิ่งกลับมาตั้งลำที่จุด HUB (หันหน้าเข้าหา Consumer)
+    turnRight_B(45);
+    Fline_by_pass(30, 1);
+    Fline_by_time(40, 125);
+    turnLeft(40);
+    Fline_by_pass(80, 1);
 }
 
 // คำสั่งย่อสไตล์ Sisakat
@@ -98,7 +111,7 @@ inline void kang() {
 // ============================================================================
 inline bool checkCanPresent() {
   stop_4w();
-  delay(150); // หน่วงเวลาให้หุ่นยนต์หยุดนิ่งสนิทก่อนอ่านค่า
+  delay(250); // หน่วงเวลาให้หุ่นยนต์หยุดนิ่งสนิทก่อนอ่านค่า
 
   // อ่านค่าเฉลี่ยหลายครั้งเพื่อกรอง noise และความผันผวน
   float sum_dist = 0.0f;
@@ -119,9 +132,9 @@ inline bool checkCanPresent() {
   Serial.print(")");
 
   // เกณฑ์ตรวจจับกระป๋อง:
-  // - เมื่อจอดหน้าช่องคลัง กระป๋องจะอยู่ห่างประมาณ 4.0 - 16.0 ซม. (Raw ADC มักจะ > 180)
-  // - หากไม่มีกระป๋อง แสงจะยิงทะลุไปไกล (> 18.0 ซม. หรือ Raw ADC ต่ำมาก)
-  bool has_can = (dist_cm > 3.0f && dist_cm <= 16.0f) || (avg_raw >= 200);
+  // - มีกระป๋อง: ระยะต้องอยู่ใกล้ (3.0 ถึง can_check_max_cm)
+  // - ไม่มีกระป๋อง: แสงจะยิงทะลุ (> can_check_max_cm) -> ถือว่าสินค้าหมดสต็อก ไป W2
+  bool has_can = (dist_cm >= 3.0f && dist_cm <= can_check_max_cm);
 
   if (has_can) {
     Serial.println(" -> [OK] CAN FOUND! (มีสินค้าในคลัง)");
@@ -167,21 +180,13 @@ inline void get_Warehouse2_Spare(RobotColor color, int speed) {
     turnRight(40);
     Fline_by_pass(65, 1);
     Fline(20, 0);
-    turnLeft_by_stop(35);
+    turnLeft_by_stop(90);
     servoRun(SERVO_GRIPPER_CH,
              GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
-    delay(300);
-    servoRun(1, 60); // ยกแขนครอบตัวกระป๋อง
-    Fline_until_can(35, 7);
-    servoRun(2, 40);
-    // 4. หันหลังกลับและวิ่งกลับมาตั้งลำที่จุด HUB (หันหน้าเข้าหา Consumer)
-    Fline_B_by_time(40, 100);
-    turnLeft_by_stop(45);
-    turnLeft_by_stop(40);
-    turnRight(40);
-    Fline_by_pass(35, 1);
-    turnLeft(40);
-    Fline_by_pass(70, 1);
+    servoRun(1, 80);            // ยกแขนครอบตัวกระป๋อง
+    Fline_until_can(35, ir3);
+    grabCan();
+    to_hub();
     break;
 
   // ------------------------------------------------------------------------
@@ -191,25 +196,16 @@ inline void get_Warehouse2_Spare(RobotColor color, int speed) {
     Serial.println(
         "[W2 Route] Out of stock at BLUE -> Heading to Warehouse 2...");
     // 2. เลี้ยวขวามุ่งหน้าสู่คลังสำรอง W2
-    Fline_by_time(40, 300);
     turnRight(40);
     Fline_by_pass(65, 2);
     Fline(20, 0);
-    turnLeft_by_stop(35);
+    turnLeft_by_stop(90);
     servoRun(SERVO_GRIPPER_CH,
              GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
-    delay(300);
-    servoRun(1, 50); // ยกแขนครอบตัวกระป๋อง
-    Fline_until_can(35, 7);
-    servoRun(2, 90);
-    // 4. หันหลังกลับและวิ่งกลับมาตั้งลำที่จุด HUB (หันหน้าเข้าหา Consumer)
-    Fline_B_by_time(40, 100);
-    turnLeft_by_stop(45);
-    turnLeft_by_stop(40);
-    turnRight(40);
-    Fline_by_pass(35, 1);
-    turnLeft(40);
-    Fline_by_pass(70, 1);
+    servoRun(1, 80);            // ยกแขนครอบตัวกระป๋อง
+    Fline_until_can(35, ir3);
+    grabCan();
+    to_hub();
     break;
 
   // ------------------------------------------------------------------------
@@ -219,22 +215,16 @@ inline void get_Warehouse2_Spare(RobotColor color, int speed) {
     Serial.println(
         "[W2 Route] Out of stock at BLACK -> Heading to Warehouse 2...");
     // 1. ถอย/กลับตัวออกจากช่อง Black กลับเข้าสู่จุด HUB
+    Fline_by_time(90,180);
+    delay(50);
     turnRight(40);
     Fline(20, 0);
+    turnLeft_by_stop(90);
     servoRun(SERVO_GRIPPER_CH,
              GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
-    delay(300);
-    servoRun(1, 50); // ยกแขนครอบตัวกระป๋อง
-    Fline_until_can(35, 7);
-    servoRun(2, 90);
-    // 4. หันหลังกลับและวิ่งกลับมาตั้งลำที่จุด HUB (หันหน้าเข้าหา Consumer)
-    Fline_B_by_time(40, 100);
-    turnLeft_by_stop(45);
-    turnLeft_by_stop(40);
-    turnRight(40);
-    Fline_by_pass(35, 1);
-    turnLeft(40);
-    Fline_by_pass(70, 1);
+    servoRun(1, 80);            // ยกแขนครอบตัวกระป๋อง
+    Fline_until_can(35, ir3);
+    to_hub();
     break;
 
   // ------------------------------------------------------------------------
@@ -244,25 +234,17 @@ inline void get_Warehouse2_Spare(RobotColor color, int speed) {
     Serial.println(
         "[W2 Route] Out of stock at GREEN -> Heading to Warehouse 2...");
     // 2. เลี้ยวขวามุ่งหน้าสู่คลังสำรอง W2
-    Fline_B_by_time(40, 100);
-    Fline_B_by_time(40, 100);
-    turnRight_by_stop(45);
+    turnRight_by_stop(55);
+    delay(50);
     Fline_by_pass(65, 1);
-    turnLeft(35);
-    delay(300);
+    Fline(20, 0);
+    turnLeft_by_stop(90);
     servoRun(SERVO_GRIPPER_CH,
              GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
-    servoRun(1, 50);            // ยกแขนครอบตัวกระป๋อง
-    Fline_until_can(35, 7);
-    servoRun(2, 90);
-    // 4. หันหลังกลับและวิ่งกลับมาตั้งลำที่จุด HUB (หันหน้าเข้าหา Consumer)
-    Fline_B_by_time(40, 100);
-    turnLeft_by_stop(45);
-    turnLeft_by_stop(40);
-    turnRight(40);
-    Fline_by_pass(35, 1);
-    turnLeft(40);
-    Fline_by_pass(70, 1);
+    servoRun(1, 80);            // ยกแขนครอบตัวกระป๋อง
+    Fline_until_can(35, ir3);
+    grabCan();
+    to_hub();
     break;
 
   // ------------------------------------------------------------------------
@@ -271,26 +253,17 @@ inline void get_Warehouse2_Spare(RobotColor color, int speed) {
   case COLOR_RED:
     Serial.println(
         "[W2 Route] Out of stock at RED -> Heading to Warehouse 2...");
-    // 2. เลี้ยวขวามุ่งหน้าสู่คลังสำรอง W2
-    Fline_B_by_time(40, 100);
-    Fline_B_by_time(40, 100);
-    turnRight_by_stop(45);
+    turnRight_by_stop(55);
+    delay(50);
     Fline_by_pass(65, 2);
-    turnLeft(35);
-    delay(300);
+    Fline(20, 0);
+    turnLeft_by_stop(90);
     servoRun(SERVO_GRIPPER_CH,
              GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
-    servoRun(1, 50);            // ยกแขนครอบตัวกระป๋อง
-    Fline_until_can(35, 7);
-    servoRun(2, 90);
-    // 4. หันหลังกลับและวิ่งกลับมาตั้งลำที่จุด HUB (หันหน้าเข้าหา Consumer)
-    Fline_B_by_time(40, 100);
-    turnLeft_by_stop(45);
-    turnLeft_by_stop(40);
-    turnRight(40);
-    Fline_by_pass(35, 1);
-    turnLeft(40);
-    Fline_by_pass(70, 1);
+    servoRun(1, 80);            // ยกแขนครอบตัวกระป๋อง
+    Fline_until_can(35, ir3);
+    grabCan();
+    to_hub();
     break;
 
   // ------------------------------------------------------------------------
@@ -300,24 +273,16 @@ inline void get_Warehouse2_Spare(RobotColor color, int speed) {
     Serial.println(
         "[W2 Route] Out of stock at WHITE -> Heading to Warehouse 2...");
     // 2. เลี้ยวขวามุ่งหน้าสู่คลังสำรอง W2
-    Fline_B_by_time(40, 100);
-    Fline_B_by_time(40, 100);
-    turnRight_by_stop(45);
-    turnLeft(35);
-    delay(300);
+    turnRight_by_stop(55);
+    delay(50);
+    Fline(20, 0);
+    turnLeft_by_stop(90);
     servoRun(SERVO_GRIPPER_CH,
              GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
-    servoRun(1, 50);            // ยกแขนครอบตัวกระป๋อง
-    Fline_until_can(35, 7);
-    servoRun(2, 90);
-    // 4. หันหลังกลับและวิ่งกลับมาตั้งลำที่จุด HUB (หันหน้าเข้าหา Consumer)
-    Fline_B_by_time(40, 100);
-    turnLeft_by_stop(45);
-    turnLeft_by_stop(40);
-    turnRight(40);
-    Fline_by_pass(35, 1);
-    turnLeft(40);
-    Fline_by_pass(70, 1);
+    servoRun(1, 80);            // ยกแขนครอบตัวกระป๋อง
+    Fline_until_can(35, ir3);
+    grabCan();
+    to_hub();
     break;
 
   default:
@@ -361,8 +326,8 @@ inline void get_Yellow(int speed) {
   // Fline_by_pass(50, 1);
   // turnRight(35);
   // Fline_by_pass(100, 2);
-  // Fline_by_pass(65, 1);
-  Fline(20, 6);
+  Fline_by_pass(65, 1);
+  Fline(25, 6);
   // 2. เช็คว่ามีกระป๋องไหม
   bool has_can =
       (OUT_OF_STOCK_COLOR == COLOR_YELLOW) ? false : checkCanPresent();
@@ -373,12 +338,12 @@ inline void get_Yellow(int speed) {
   } else {
 
     // หากมีกระป๋อง:
-    Fline_B_by_time(40,120);
+    Fline_B_by_time(40, 120);
     servoRun(SERVO_GRIPPER_CH,
              GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
     delay(300);
     servoRun(SERVO_ARM_CH, ARM_DOWN_ANG); // ลดแขนลงครอบตัวกระป๋อง
-    Fline_until_can(20, ir1);
+    Fline_until_can(speed1, ir1);
     // ยกขึ้น
     grabCan();
 
@@ -408,7 +373,7 @@ inline void get_Blue(int speed) {
   turnRight(45);
   delay(250);
   Fline_B_by_time(50, 50);
-  Fline_by_time(50,50);
+  Fline_by_time(50, 50);
   // 2. เช็คว่ามีกระป๋องไหม
   bool has_can = (OUT_OF_STOCK_COLOR == COLOR_BLUE) ? false : checkCanPresent();
   if (!has_can) {
@@ -418,12 +383,12 @@ inline void get_Blue(int speed) {
   } else {
 
     // หากมีกระป๋อง:
-    Fline_B_by_time(40,270);
+    Fline_B_by_time(40, 270);
     servoRun(SERVO_GRIPPER_CH,
              GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
     delay(300);
     servoRun(SERVO_ARM_CH, ARM_DOWN_ANG); // ลดแขนลงครอบตัวกระป๋อง
-    Fline_until_can(20, ir1);
+    Fline_until_can(speed1, ir1);
     // ยกขึ้น
     grabCan();
 
@@ -451,7 +416,7 @@ inline void get_Black(int speed) {
   turnLeft(45);
   delay(250);
   Fline_B_by_time(50, 50);
-  Fline_by_time(50,50);
+  Fline_by_time(50, 50);
 
   // 2. เช็คว่ามีกระป๋องไหม
   bool has_can =
@@ -461,15 +426,15 @@ inline void get_Black(int speed) {
     return;
   }
 
-    // หากมีกระป๋อง:
-    Fline_B_by_time(40,270);
-    servoRun(SERVO_GRIPPER_CH,
-             GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
-    delay(300);
-    servoRun(SERVO_ARM_CH, ARM_DOWN_ANG); // ลดแขนลงครอบตัวกระป๋อง
-    Fline_until_can(20, ir1);
-    // ยกขึ้น
-    grabCan();
+  // หากมีกระป๋อง:
+  Fline_B_by_time(40, 270);
+  servoRun(SERVO_GRIPPER_CH,
+           GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
+  delay(300);
+  servoRun(SERVO_ARM_CH, ARM_DOWN_ANG); // ลดแขนลงครอบตัวกระป๋อง
+  Fline_until_can(speed1, ir1);
+  // ยกขึ้น
+  grabCan();
 
   //  ถอย
   Fline_B_by_time(20, 100);
@@ -502,15 +467,15 @@ inline void get_Green(int speed) {
     return;
   }
 
-    // หากมีกระป๋อง:
-    Fline_B_by_time(40,170);
-    servoRun(SERVO_GRIPPER_CH,
-             GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
-    delay(300);
-    servoRun(SERVO_ARM_CH, ARM_DOWN_ANG); // ลดแขนลงครอบตัวกระป๋อง
-    Fline_until_can(22, ir1);
-    // ยกขึ้น
-    grabCan();
+  // หากมีกระป๋อง:
+  Fline_B_by_time(40, 170);
+  servoRun(SERVO_GRIPPER_CH,
+           GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
+  delay(300);
+  servoRun(SERVO_ARM_CH, ARM_DOWN_ANG); // ลดแขนลงครอบตัวกระป๋อง
+  Fline_until_can(speed1, ir1);
+  // ยกขึ้น
+  grabCan();
 
   Fline_B_by_time(40, 30);
   // // หมุนตัวเพื่อให้หน้าอยู่ตรง HUB
@@ -535,7 +500,7 @@ inline void get_Red(int speed) {
   turnLeft(40);
   turnRight(45);
   Fline(40, 6), delay(250);
-  Fline_B_by_time(50, 115);
+
 
   // 2. เช็คว่ามีกระป๋องไหม
   bool has_can = (OUT_OF_STOCK_COLOR == COLOR_RED) ? false : checkCanPresent();
@@ -544,21 +509,22 @@ inline void get_Red(int speed) {
     return;
   }
 
-    // หากมีกระป๋อง:
-    servoRun(SERVO_GRIPPER_CH,
-             GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
-    delay(300);
-    servoRun(SERVO_ARM_CH, ARM_DOWN_ANG); // ลดแขนลงครอบตัวกระป๋อง
-    Fline_until_can(20, ir1);
-    // ยกขึ้น
-    grabCan();
+  // หากมีกระป๋อง:
+    Fline_B_by_time(50, 115);
+  servoRun(SERVO_GRIPPER_CH,
+           GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
+  delay(300);
+  servoRun(SERVO_ARM_CH, ARM_DOWN_ANG); // ลดแขนลงครอบตัวกระป๋อง
+  Fline_until_can(speed1, ir1);
+  // ยกขึ้น
+  grabCan();
 
   //  ถอย
   Fline_B_by_time(20, 100);
 
   // หมุน เลี้ยวซ้าย เลี้ยวขวา หน้าจะอยู่ตรง HUB
   turnRight_by_stop(45);
-  Fline_B_by_time(50,50);
+  Fline_B_by_time(50, 50);
   turnRight(45);
   Fline_by_pass(60, 1);
   delay(50);
@@ -577,7 +543,7 @@ inline void get_White(int speed) {
   turnRight(45);
   turnLeft(45);
   Fline(40, 6), delay(250);
-  Fline_B_by_time(50, 115);
+
 
   // 2. เช็คว่ามีกระป๋องไหม
   bool has_can =
@@ -587,21 +553,22 @@ inline void get_White(int speed) {
     return;
   }
 
-    // หากมีกระป๋อง:
-    servoRun(SERVO_GRIPPER_CH,
-             GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
-    delay(300);
-    servoRun(SERVO_ARM_CH, ARM_DOWN_ANG); // ลดแขนลงครอบตัวกระป๋อง
-    Fline_until_can(20, ir1);
-    // ยกขึ้น
-    grabCan();
+  // หากมีกระป๋อง:
+    Fline_B_by_time(50, 115);
+  servoRun(SERVO_GRIPPER_CH,
+           GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
+  delay(300);
+  servoRun(SERVO_ARM_CH, ARM_DOWN_ANG); // ลดแขนลงครอบตัวกระป๋อง
+  Fline_until_can(speed1, ir1);
+  // ยกขึ้น
+  grabCan();
 
   //  ถอย
   Fline_B_by_time(20, 100);
 
   // หมุน เลี้ยวขวา เลี้ยวซ้าย หน้าจะอยู่ที่ HUB
   turnLeft_by_stop(55);
-  Fline_B_by_time(50,50);
+  Fline_B_by_time(50, 50);
   turnLeft(40);
   Fline_by_pass(60, 1);
   delay(50);
@@ -629,12 +596,12 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
   // ------------------------------------------------------------------------
   case 1:
     Fline_by_pass(100, 1);
-    Fline_by_pass(50, 1);  
+    Fline_by_pass(50, 1);
     delay(20);
     turnLeft(35);
     delay(150);
     Fline_B_by_time(50, 50);
-    Fline_by_time(50,50);
+    Fline_by_time(50, 50);
     delay(200);
     Fline_B_by_time(60, 150);
     Fline_until_can(45, ir2);
@@ -657,12 +624,12 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
   // ------------------------------------------------------------------------
   case 2:
     Fline_by_pass(100, 1);
-    Fline_by_pass(50, 1);  
+    Fline_by_pass(50, 1);
     delay(20);
     turnRight(35);
     delay(150);
     Fline_B_by_time(50, 50);
-    Fline_by_time(50,50);
+    Fline_by_time(50, 50);
     delay(200);
     Fline_B_by_time(60, 150);
     Fline_until_can(45, ir2);

@@ -96,16 +96,15 @@ void setup() {
     //  put_from_HUB(1, false, 80);
     //  get_Blue();
     //  put_from_HUB(5, false, 80);
-     get_Black();
-     put_from_HUB(2, false, 80);     
+    //  get_Black();
+    //  put_from_HUB(2, false, 80);     
     //  get_Green();
     //  put_from_HUB(6, false, 80);
     //  get_Red();
     //  put_from_HUB(3, false, 80);
-    //  get_White();
+     get_White();
     //  put_from_HUB(4, false, 80);
        
-
 
 
  
