@@ -42,7 +42,7 @@ int GRIPPER_OPEN_ANG = 75; // องศากางมือจับออก�
 
 int GRIPPER_GRAB_ANG = 20; // องศาหนีบกระป๋องแน่น
 
-int ARM_DOWN_ANG = 115; // องศาลดแขนลงระดับคีบ/วางลงหลุมแท่น 5 cm
+int ARM_DOWN_ANG = 100; // องศาลดแขนลงระดับคีบ/วางลงหลุมแท่น 5 cm (ปรับยกขึ้น 15 องศาจากเดิม 115)
 
 int ARM_LIFT_ANG = 50; // องศายกแขนขึ้นสูงพ้นแท่น 5 cm
 
@@ -1054,12 +1054,20 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
 
     Fline_B_by_time(35, toy);
 
+    if (is_pickup) {
+      servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกเตรียมครอบกระป๋อง
+      delay(150);
+      servoRun(SERVO_ARM_CH, 80);                   // ยกแขนไว้ที่ 80 องศา ไม่ให้บังเซนเซอร์ IR
+      delay(150);
+    }
+
     Fline_until_can(30, ir2);
 
     delay(150);
 
     if (is_pickup) {
-
+      servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงต่ำระดับครอบตัวกระป๋อง
+      delay(200);
       grabCan(); // ยกขึ้น
 
     } else {
@@ -1100,12 +1108,20 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
 
     Fline_B_by_time(35, toy);
 
+    if (is_pickup) {
+      servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกเตรียมครอบกระป๋อง
+      delay(150);
+      servoRun(SERVO_ARM_CH, 80);                   // ยกแขนไว้ที่ 80 องศา ไม่ให้บังเซนเซอร์ IR
+      delay(150);
+    }
+
     Fline_until_can(30, ir2);
 
     delay(150);
 
     if (is_pickup) {
-
+      servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงต่ำระดับครอบตัวกระป๋อง
+      delay(200);
       grabCan(); // ยกขึ้น
 
     } else {
@@ -1142,12 +1158,20 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
 
     Fline_B_by_time(35, toy);
 
+    if (is_pickup) {
+      servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกเตรียมครอบกระป๋อง
+      delay(150);
+      servoRun(SERVO_ARM_CH, 80);                   // ยกแขนไว้ที่ 80 องศา ไม่ให้บังเซนเซอร์ IR
+      delay(150);
+    }
+
     Fline_until_can(30, ir2);
 
     delay(150);
 
     if (is_pickup) {
-
+      servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงต่ำระดับครอบตัวกระป๋อง
+      delay(200);
       grabCan(); // ยกขึ้น
 
     } else {
@@ -1184,12 +1208,20 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
 
     Fline_B_by_time(35, toy);
 
+    if (is_pickup) {
+      servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกเตรียมครอบกระป๋อง
+      delay(150);
+      servoRun(SERVO_ARM_CH, 80);                   // ยกแขนไว้ที่ 80 องศา ไม่ให้บังเซนเซอร์ IR
+      delay(150);
+    }
+
     Fline_until_can(30, ir2);
 
     delay(150);
 
     if (is_pickup) {
-
+      servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงต่ำระดับครอบตัวกระป๋อง
+      delay(200);
       grabCan(); // ยกขึ้น
 
     } else {
@@ -1221,12 +1253,20 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
 
     Fline_B_by_time(35, toy);
 
+    if (is_pickup) {
+      servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกเตรียมครอบกระป๋อง
+      delay(150);
+      servoRun(SERVO_ARM_CH, 80);                   // ยกแขนไว้ที่ 80 องศา ไม่ให้บังเซนเซอร์ IR
+      delay(150);
+    }
+
     Fline_until_can(30, ir2);
 
     delay(150);
 
     if (is_pickup) {
-
+      servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงต่ำระดับครอบตัวกระป๋อง
+      delay(200);
       grabCan(); // ยกขึ้น
 
     } else {
@@ -1256,12 +1296,20 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
 
     Fline_B_by_time(35, toy);
 
+    if (is_pickup) {
+      servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกเตรียมครอบกระป๋อง
+      delay(150);
+      servoRun(SERVO_ARM_CH, 80);                   // ยกแขนไว้ที่ 80 องศา ไม่ให้บังเซนเซอร์ IR
+      delay(150);
+    }
+
     Fline_until_can(30, ir2);
 
     delay(150);
 
     if (is_pickup) {
-
+      servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงต่ำระดับครอบตัวกระป๋อง
+      delay(200);
       grabCan(); // ยกขึ้น
 
     } else {
@@ -1297,6 +1345,79 @@ inline void put_from_HUB(int slot, bool is_pickup) {
 inline void put_from_HUB(int slot) {
 
   put_from_HUB(slot, false, SPEED_CONSUMER);
+}
+
+// ============================================================================
+// ฟังก์ชันแยกขั้นตอนสำหรับทดสอบภารกิจเรียกคืนสินค้าชำรุด (Modular Product Recall)
+// ============================================================================
+
+// [ขั้นตอนที่ 1] จาก HUB วิ่งไปคีบสินค้าชำรุดที่ช่องลูกค้า (1-6) แล้วพากลับมาที่ HUB
+inline void recall_step1_pickup_from_consumer(int slot) {
+  Serial.printf("\n>>> [RECALL STEP 1] Pickup defective can from slot #%d <<<\n", slot);
+  put_from_HUB(slot, true, SPEED_CONSUMER);
+  Serial.printf(">>> [RECALL STEP 1] Completed! Defective can is now at HUB <<<\n\n");
+  buzzer(2000, 100);
+}
+
+// [ขั้นตอนที่ 2] จาก HUB นำสินค้าชำรุดไปทิ้งลงจุดทิ้ง แล้วไปคีบกระป๋องสำรองอันใหม่ กลับมาที่ HUB
+inline void recall_step2_dispose_and_get_spare() {
+  Serial.println("\n>>> [RECALL STEP 2] Dispose defective can & Grab spare can <<<");
+
+  // 6. เลี้ยวขวา ผ่าน 1 เลี้ยวซ้าย วิ่งตามเอ็นโค้ดเดอร์ แล้ววางลง
+  Fline(40, 0);
+  Fline_by_time(70, 200);
+  turnRight(40);
+  Fline_by_pass(65, 1);
+  Fline(20, 0);
+  turnLeft_by_stop(90);
+
+  servoRun(1, 80); // ยกแขนเตรียมปล่อย
+  Fline_until_can(35, ir3);
+  delay(100);
+  servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับ ปล่อยของเสียลงจุดทิ้ง
+  delay(100);
+
+  // 7. ถอยหลัง PID ตามเอ็นโค้ดเดอร์ หมุนซ้าย ผ่าน 3 เส้น เลี้ยวขวา วิ่งเข้าไปตามเอ็นโค้ดเดอร์ แล้วยก
+  Fline_B(40, 0);
+  turnLeft_by_stop(20);
+  Fline_by_pass(40, 3);
+  delay(70);
+  turnRight(45);
+  servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
+  servoRun(1, 88);                              // ยกแขนระดับ 88 องศา ไม่บัง IR
+  Fline_until_can(35, ir3);
+  grabCan(); // ยกของชิ้นใหม่ทดแทนขึ้นมา
+
+  // 8. ถอยหลังตามเอ็นโค้ดเดอร์ หมุนขวา ผ่าน 1 เลี้ยวขวา ผ่าน 1 ก็เรียก HUB
+  Fline_B(40, 0);
+  turnRight_by_stop(20);
+  Fline_by_pass(50, 1);
+  delay(70);
+  turnRight(30);
+  Fline_by_pass(40, 1); // มาถึง HUB
+
+  Serial.println(">>> [RECALL STEP 2] Completed! Replacement can is now at HUB <<<\n");
+  buzzer(2200, 100);
+}
+
+// [ขั้นตอนที่ 3] จาก HUB นำกระป๋องใหม่ไปวางคืนที่ช่องลูกค้า (1-6) แล้วกลับมาที่ HUB
+inline void recall_step3_deliver_spare(int slot) {
+  Serial.printf("\n>>> [RECALL STEP 3] Deliver replacement can to slot #%d <<<\n", slot);
+  put_from_HUB(slot, false, SPEED_CONSUMER);
+  Serial.printf(">>> [RECALL STEP 3] Completed! Replacement delivered to slot #%d <<<\n\n", slot);
+  buzzer(2400, 150);
+}
+
+// ฟังก์ชันรวมทดสอบ Product Recall ครบทั้ง 3 สเต็ปจากจุด HUB โดยระบุช่องเป้าหมายได้โดยตรง (ไม่ต้องรอสแกนสี)
+inline void test_recall_mission(int slot) {
+  Serial.println("\n=======================================================");
+  Serial.printf("  STARTING TEST RECALL FROM HUB (Target Slot: %d)\n", slot);
+  Serial.println("=======================================================");
+  recall_step1_pickup_from_consumer(slot);
+  recall_step2_dispose_and_get_spare();
+  recall_step3_deliver_spare(slot);
+  Serial.println(">>> [ALL RECALL STEPS COMPLETED 100%] <<<");
+  buzzer(2600, 300);
 }
 
 // ============================================================================
@@ -1461,73 +1582,14 @@ inline void executeProductRecallExact(const RobotColor order_list[6],
   delay(50);
   // หน้าหันตรงเข้าหา Consumer ที่จุด HUB
 
-  // 5. วิ่งไปที่ช่องเรียกคืน ก็ยกขึ้นมา แล้วไปที่ HUB
+  // 5. วิ่งไปที่ช่องเรียกคืน ยกของเสียขึ้นมา แล้วนำกลับมาที่ HUB
+  recall_step1_pickup_from_consumer(recall_slot);
 
-  put_from_HUB(recall_slot, true,
+  // 6, 7, 8: นำของเสียไปทิ้งจุดทิ้ง แล้วไปคีบของใหม่ทดแทน นำกลับมาที่ HUB
+  recall_step2_dispose_and_get_spare();
 
-               SPEED_CONSUMER); // is_pickup = true (ยกของเสียออกมาแล้วกลับมา HUB)
-
-  // 6. เลี้ยวขวา ผ่าน 1 เลี้ยวซ้าย วิ่งตามเอ็นโค้ดเดอร์ แล้ววางลง
-
-  Fline(40, 0);
-
-  Fline_by_time(70,200);
-
-  turnRight(40);
-
-  Fline_by_pass(65, 1);
-
-  Fline(20, 0);
-
-  turnLeft_by_stop(90);
-
-  servoRun(1, 80); // ยกแขนครอบตัวกระป๋อง
-
-  Fline_until_can(35, ir3);
-
-  servoRun(SERVO_GRIPPER_CH,
-           GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
-
-  // 7. ถอยหลัง PID ตามเอ็นโค้ดเดอร์ หมุนซ้าย ผ่าน 3 เส้น เลี้ยวขวา วิ่งเข้าไปตามเอ็นโค้ดเดอร์
-
-  // แล้วยก
-
-  Fline_B(40, 0);
-
-  turnLeft_by_stop(20);
-
-  Fline_by_pass(40, 3);
-
-  delay(70);
-
-  turnRight(45);
-
-  servoRun(SERVO_GRIPPER_CH,
-           GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
-
-  servoRun(1, 88); // ยกแขนครอบตัวกระป๋อง
-
-  Fline_until_can(35, ir3);
-
-  grabCan(); // ยกของชิ้นใหม่ทดแทนขึ้นมา
-
-  // 8. ถอยหลังตามเอ็นโค้ดเดอร์ หมุนขวา ผ่าน 1 เลี้ยวขวา ผ่าน 1 ก็เรียก HUB
-
-  Fline_B(40, 0);
-
-  turnRight_by_stop(20);
-
-  Fline_by_pass(30, 1);
-
-  turnRight(30);
-
-  Fline_by_pass(40, 1); // มาถึง HUB
-
-  // 9. เรียก HUB ไปวางที่ช่องเดิม!
-
-  put_from_HUB(recall_slot, false,
-
-               SPEED_CONSUMER); // is_pickup = false (วางกระป๋องใหม่ลงหลุม)
+  // 9. เรียก HUB นำของใหม่ไปวางที่ช่องเดิม!
+  recall_step3_deliver_spare(recall_slot);
 
   Serial.println("[Recall] Product Recall Completed 100%!");
 

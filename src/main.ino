@@ -46,6 +46,11 @@ void put_from_HUB(int slot, bool is_pickup, int speed);
 void put_from_HUB(int slot, bool is_pickup);
 void put_from_HUB(int slot);
 
+void recall_step1_pickup_from_consumer(int slot);
+void recall_step2_dispose_and_get_spare();
+void recall_step3_deliver_spare(int slot);
+void test_recall_mission(int slot);
+
 int findConsumerForColor(RobotColor color, const RobotColor *order_list);
 void executeProductRecallExact(const RobotColor order_list[6], int speed);
 void executeProductRecallExact(const RobotColor order_list[6]);
@@ -86,19 +91,31 @@ void setup() {
 
 
    // =========================================================================
-   // ทดสอบภารกิจเรียกคืนสินค้าชำรุด (Product Recall Mission)
-   // *วางหุ่นยนต์ที่จุด HUB หันหน้าไปตามแนว HUB แล้วกดปุ่มเริ่มทำงาน*
+   // เมนูทดสอบภารกิจ (เลือกเปิดเฉพาะบรรทัดที่ต้องการทดสอบ)
+   // วางหุ่นยนต์ที่จุด HUB หันหน้าไปทางแถวช่องลูกค้า (Consumer)
    // =========================================================================
-   RobotColor test_orders[6] = {
-     COLOR_YELLOW, COLOR_BLUE, COLOR_BLACK, COLOR_GREEN, COLOR_RED, COLOR_WHITE
-   };
 
-   // เรียกใช้งานภารกิจเรียกคืนสินค้าชำรุดเต็มระบบ
-   executeProductRecallExact(test_orders);
+   // [แบบที่ 1] ทดสอบเฉพาะสเต็ป 1: จาก HUB วิ่งไปคีบของเสียที่ช่อง 1 แล้วกลับมา HUB
+   // (เปลี่ยนเลข 1 เป็นช่องที่ต้องการได้ เช่น 1, 2, 3, 4, 5, 6)
+  //  recall_step1_pickup_from_consumer(1);
 
-   // (หมายเหตุ: หากต้องการกลับไปรันภารกิจหลักเต็มรูปแบบ 19 ด่านจากจุด START
-   // ให้คอมเมนต์ executeProductRecallExact ข้างบน แล้วเปิดบรรทัดด้านล่างนี้แทน)
-   // runFieldMission();
+   // [แบบที่ 2] ทดสอบเฉพาะสเต็ป 2: นำของเสียจาก HUB ไปทิ้ง แล้วไปคีบของใหม่กลับมา HUB
+   // recall_step2_dispose_and_get_spare();
+
+   // [แบบที่ 3] ทดสอบเฉพาะสเต็ป 3: นำของใหม่จาก HUB ไปส่งคืนที่ช่อง 1 แล้วกลับมา HUB
+   // recall_step3_deliver_spare(1);
+
+   // [แบบที่ 4] ทดสอบครบ 3 สเต็ป จากจุด HUB ทันที (ระบุช่อง 1 โดยไม่ต้องรอสแกนสี)
+   // test_recall_mission(1);
+
+  // //  [แบบที่ 5] ภารกิจเรียกคืนสินค้าชำรุดเต็มระบบ (สแกนสีข้างตัว -> หาช่อง -> ทำ 3 สเต็ป)
+  //  RobotColor test_orders[6] = {
+  //    COLOR_YELLOW, COLOR_BLUE, COLOR_BLACK, COLOR_GREEN, COLOR_RED, COLOR_WHITE
+  //  };
+  //  executeProductRecallExact(test_orders);
+
+   // [แบบที่ 6] รันภารกิจจริงเต็มรูปแบบ 19 ด่านตั้งแต่จุด START
+   runFieldMission();
   
    
 
