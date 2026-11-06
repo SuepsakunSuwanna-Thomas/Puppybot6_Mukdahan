@@ -46,6 +46,7 @@ void put_from_HUB(int slot, bool is_pickup, int speed);
 void put_from_HUB(int slot, bool is_pickup);
 void put_from_HUB(int slot);
 
+int findConsumerForColor(RobotColor color, const RobotColor *order_list);
 void executeProductRecallExact(const RobotColor order_list[6], int speed);
 void executeProductRecallExact(const RobotColor order_list[6]);
 void returnToStartBox(int speed);
@@ -60,7 +61,7 @@ void setup() {
    Serial.begin(115200);
    Serial.println("PuppyBot6 Initializing...");
 
-//   // 1. กำหนดค่าเริ่มต้นพินเซนเซอร์หน้า 7 ตัว (0-6) และ หลัง 7 ตัว (7-13)
+   // 1. กำหนดค่าเริ่มต้นพินเซนเซอร์หน้า 7 ตัว (0-6) และ หลัง 7 ตัว (7-13)
    setup_sensors();
 
    // 2. โหลดค่าคาลิเบรตทั้งหมดจาก EEPROM (Front, Back, TCS Color, IR Distance)
@@ -75,45 +76,34 @@ void setup() {
    servoRun(2, 20);
    servoRun(3, 95);
 
-//   // ==========================================================================
-//   // [NEW] โหมดทดสอบผ่านหน้าเว็บ (WEB TEST LAB):
-//   // หากต้องการทดสอบคำสั่งต่างๆ (PID, 4WD Motor, Servo) ผ่านหน้าเว็บ Web Dashboard
-//   // ให้ยกเลิกคอมเมนต์บรรทัดด้านล่างนี้:
-//   // runSerialTestMode();   // ==========================================================================
-
    // 5. แสดงหน้าจอเริ่มต้น และตรวจจับการกดปุ่ม:
    // - กดค้าง (>= 700ms) = เข้าเมนูเลือกคาลิเบรตทีละอัน
    // - กดสั้น (< 700ms)  = เริ่มวิ่งภารกิจทันทีโดยใช้ค่าเดิมที่เคยจำไว้ใน EEPROM
    while (waitForStartOrCalibration()) {
      runCalibrationMenu();
    }
-   delay(290);
-
-   // เริ่มต้นภารกิจหลักในสนาม (เขียนคำสั่งภารกิจได้ที่ไฟล์ field_mission.ino)
-  //  runFieldMission();
-  //  test_auto_scan_6colors(40, 405); // หากสีหายไปนานเกินระยะห่างช่องสี (560p) จะนับเป็น "สีขาว" ทันท
-    //  get_Yellow();
-    //  put_from_HUB(1, false, 80);
-    //  get_Blue();
-    //  put_from_HUB(5, false, 80);
-    //  get_Black();
-    //  put_from_HUB(2, false, 80);     
-    //  get_Green();
-    //  put_from_HUB(6, false, 80);
-    //  get_Red();
-    //  put_from_HUB(3, false, 80);
-     get_White();
-    //  put_from_HUB(4, false, 80);
-       
+   
 
 
- 
- 
- 
-  }
+   // =========================================================================
+   // ทดสอบภารกิจเรียกคืนสินค้าชำรุด (Product Recall Mission)
+   // *วางหุ่นยนต์ที่จุด HUB หันหน้าไปตามแนว HUB แล้วกดปุ่มเริ่มทำงาน*
+   // =========================================================================
+   RobotColor test_orders[6] = {
+     COLOR_YELLOW, COLOR_BLUE, COLOR_BLACK, COLOR_GREEN, COLOR_RED, COLOR_WHITE
+   };
 
-// ============================================================================
-// LOOP: จัดการหน้าจอแสดงผลและการกดปุ่มหลังจากจบภารกิจ
+   // เรียกใช้งานภารกิจเรียกคืนสินค้าชำรุดเต็มระบบ
+   executeProductRecallExact(test_orders);
+
+   // (หมายเหตุ: หากต้องการกลับไปรันภารกิจหลักเต็มรูปแบบ 19 ด่านจากจุด START
+   // ให้คอมเมนต์ executeProductRecallExact ข้างบน แล้วเปิดบรรทัดด้านล่างนี้แทน)
+   // runFieldMission();
+  
+   
+
+}
+
 // ============================================================================
 void loop() {
   updateMissionUI();
