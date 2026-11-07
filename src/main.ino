@@ -24,6 +24,11 @@ void up();
 void down();
 void keeb();
 void kang();
+void prepareArmForDefectivePickup();
+void keeb_defective_can();
+void yok_defective_can();
+void pickupDefectiveCan();
+void releaseDefectiveToDisposal();
 bool checkCanPresent();
 
 void get_Warehouse2_Spare(RobotColor color, int speed);
@@ -51,6 +56,9 @@ void recall_step2_dispose_and_get_spare();
 void recall_step3_deliver_spare(int slot);
 void test_recall_mission(int slot);
 
+void test_side_color_live();
+RobotColor test_recall_scan_side_color();
+
 int findConsumerForColor(RobotColor color, const RobotColor *order_list);
 void executeProductRecallExact(const RobotColor order_list[6], int speed);
 void executeProductRecallExact(const RobotColor order_list[6]);
@@ -77,9 +85,9 @@ void setup() {
    set_data_for_turnDirection(1, 20, 70, 3, 5);
 
    // 4. สั่งเซอร์โวเข้าตำแหน่งเริ่มต้น
-   servoRun(1, 50);
+   servoRun(1, 10);
    servoRun(2, 20);
-   servoRun(3, 95);
+   servoRun(3, 93);
 
    // 5. แสดงหน้าจอเริ่มต้น และตรวจจับการกดปุ่ม:
    // - กดค้าง (>= 700ms) = เข้าเมนูเลือกคาลิเบรตทีละอัน
@@ -117,7 +125,31 @@ void setup() {
    // [แบบที่ 6] รันภารกิจจริงเต็มรูปแบบ 19 ด่านตั้งแต่จุด START
    runFieldMission();
   
-   
+  //  test_auto_scan_6colors();
+
+
+   // =========================================================================
+   // ทดสอบอ่านเซนเซอร์สีด้านข้าง (Side Color Sensor TCS)
+   // =========================================================================
+
+   // [แบบ A: จอดอยู่กับที่] กางแขนข้างออก (Servo 3) อ่านสีสดๆ แสดงบนจอ TFT + Serial
+   // นำกระป๋องสีต่างๆ (แดง เขียว น้ำเงิน เหลือง ขาว ดำ) มาจ่อทดสอบได้ทันที
+   // กดปุ่มบนบอร์ดเพื่อสิ้นสุดการทดสอบและหุบแขนเก็บ
+  //  test_side_color_live();
+
+   // [แบบ B: วิ่งสแกนจริงจากจุด HUB] วิ่งตามเส้นสแกนสีข้างตัวกระป๋องในภารกิจ Recall
+  //  test_recall_scan_side_color();
+
+   // (หากต้องการทดสอบวางกระป๋อง ให้เปิดบรรทัดด้านล่างนี้)
+  //  get_Yellow();
+  //  put_from_HUB(1);
+  //  get_Blue();
+  //  put_from_HUB(3);
+  //  get_Black();
+  //  put_from_HUB(5);
+
+
+
 
 }
 

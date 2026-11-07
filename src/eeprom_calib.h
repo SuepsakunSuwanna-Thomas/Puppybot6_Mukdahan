@@ -386,9 +386,9 @@ inline void calibrateTCSColorSensor(bool isSideSensor) {
   const char* headerTitle = isSideSensor ? "CALIB TCS SIDE (CANS)" : "CALIB TCS FLOOR (FLD)";
   const char* placeHint   = isSideSensor ? "SIDE OBJECT/CAN" : "FLOOR SURFACE";
 
-  // หากเป็นเซนเซอร์ด้านข้าง (ตัวที่ 2) ให้กางแขน/เลื่อนเซอร์โว 3 ไปที่ 5 องศาเพื่ออ่านสี
+  // หากเป็นเซนเซอร์ด้านข้าง (ตัวที่ 2) ให้กางแขน/เลื่อนเซอร์โว 3 ไปที่ 45 องศาเพื่ออ่านสี
   if (isSideSensor) {
-    servoRun(3, 5);
+    servoRun(3, 45);
     delay(200);
   }
 

@@ -491,12 +491,11 @@ inline RobotColor detectColorBack() {
   int clear_val = Read_Color_TCS_B(4);
 
   if (r == 0 && g == 0 && b == 0) return COLOR_UNKNOWN;
-  if (clear_val < 20) return COLOR_BLACK;
 
   int bestColor = COLOR_UNKNOWN;
-  long minDiff = 1000000;
+  long minDiff = 100000000;
 
-  for (int c = 0; c < 5; c++) { // ตรวจสอบครบทั้ง 5 สี รวมทั้ง WHITE
+  for (int c = 0; c < 6; c++) { // ตรวจสอบครบทั้ง 6 สีจริงจาก EEPROM ([0]=RED, [1]=GREEN, [2]=BLUE, [3]=YELLOW, [4]=WHITE, [5]=BLACK)
     long dr = r - calib.tcs_back_rgb[c][0];
     long dg = g - calib.tcs_back_rgb[c][1];
     long db = b - calib.tcs_back_rgb[c][2];
@@ -512,10 +511,6 @@ inline RobotColor detectColorBack() {
       minDiff = diff;
       bestColor = c + 1;
     }
-  }
-
-  if (bestColor == COLOR_WHITE && clear_val < 220) {
-    return COLOR_BLACK;
   }
 
   return (RobotColor)bestColor;

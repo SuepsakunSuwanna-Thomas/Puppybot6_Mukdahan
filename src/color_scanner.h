@@ -310,7 +310,7 @@ inline void test_start_and_scan_colors(int speed = 30, int max_slots = 6) {
 
   enforceUnique6Colors(mission_summary);
   mission_summary.completed = true;
-  drawColorSummaryScreen();
+  // drawColorSummaryScreen(); // เอาดีเลย์วาดหน้าจอตอนท้ายออก ให้หุ่นยนต์วิ่งต่อเนื่องได้ทันที
 }
 
 // ฟังก์ชันทางเลือกชื่อเดียวกัน
@@ -549,7 +549,7 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
 
   // วิ่งสแกนเรียบร้อยแล้ว สั่งหยุดสนิททันที
   stop_4w();
-  buzzer(1800, 200);
+  // buzzer(1800, 200); // เอาดีเลย์บัซเซอร์ 200ms ออก
   Serial.printf("\n=== SCAN MOTOR STOPPED at pulse %ld (Total Colored Strips Found: %d) ===\n",
                 abs(get_pulse_Encoder(selection_Encoder) - baseline_pulse), found_count);
 
@@ -728,7 +728,7 @@ inline void test_auto_scan_6colors(int speed = 30, long initial_skip_pulses = -1
   enforceUnique6Colors(mission_summary);
 
   mission_summary.completed = true;
-  drawColorSummaryScreen();
+  // drawColorSummaryScreen(); // เอาดีเลย์วาดหน้าจอตอนท้ายออก ให้หุ่นยนต์วิ่งต่อเนื่องได้ทันที
 }
 
 // ============================================================================

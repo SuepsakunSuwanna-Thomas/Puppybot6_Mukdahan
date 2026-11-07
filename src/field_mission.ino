@@ -36,15 +36,38 @@ const int SERVO_ARM_CH = 1; // เซอร์โวยกแขนขึ้น-
 
 const int SERVO_GRIPPER_CH = 2; // เซอร์โวมือจับหนีบกระป๋อง (ช่อง 2)
 
-// องศาเซอร์โว (สามารถปรับจูนตามกลไกของหุ่นได้ที่นี่)
+const int SERVO_SIDE_CH = 3; // เซอร์โวกางแขนอ่านสีด้านข้าง (ช่อง 3)
+
+// ============================================================================
+// องศาเซอร์โว (สามารถปรับจูนตามกลไกของหุ่นได้ที่นี่ - แก้จุดนี้ที่เดียวมีผลทั้งระบบ)
+// ============================================================================
 
 int GRIPPER_OPEN_ANG = 75; // องศากางมือจับออกสุด
 
 int GRIPPER_GRAB_ANG = 20; // องศาหนีบกระป๋องแน่น
 
-int ARM_DOWN_ANG = 100; // องศาลดแขนลงระดับคีบ/วางลงหลุมแท่น 5 cm (ปรับยกขึ้น 15 องศาจากเดิม 115)
+int ARM_DOWN_ANG =
+    100; // องศาลดแขนลงระดับคีบ/วางลงหลุมแท่น 5 cm (ปรับยกขึ้น 15 องศาจากเดิม 115)
 
-int ARM_LIFT_ANG = 50; // องศายกแขนขึ้นสูงพ้นแท่น 5 cm
+int ARM_LIFT_ANG = 30; // องศายกแขนขึ้นสูงพ้นแท่น (ยกขึ้นอีก 20 องศา จากเดิม 50)
+
+// ****************************************************************************
+// [จุดแก้ที่เดียว] องศาเซอร์โวภารกิจเรียกคืนสินค้าชำรุด (Product Recall)
+// ปรับแก้ค่าตรงนี้ที่เดียว แยกชัดเจนทุกสเต็ป (คีบ / ยก / เอาไปทิ้ง):
+// ****************************************************************************
+
+// --- 1. สเต็ปไปหยิบสินค้าชำรุดที่ช่องลูกค้า (Step 1) ---
+int ARM_PICKUP_APPROACH_ANG = 65; // องศาเตรียมแขนตอนวิ่งเข้าไปหยิบสินค้าชำรุด (ไม่บังเซนเซอร์ IR)
+int ARM_PICKUP_GRAB_ANG     = 65; // องศาลดแขนลงคีบสินค้าชำรุด (ตอนคีบ)
+int ARM_PICKUP_LIFT_ANG     = 0;  // องศายกแขนขึ้นหลังคีบเสร็จ (ตอนยก - ทำแยกกัน)
+
+// --- 2. สเต็ปเอาสินค้าชำรุดไปทิ้งที่จุดทิ้ง (Step 2 - ทำแยกต่างหาก) ---
+int ARM_DISPOSE_APPROACH_ANG = 80; // องศาแขนตอนถือของชำรุดวิ่งเข้าไปจุดทิ้ง (แก้ที่เดียว)
+int ARM_DISPOSE_LIFT_ANG     = 0;  // องศายกแขนขึ้นหลังปล่อยของเสียลงจุดทิ้งแล้ว (แก้ที่เดียว)
+
+int SIDE_ARM_DEPLOY_ANG = 48; // องศากางแขนเซนเซอร์ข้างออกเพื่ออ่านสี (45 องศา)
+
+int SIDE_ARM_RETRACT_ANG = 95; // องศาหุบแขนเซนเซอร์ข้างเก็บ (95 องศา)
 
 // ระยะพัลส์เอ็นโค้ดเดอร์สำหรับเข้าไปคีบและวางกระป๋อง
 
@@ -72,25 +95,28 @@ int speedl = 18; // ความเร็วเลี้ยงซ้าย
 
 int speedr = 45; // ความเร็วเลี้ยวขวา
 
-int speed1 = 12; // ความเร็วก่อนเลี้ยว
+int speed1 = 14; // ความเร็วก่อนเลี้ยว
 
-int toy = 220; // ถอย
+int toy = 180; // ถอย
 
-int rv1 = 31; // เลี้ยวก่อนวาง
-int rv2 = 32; // เลี้ยวก่อนวาง
-int rv3 = 33; // เลี้ยวก่อนวาง
+int de = 200; // ดีเลก่อนเดินไปวาง
+
+int rv1 = 48; // เลี้ยวก่อนวาง
+int rv2 = 48; // เลี้ยวก่อนวาง
+int rv3 = 48; // เลี้ยวก่อนวาง
 
 // การตั้งค่าระยะ IR สำหรับตรวจสอบกระป๋องในคลัง (ปรับจูนง่ายจากจุดนี้)
 
 float can_check_max_cm =
 
-    12.0f; // ระยะสูงสุดที่นับว่าเจอกระป๋อง (ซม.) ตั้งไว้ 12.0 cm เพื่อให้อยู่ระหว่างกระป๋องเหลือง (~11 cm) และกระป๋องเขียว (~13 cm)
+    10.0f; // ระยะสูงสุดที่นับว่าเจอกระป๋อง (ซม.) ตั้งไว้ 12.0 cm เพื่อให้อยู่ระหว่างกระป๋องเหลือง
+           // (~11 cm) และกระป๋องเขียว (~13 cm)
 
-float ir1 = 6.2f; // ระยะหยุดเมื่อเดินหน้าเข้าหากระป๋อง W1
+float ir1 = 6.4f; // ระยะหยุดเมื่อเดินหน้าเข้าหากระป๋อง W1
 
-float ir2 = 6.0f; // ระยะหยุดเมื่อเดินหน้าเข้าหากระป๋อง W2
+float ir2 = 7.0f; // ระยะหยุดเมื่อเดินหน้าเข้าหากระป๋อง W2
 
-float ir3 = 5.5f;
+float ir3 = 5.9f;
 
 // กำหนดสีที่หมดสต็อก หรือสีชำรุดล่วงหน้า (หากต้องการบังคับทดสอบ)
 
@@ -114,7 +140,7 @@ RobotColor RECALLED_COLOR =
 
 inline void grabCan() {
 
-  delay(50);
+  delay(30);
 
   servoRun(SERVO_GRIPPER_CH, GRIPPER_GRAB_ANG); // หนีบกระป๋องแน่น
 
@@ -129,7 +155,7 @@ inline void grabCan() {
 
 inline void releaseCan() {
 
-  servoRun(SERVO_ARM_CH, 90); // ลดระดับลงใกล้ปากหลุม
+  servoRun(SERVO_ARM_CH, 65); // ลดระดับลงใกล้ปากหลุม
 
   delay(220);
 
@@ -140,6 +166,50 @@ inline void releaseCan() {
   servoRun(SERVO_ARM_CH, ARM_LIFT_ANG); // ยกแขนขึ้นหลบขอบแท่น ไม่ให้เกี่ยวชน
 
   delay(150);
+}
+
+// ----------------------------------------------------------------------------
+// ฟังก์ชันกลางสำหรับการหยิบสินค้าชำรุด (ปรับแก้ตรรกะที่นี่ที่เดียว มีผลทุกช่อง 1-6)
+// ----------------------------------------------------------------------------
+
+// 1. เตรียมแขนตอนวิ่งเข้าไปหยิบสินค้าชำรุด (กางมือจับ + ยกแขนไม่บัง IR)
+inline void prepareArmForDefectivePickup() {
+  servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกเตรียมครอบกระป๋อง
+  delay(150);
+  servoRun(SERVO_ARM_CH, ARM_PICKUP_APPROACH_ANG); // ยกแขนตามค่าที่ตั้งไว้ (ARM_PICKUP_APPROACH_ANG)
+  delay(150);
+}
+
+// 2. คำสั่งคีบสินค้าชำรุด (ลดแขนลงระดับคีบ + หนีบมือจับแน่น)
+inline void keeb_defective_can() {
+  servoRun(SERVO_ARM_CH, ARM_PICKUP_GRAB_ANG); // ลดแขนลงระดับคีบของชำรุด (ARM_PICKUP_GRAB_ANG)
+  delay(200);
+  servoRun(SERVO_GRIPPER_CH, GRIPPER_GRAB_ANG); // หนีบกระป๋องแน่น
+  delay(250);
+}
+
+// 3. คำสั่งยกสินค้าชำรุดหลังคีบ (ทำแยกกัน ไม่รวมกับตอนคีบ)
+inline void yok_defective_can() {
+  servoRun(SERVO_ARM_CH, ARM_PICKUP_LIFT_ANG); // สั่งยกแขนขึ้นพ้นแท่นหลุม (ARM_PICKUP_LIFT_ANG)
+  delay(250);
+}
+
+// 4. ฟังก์ชันรวม: คีบ แล้วตามด้วย ยก (ทำแยกกันเป็น 2 สเต็ป)
+inline void pickupDefectiveCan() {
+  keeb_defective_can(); // สเต็ป 1: คีบ
+  yok_defective_can();  // สเต็ป 2: หลังคีบต้องยกด้วย (ทำแยกกัน)
+}
+
+// ----------------------------------------------------------------------------
+// ฟังก์ชันสำหรับนำสินค้าชำรุดไปทิ้งที่จุดทิ้ง (Step 2 - ทำแยกต่างหาก)
+// ----------------------------------------------------------------------------
+
+// คำสั่งปล่อยสินค้าชำรุดลงจุดทิ้ง แล้วยกแขนหลบ (ทำแยกกัน)
+inline void releaseDefectiveToDisposal() {
+  servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับ ปล่อยของเสียลงจุดทิ้ง
+  delay(250);
+  servoRun(SERVO_ARM_CH, ARM_DISPOSE_LIFT_ANG); // สั่งยกแขนขึ้นหลบขอบจุดทิ้ง (ARM_DISPOSE_LIFT_ANG)
+  delay(200);
 }
 
 inline void to_hub() {
@@ -243,7 +313,6 @@ inline bool checkCanPresent() {
   // - ไม่มีกระป๋อง: แสงจะยิงทะลุเกินระยะนี้ -> ถือว่าสินค้าหมดสต็อก ไป W2
   bool has_can = (dist_cm <= can_check_max_cm);
 
-
   if (has_can) {
 
     Serial.println(" -> [OK] CAN FOUND! (มีสินค้าในคลัง)");
@@ -315,7 +384,7 @@ inline void get_Warehouse2_Spare(RobotColor color, int speed) {
 
     // 2. เลี้ยวขวามุ่งหน้าสู่คลังสำรอง W2
 
-    Fline_by_time(70,250);
+    Fline_by_time(70, 250);
 
     turnRight(40);
 
@@ -329,7 +398,7 @@ inline void get_Warehouse2_Spare(RobotColor color, int speed) {
 
              GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
 
-    servoRun(1, 80); // ยกแขนครอบตัวกระป๋อง
+    servoRun(1, 48); // ยกแขนครอบตัวกระป๋อง
 
     Fline_until_can(35, ir3);
 
@@ -353,6 +422,8 @@ inline void get_Warehouse2_Spare(RobotColor color, int speed) {
 
     // 2. เลี้ยวขวามุ่งหน้าสู่คลังสำรอง W2
 
+   Fline_by_time(90, 180); 
+
     turnRight(40);
 
     Fline_by_pass(65, 2);
@@ -365,7 +436,7 @@ inline void get_Warehouse2_Spare(RobotColor color, int speed) {
 
              GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
 
-    servoRun(1, 80); // ยกแขนครอบตัวกระป๋อง
+    servoRun(1, 48); // ยกแขนครอบตัวกระป๋อง
 
     Fline_until_can(35, ir3);
 
@@ -403,7 +474,7 @@ inline void get_Warehouse2_Spare(RobotColor color, int speed) {
 
              GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
 
-    servoRun(1, 80); // ยกแขนครอบตัวกระป๋อง
+    servoRun(1, 48); // ยกแขนครอบตัวกระป๋อง
 
     Fline_until_can(35, ir3);
 
@@ -439,7 +510,7 @@ inline void get_Warehouse2_Spare(RobotColor color, int speed) {
 
              GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
 
-    servoRun(1, 80); // ยกแขนครอบตัวกระป๋อง
+    servoRun(1, 48); // ยกแขนครอบตัวกระป๋อง
 
     Fline_until_can(35, ir3);
 
@@ -475,7 +546,7 @@ inline void get_Warehouse2_Spare(RobotColor color, int speed) {
 
              GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
 
-    servoRun(1, 80); // ยกแขนครอบตัวกระป๋อง
+    servoRun(1, 48); // ยกแขนครอบตัวกระป๋อง
 
     Fline_until_can(35, ir3);
 
@@ -511,7 +582,7 @@ inline void get_Warehouse2_Spare(RobotColor color, int speed) {
 
              GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
 
-    servoRun(1, 88); // ยกแขนครอบตัวกระป๋อง
+    servoRun(1, 48); // ยกแขนครอบตัวกระป๋อง
 
     Fline_until_can(35, ir3);
 
@@ -594,9 +665,9 @@ inline void get_Yellow(int speed) {
 
   Fline_by_pass(65, 1);
 
-  Fline(25, 6);
+  Fline(35, 6);
 
-  delay(100);
+  delay(300);
 
   // 2. เช็คว่ามีกระป๋องไหม
 
@@ -636,15 +707,13 @@ inline void get_Yellow(int speed) {
 
     // Backword_Notline_by_Encoder(speed, ENCODER_CAN_BACKUP_PULSES);
 
-    Fline_B_by_time(40, 30);
+    Fline_B_by_time(40, 220);
+    delay(70);
 
     // // หมุนตัวเพื่อให้หน้าอยู่ตรง HUB
 
     turnLeft_by_stop(40);
 
-    Fline_B_by_time(40, 40);
-
-    turnLeft_by_stop(40);
 
     delay(50);
   }
@@ -666,7 +735,7 @@ inline void get_Blue(int speed) {
 
   // 1. หมุนซ้าย เลี้ยวขวา
 
-  servoRun(SERVO_ARM_CH, 50);
+  servoRun(SERVO_ARM_CH, ARM_LIFT_ANG);
 
   turnLeft(40);
 
@@ -675,6 +744,7 @@ inline void get_Blue(int speed) {
   delay(250);
 
   Fline_B_by_time(50, 50);
+  delay(100);
   Fline_by_time(50, 50);
 
   delay(100);
@@ -740,16 +810,17 @@ inline void get_Black(int speed) {
 
   // 1. หมุนขวา เลี้ยวซ้าย
 
-  servoRun(SERVO_ARM_CH, 50);
+  servoRun(SERVO_ARM_CH, ARM_LIFT_ANG);
 
   turnRight(40);
 
-  turnLeft(45);
+  turnLeft(43);
 
   delay(250);
 
-  Fline_B_by_time(50, 150);
-  Fline_by_time(50, 130);
+  Fline_B_by_time(50, 60);
+  delay(100);
+  Fline_by_time(50, 60);
 
   delay(100);
 
@@ -768,7 +839,7 @@ inline void get_Black(int speed) {
 
   // หากมีกระป๋อง:
 
-  Fline_B_by_time(30, 285);
+  Fline_B_by_time(40, 175);
 
   servoRun(SERVO_GRIPPER_CH,
 
@@ -811,11 +882,13 @@ inline void get_Green(int speed) {
 
   // 1. วิ่งผ่าน 1 เส้นถอยหลังตามเอ็นโค้ดเดอร์นิดนึง
 
-  servoRun(SERVO_ARM_CH, 50);
+  servoRun(SERVO_ARM_CH, ARM_LIFT_ANG);
 
   Fline_by_pass(65, 1);
 
   Fline(40, 6);
+
+  delay(500);
 
   // 2. เช็คว่ามีกระป๋องไหม
 
@@ -848,7 +921,8 @@ inline void get_Green(int speed) {
 
   grabCan();
 
-  Fline_B_by_time(40, 30);
+  Fline_B_by_time(40, 220);
+  delay(70);
 
   // // หมุนตัวเพื่อให้หน้าอยู่ตรง HUB
 
@@ -856,11 +930,6 @@ inline void get_Green(int speed) {
 
   // Backword_Notline_by_Encoder(40, 160);
 
-  Fline_B_by_time(40, 50);
-
-  turnLeft_by_stop(43);
-
-  Fline_by_pass(60, 1);
 
   delay(50);
 
@@ -879,7 +948,7 @@ inline void get_Red(int speed) {
 
   // 1. หมุนซ้าย เลี้ยวขวา ผ่าน1
 
-  servoRun(SERVO_ARM_CH, 50);
+  servoRun(SERVO_ARM_CH, ARM_LIFT_ANG);
 
   turnLeft(40);
 
@@ -947,7 +1016,7 @@ inline void get_White(int speed) {
 
   // 1. หมุนซ้าย เลี้ยวขวา ผ่าน1
 
-  servoRun(SERVO_ARM_CH, 50);
+  servoRun(SERVO_ARM_CH, ARM_LIFT_ANG);
 
   turnRight(45);
 
@@ -1052,13 +1121,12 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
 
     turnLeft(rv1);
 
+    delay(de);
+
     Fline_B_by_time(35, toy);
 
     if (is_pickup) {
-      servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกเตรียมครอบกระป๋อง
-      delay(150);
-      servoRun(SERVO_ARM_CH, 80);                   // ยกแขนไว้ที่ 80 องศา ไม่ให้บังเซนเซอร์ IR
-      delay(150);
+      prepareArmForDefectivePickup();
     }
 
     Fline_until_can(30, ir2);
@@ -1066,17 +1134,13 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
     delay(150);
 
     if (is_pickup) {
-      servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงต่ำระดับครอบตัวกระป๋อง
-      delay(200);
-      grabCan(); // ยกขึ้น
-
+      keeb_defective_can(); // 1. คีบสินค้าชำรุด
+      yok_defective_can();  // 2. หลังคีบต้องยกด้วย (ทำแยกกัน)
     } else {
-
-      releaseCan(); // วางลงหลุม
+      releaseCan();
     }
 
     Fline_B_by_time(40, 100);
-
     turnLeft_by_stop(55);
 
     Fline_by_pass(80, 2);
@@ -1106,13 +1170,12 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
 
     turnRight(rv1);
 
+    delay(de);
+
     Fline_B_by_time(35, toy);
 
     if (is_pickup) {
-      servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกเตรียมครอบกระป๋อง
-      delay(150);
-      servoRun(SERVO_ARM_CH, 80);                   // ยกแขนไว้ที่ 80 องศา ไม่ให้บังเซนเซอร์ IR
-      delay(150);
+      prepareArmForDefectivePickup();
     }
 
     Fline_until_can(30, ir2);
@@ -1120,18 +1183,14 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
     delay(150);
 
     if (is_pickup) {
-      servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงต่ำระดับครอบตัวกระป๋อง
-      delay(200);
-      grabCan(); // ยกขึ้น
-
+      keeb_defective_can(); // 1. คีบสินค้าชำรุด
+      yok_defective_can();  // 2. หลังคีบต้องยกด้วย (ทำแยกกัน)
     } else {
-
-      releaseCan(); // วางลงหลุม
+      releaseCan();
     }
 
-    Fline_B_by_time(40, 115);
-
-    turnRight_by_stop(55);
+    Fline_B_by_time(40, 100);
+    turnLeft_by_stop(55);
 
     Fline_by_pass(80, 2);
 
@@ -1156,13 +1215,12 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
 
     turnLeft(rv2);
 
+    delay(de);
+
     Fline_B_by_time(35, toy);
 
     if (is_pickup) {
-      servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกเตรียมครอบกระป๋อง
-      delay(150);
-      servoRun(SERVO_ARM_CH, 80);                   // ยกแขนไว้ที่ 80 องศา ไม่ให้บังเซนเซอร์ IR
-      delay(150);
+      prepareArmForDefectivePickup();
     }
 
     Fline_until_can(30, ir2);
@@ -1170,17 +1228,13 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
     delay(150);
 
     if (is_pickup) {
-      servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงต่ำระดับครอบตัวกระป๋อง
-      delay(200);
-      grabCan(); // ยกขึ้น
-
+      keeb_defective_can(); // 1. คีบสินค้าชำรุด
+      yok_defective_can();  // 2. หลังคีบต้องยกด้วย (ทำแยกกัน)
     } else {
-
-      releaseCan(); // วางลงหลุม
+      releaseCan();
     }
 
     Fline_B_by_time(40, 100);
-
     turnLeft_by_stop(55);
 
     Fline_by_pass(80, 1);
@@ -1206,13 +1260,12 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
 
     turnRight(rv2);
 
+    delay(de);
+
     Fline_B_by_time(35, toy);
 
     if (is_pickup) {
-      servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกเตรียมครอบกระป๋อง
-      delay(150);
-      servoRun(SERVO_ARM_CH, 80);                   // ยกแขนไว้ที่ 80 องศา ไม่ให้บังเซนเซอร์ IR
-      delay(150);
+      prepareArmForDefectivePickup();
     }
 
     Fline_until_can(30, ir2);
@@ -1220,18 +1273,14 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
     delay(150);
 
     if (is_pickup) {
-      servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงต่ำระดับครอบตัวกระป๋อง
-      delay(200);
-      grabCan(); // ยกขึ้น
-
+      keeb_defective_can(); // 1. คีบสินค้าชำรุด
+      yok_defective_can();  // 2. หลังคีบต้องยกด้วย (ทำแยกกัน)
     } else {
-
-      releaseCan(); // วางลงหลุม
+      releaseCan();
     }
 
-    Fline_B_by_time(40, 105);
-
-    turnRight_by_stop(55);
+    Fline_B_by_time(40, 100);
+    turnLeft_by_stop(55);
 
     Fline_by_pass(80, 1);
 
@@ -1251,13 +1300,12 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
 
     turnLeft(rv3);
 
+    delay(de);
+
     Fline_B_by_time(35, toy);
 
     if (is_pickup) {
-      servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกเตรียมครอบกระป๋อง
-      delay(150);
-      servoRun(SERVO_ARM_CH, 80);                   // ยกแขนไว้ที่ 80 องศา ไม่ให้บังเซนเซอร์ IR
-      delay(150);
+      prepareArmForDefectivePickup();
     }
 
     Fline_until_can(30, ir2);
@@ -1265,17 +1313,13 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
     delay(150);
 
     if (is_pickup) {
-      servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงต่ำระดับครอบตัวกระป๋อง
-      delay(200);
-      grabCan(); // ยกขึ้น
-
+      keeb_defective_can(); // 1. คีบสินค้าชำรุด
+      yok_defective_can();  // 2. หลังคีบต้องยกด้วย (ทำแยกกัน)
     } else {
-
-      releaseCan(); // วางลงหลุม
+      releaseCan();
     }
 
     Fline_B_by_time(40, 100);
-
     turnLeft_by_stop(48);
 
     delay(50);
@@ -1294,13 +1338,12 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
 
     turnRight(rv3);
 
+    delay(de);
+
     Fline_B_by_time(35, toy);
 
     if (is_pickup) {
-      servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกเตรียมครอบกระป๋อง
-      delay(150);
-      servoRun(SERVO_ARM_CH, 80);                   // ยกแขนไว้ที่ 80 องศา ไม่ให้บังเซนเซอร์ IR
-      delay(150);
+      prepareArmForDefectivePickup();
     }
 
     Fline_until_can(30, ir2);
@@ -1308,18 +1351,14 @@ inline void put_from_HUB(int slot, bool is_pickup, int speed) {
     delay(150);
 
     if (is_pickup) {
-      servoRun(SERVO_ARM_CH, ARM_DOWN_ANG);         // ลดแขนลงต่ำระดับครอบตัวกระป๋อง
-      delay(200);
-      grabCan(); // ยกขึ้น
-
+      keeb_defective_can(); // 1. คีบสินค้าชำรุด
+      yok_defective_can();  // 2. หลังคีบต้องยกด้วย (ทำแยกกัน)
     } else {
-
-      releaseCan(); // วางลงหลุม
+      releaseCan();
     }
 
-    Fline_B_by_time(40, 90);
-
-    turnRight_by_stop(48);
+    Fline_B_by_time(40, 100);
+    turnLeft_by_stop(48);
 
     delay(50);
 
@@ -1353,15 +1392,18 @@ inline void put_from_HUB(int slot) {
 
 // [ขั้นตอนที่ 1] จาก HUB วิ่งไปคีบสินค้าชำรุดที่ช่องลูกค้า (1-6) แล้วพากลับมาที่ HUB
 inline void recall_step1_pickup_from_consumer(int slot) {
-  Serial.printf("\n>>> [RECALL STEP 1] Pickup defective can from slot #%d <<<\n", slot);
+  Serial.printf(
+      "\n>>> [RECALL STEP 1] Pickup defective can from slot #%d <<<\n", slot);
   put_from_HUB(slot, true, SPEED_CONSUMER);
-  Serial.printf(">>> [RECALL STEP 1] Completed! Defective can is now at HUB <<<\n\n");
+  Serial.printf(
+      ">>> [RECALL STEP 1] Completed! Defective can is now at HUB <<<\n\n");
   buzzer(2000, 100);
 }
 
 // [ขั้นตอนที่ 2] จาก HUB นำสินค้าชำรุดไปทิ้งลงจุดทิ้ง แล้วไปคีบกระป๋องสำรองอันใหม่ กลับมาที่ HUB
 inline void recall_step2_dispose_and_get_spare() {
-  Serial.println("\n>>> [RECALL STEP 2] Dispose defective can & Grab spare can <<<");
+  Serial.println(
+      "\n>>> [RECALL STEP 2] Dispose defective can & Grab spare can <<<");
 
   // 6. เลี้ยวขวา ผ่าน 1 เลี้ยวซ้าย วิ่งตามเอ็นโค้ดเดอร์ แล้ววางลง
   Fline(40, 0);
@@ -1371,20 +1413,19 @@ inline void recall_step2_dispose_and_get_spare() {
   Fline(20, 0);
   turnLeft_by_stop(90);
 
-  servoRun(1, 80); // ยกแขนเตรียมปล่อย
+  servoRun(SERVO_ARM_CH, ARM_DISPOSE_APPROACH_ANG); // ปรับองศาแขนถือของชำรุดเข้าจุดทิ้ง (แก้ที่เดียว)
   Fline_until_can(35, ir3);
-  delay(100);
-  servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับ ปล่อยของเสียลงจุดทิ้ง
-  delay(100);
+  delay(300);
+  releaseDefectiveToDisposal(); // ปล่อยของเสียลงจุดทิ้ง แล้วยกแขนหลบ (ทำแยกกัน)
 
-  // 7. ถอยหลัง PID ตามเอ็นโค้ดเดอร์ หมุนซ้าย ผ่าน 3 เส้น เลี้ยวขวา วิ่งเข้าไปตามเอ็นโค้ดเดอร์ แล้วยก
+  // 7. ถอยหลัง PID ตามเอ็นโค้ดเดอร์ หมุนซ้าย ผ่าน 3 เส้น เลี้ยวขวา วิ่งเข้าไปตามเอ็นโค้ดเดอร์
+  // แล้วยก
   Fline_B(40, 0);
   turnLeft_by_stop(20);
   Fline_by_pass(40, 3);
   delay(70);
   turnRight(45);
-  servoRun(SERVO_GRIPPER_CH, GRIPPER_OPEN_ANG); // กางมือจับออกก่อนเพื่อเตรียมครอบกระป๋อง
-  servoRun(1, 88);                              // ยกแขนระดับ 88 องศา ไม่บัง IR
+  prepareArmForDefectivePickup(); // กางมือจับและยกแขนเตรียมครอบกระป๋อง ไม่บัง IR (แก้จุดเดียวที่ ARM_PICKUP_APPROACH_ANG)
   Fline_until_can(35, ir3);
   grabCan(); // ยกของชิ้นใหม่ทดแทนขึ้นมา
 
@@ -1396,19 +1437,24 @@ inline void recall_step2_dispose_and_get_spare() {
   turnRight(30);
   Fline_by_pass(40, 1); // มาถึง HUB
 
-  Serial.println(">>> [RECALL STEP 2] Completed! Replacement can is now at HUB <<<\n");
+  Serial.println(
+      ">>> [RECALL STEP 2] Completed! Replacement can is now at HUB <<<\n");
   buzzer(2200, 100);
 }
 
 // [ขั้นตอนที่ 3] จาก HUB นำกระป๋องใหม่ไปวางคืนที่ช่องลูกค้า (1-6) แล้วกลับมาที่ HUB
 inline void recall_step3_deliver_spare(int slot) {
-  Serial.printf("\n>>> [RECALL STEP 3] Deliver replacement can to slot #%d <<<\n", slot);
+  Serial.printf(
+      "\n>>> [RECALL STEP 3] Deliver replacement can to slot #%d <<<\n", slot);
   put_from_HUB(slot, false, SPEED_CONSUMER);
-  Serial.printf(">>> [RECALL STEP 3] Completed! Replacement delivered to slot #%d <<<\n\n", slot);
+  Serial.printf(">>> [RECALL STEP 3] Completed! Replacement delivered to slot "
+                "#%d <<<\n\n",
+                slot);
   buzzer(2400, 150);
 }
 
-// ฟังก์ชันรวมทดสอบ Product Recall ครบทั้ง 3 สเต็ปจากจุด HUB โดยระบุช่องเป้าหมายได้โดยตรง (ไม่ต้องรอสแกนสี)
+// ฟังก์ชันรวมทดสอบ Product Recall ครบทั้ง 3 สเต็ปจากจุด HUB โดยระบุช่องเป้าหมายได้โดยตรง
+// (ไม่ต้องรอสแกนสี)
 inline void test_recall_mission(int slot) {
   Serial.println("\n=======================================================");
   Serial.printf("  STARTING TEST RECALL FROM HUB (Target Slot: %d)\n", slot);
@@ -1418,6 +1464,156 @@ inline void test_recall_mission(int slot) {
   recall_step3_deliver_spare(slot);
   Serial.println(">>> [ALL RECALL STEPS COMPLETED 100%] <<<");
   buzzer(2600, 300);
+}
+
+// ============================================================================
+// ฟังก์ชันทดสอบอ่านเซนเซอร์สีด้านข้าง (TCS Side Color Testing)
+// ============================================================================
+
+// [ทดสอบแบบที่ 1: ส่องอ่านค่าสีสดๆ อยู่กับที่ (Live Reading)]
+// กางแขนข้างออก (Servo 3 -> 45 องศา) อ่านค่า RGB และระบุชื่อสีขึ้นจอ TFT + Serial แบบ Real-Time
+// กดปุ่มบนบอร์ดเพื่อสิ้นสุดการทดสอบและหุบแขนกลับ
+inline void test_side_color_live() {
+  Serial.println("\n=======================================================");
+  Serial.println("  LIVE SIDE COLOR SENSOR TEST (TCS Side Arm)");
+  Serial.println("  Deploying arm (Servo 3 -> 45 deg)...");
+  Serial.println("  Press onboard button to exit.");
+  Serial.println("=======================================================");
+
+  servoRun(SERVO_SIDE_CH, SIDE_ARM_DEPLOY_ANG); // กางแขนเซนเซอร์ข้างออกมาที่ 45 องศา
+  delay(300);
+
+  tft_.fillScreen(ST7735_BLACK);
+  drawHeaderBar("TEST SIDE COLOR", ST7735_YELLOW, ST7735_WHITE);
+  drawFooterBar("PRESS BTN TO EXIT", 0x0A22, ST7735_WHITE, ST7735_GREEN);
+
+  unsigned long last_print = 0;
+  while (!isButtonPressed()) {
+    int r = Read_Color_TCS_B(0);
+    int g = Read_Color_TCS_B(1);
+    int b = Read_Color_TCS_B(2);
+    RobotColor col = detectColorSide();
+
+    if (millis() - last_print >= 80) {
+      last_print = millis();
+
+      char rgbBuf[32];
+      snprintf(rgbBuf, sizeof(rgbBuf), "R:%3d G:%3d B:%3d", r, g, b);
+      printText(10, 42, rgbBuf, 1, ST7735_WHITE, ST7735_BLACK);
+
+      uint16_t tftColor = ST7735_WHITE;
+      switch (col) {
+        case COLOR_RED:    tftColor = ST7735_RED; break;
+        case COLOR_GREEN:  tftColor = ST7735_GREEN; break;
+        case COLOR_BLUE:   tftColor = ST7735_BLUE; break;
+        case COLOR_YELLOW: tftColor = ST7735_YELLOW; break;
+        case COLOR_WHITE:  tftColor = ST7735_WHITE; break;
+        case COLOR_BLACK:  tftColor = 0x7BEF; break;
+        default:           tftColor = ST7735_MAGENTA; break;
+      }
+
+      char colBuf[32];
+      snprintf(colBuf, sizeof(colBuf), "COLOR: %-8s", getColorName(col));
+      printText(10, 68, colBuf, 2, tftColor, ST7735_BLACK);
+
+      Serial.printf("[SIDE TCS] R:%3d G:%3d B:%3d => Detected: %s\n",
+                    r, g, b, getColorName(col));
+    }
+    delay(10);
+  }
+
+  buzzer(2000, 100);
+  servoRun(3, 95); // หุบแขนเก็บ
+  delay(300);
+  Serial.println("Side arm retracted. Live test exited.");
+}
+
+// [ทดสอบแบบที่ 2: วิ่งสแกนสีด้านข้างตามเส้นจริงจากจุด HUB]
+inline RobotColor test_recall_scan_side_color() {
+  Serial.println("\n***************************************************");
+  Serial.println(">>> [TEST SIDE SCAN] Scanning Side Color from HUB <<<");
+  Serial.println("***************************************************");
+
+  // 1. ตอนนี้หุ่นยนต์อยู่ที่จุด HUB -> เลี้ยวซ้าย ผ่าน 1 เลี้ยวซ้าย
+  turnLeft(40);
+  Fline_by_pass(45, 1);
+  delay(70);
+  turnLeft(40);
+  Fline(35, 0);
+
+  // 2. กางแขนเซนเซอร์ข้างออกมาก่อนเริ่มวิ่งสแกน (45 องศา)
+  servoRun(SERVO_SIDE_CH, SIDE_ARM_DEPLOY_ANG);
+  delay(250);
+
+  int non_white_counts[7] = {0};
+  int white_count = 0;
+  unsigned long scan_timeout = millis();
+  unsigned long last_sample_time = 0;
+
+  // วิ่งตามเส้นจนเซนเซอร์หน้า (เซนเซอร์ 0) แตะเจอเส้นดำ
+  while (!isFrontSensorOnLine(0) && (millis() - scan_timeout < 4000)) {
+    if (millis() - last_sample_time >= 4) {
+      last_sample_time = millis();
+      RobotColor c = detectColorSide();
+      if (c != COLOR_UNKNOWN) {
+        if (c != COLOR_WHITE) {
+          non_white_counts[c]++;
+          Serial.printf(">> [SIDE SCAN] Detected: %s\n", getColorName(c));
+        } else {
+          white_count++;
+        }
+      }
+    }
+    lineFollow_PID_auto(30);
+    delay(2);
+  }
+
+  // วิ่งพร้อมสแกนต่อมาอีกนิดนึง (Overrun Scan)
+  long overrun_start_pulse = get_pulse_Encoder(selection_Encoder);
+  long extra_scan_pulses = 150;
+  unsigned long overrun_timeout = millis();
+  while (abs(get_pulse_Encoder(selection_Encoder) - overrun_start_pulse) <
+             extra_scan_pulses &&
+         (millis() - overrun_timeout < 1500)) {
+    if (millis() - last_sample_time >= 4) {
+      last_sample_time = millis();
+      RobotColor c = detectColorSide();
+      if (c != COLOR_UNKNOWN) {
+        if (c != COLOR_WHITE) {
+          non_white_counts[c]++;
+          Serial.printf(">> [SIDE SCAN OVERRUN] Detected: %s\n", getColorName(c));
+        } else {
+          white_count++;
+        }
+      }
+    }
+    lineFollow_PID_auto(18);
+    delay(2);
+  }
+
+  stop_4w();
+  servoRun(3, 95); // หุบแขนเก็บ
+  delay(100);
+
+  RobotColor recalled_color = COLOR_WHITE;
+  int max_non_white = 0;
+  for (int c = 1; c <= 6; c++) {
+    if (c != COLOR_WHITE && non_white_counts[c] > max_non_white) {
+      max_non_white = non_white_counts[c];
+      recalled_color = (RobotColor)c;
+    }
+  }
+
+  if (max_non_white >= 3) {
+    Serial.printf("\n>> Found cutting color: %s (%d samples)\n",
+                  getColorName(recalled_color), max_non_white);
+  } else {
+    recalled_color = COLOR_WHITE;
+    Serial.printf("\n>> Classified as WHITE! (%d white samples)\n", white_count);
+  }
+
+  buzzer(2400, 200);
+  return recalled_color;
 }
 
 // ============================================================================
@@ -1452,96 +1648,8 @@ inline void executeProductRecallExact(const RobotColor order_list[6],
 
   Serial.println("***************************************************");
 
-  // 1. ตอนนี้หุ่นยนต์อยู่ที่จุด HUB
-
-  //    เลี้ยวซ้าย ผ่าน 1 เลี้ยวซ้าย
-
-  turnLeft(40);
-  Fline_by_pass(45, 1);
-  turnLeft(40);
-  Fline(35, 0);
-
-  // 2. กางแขนเซนเซอร์ข้างออกมาก่อนเริ่มวิ่งสแกน
-  servoRun(3, 5);
-  delay(250);
-
-  // วิ่งตามเส้นด้วยความเร็วต่ำ สแกนอ่านสีด้านข้างซ้ำๆ
-  // พื้นหลังปกติคือสีขาว หากมีสีอื่นมาตัดกับสีขาวให้นับสีนั้น ถ้าไม่มีเลยให้นับเป็นสีขาว
-  int non_white_counts[7] = {0};
-  int white_count = 0;
-  unsigned long scan_timeout = millis();
-  unsigned long last_sample_time = 0;
-
-  // วิ่งตามเส้นจนเซนเซอร์หน้า (เซนเซอร์ 0) แตะเจอเส้นดำ
-  while (!isFrontSensorOnLine(0) && (millis() - scan_timeout < 4000)) {
-    if (millis() - last_sample_time >= 4) {
-      last_sample_time = millis();
-      RobotColor c = detectColorSide();
-      if (c != COLOR_UNKNOWN) {
-        if (c != COLOR_WHITE) {
-          non_white_counts[c]++; // สีอื่นที่เข้ามาตัดกับสีขาว (แดง, เขียว, น้ำเงิน, เหลือง,
-                                 // ดำ)
-          Serial.printf(">> [CUTTING COLOR] Detected: %s\n", getColorName(c));
-        } else {
-          white_count++;
-        }
-      }
-    }
-    lineFollow_PID_auto(30); // วิ่งตามเส้นด้วยความเร็วต่ำ นุ่มนวล
-    delay(2);
-  }
-
-  // วิ่งพร้อมสแกนต่อมาอีกนิดนึง (Overrun Scan) เพื่อให้เซนเซอร์ข้างผ่านตำแหน่งชิ้นงานพอดี
-  long overrun_start_pulse = get_pulse_Encoder(selection_Encoder);
-  long extra_scan_pulses =
-      150; // ปรับระยะวิ่งสแกนต่อได้ (~3 ซม. ปรับเพิ่ม/ลดได้ตามต้องการ)
-  unsigned long overrun_timeout = millis();
-  while (abs(get_pulse_Encoder(selection_Encoder) - overrun_start_pulse) <
-             extra_scan_pulses &&
-         (millis() - overrun_timeout < 1500)) {
-    if (millis() - last_sample_time >= 4) {
-      last_sample_time = millis();
-      RobotColor c = detectColorSide();
-      if (c != COLOR_UNKNOWN) {
-        if (c != COLOR_WHITE) {
-          non_white_counts[c]++;
-          Serial.printf(">> [CUTTING COLOR OVERRUN] Detected: %s\n",
-                        getColorName(c));
-        } else {
-          white_count++;
-        }
-      }
-    }
-    lineFollow_PID_auto(18); // วิ่งตามเส้นพร้อมสแกนต่อเนื่อง
-    delay(2);
-  }
-
-  // เมื่อสแกนครบระยะเผื่อแล้ว -> สั่งหยุดหุ่นทันที และหุบแขนเซนเซอร์ข้างกลับ
-  stop_4w();
-  servoRun(3, 95);
-  delay(100);
-
-  // ตรวจสอบว่ามีสีไหนเข้ามาตัดกับสีขาวหรือไม่
-  RobotColor recalled_color = COLOR_WHITE; // ค่าเริ่มต้นหากไม่มีสีอื่นมาตัด ให้เป็นสีขาว
-  int max_non_white = 0;
-  for (int c = 1; c <= 6; c++) {
-    if (c != COLOR_WHITE && non_white_counts[c] > max_non_white) {
-      max_non_white = non_white_counts[c];
-      recalled_color = (RobotColor)c;
-    }
-  }
-
-  // หากมีสีอื่นมาตัดกับสีขาว (อย่างน้อย 3 ตัวอย่างเพื่อตัด Noise) -> นับเป็นสีนั้น
-  // แต่ถ้าไม่มีสีอื่นมาตัดเลย -> นับว่าเป็นสีขาว (COLOR_WHITE)
-  if (max_non_white >= 3) {
-    Serial.printf("\n>> Found cutting color: %s (%d samples)\n",
-                  getColorName(recalled_color), max_non_white);
-  } else {
-    recalled_color = COLOR_WHITE;
-    Serial.printf("\n>> No color cutting white (White: %d samples) -> "
-                  "Classified as WHITE!\n",
-                  white_count);
-  }
+  // 1 & 2. จากจุด HUB เลี้ยวซ้ายไปสแกนอ่านสีชิ้นงานชำรุดที่ด้านข้าง
+  RobotColor recalled_color = test_recall_scan_side_color();
 
   if (RECALLED_COLOR != COLOR_UNKNOWN) {
 
@@ -1566,10 +1674,11 @@ inline void executeProductRecallExact(const RobotColor order_list[6],
   Serial.println(recall_slot);
 
   // 4. วิ่งไปที่ HUB ก่อน
-
   turnRight_by_stop(50);
 
   Fline_by_pass(40, 1);
+
+  delay(70);
 
   turnRight(40);
 
@@ -1645,6 +1754,8 @@ inline void executeProductRecallExact(const RobotColor order_list[6]) {
 // ============================================================================
 
 inline void runFieldMission() {
+  
+  Follow_Notline(30, 300); 
 
   unsigned long mission_start_time = millis();
 
@@ -1699,99 +1810,101 @@ inline void runFieldMission() {
 
   // (1-6)
 
-  Fline_by_time(70, 120);
+  // Fline_by_time(70, 120);
 
-  get_Yellow(SPEED_WAREHOUSE);
+  // servoRun(SERVO_ARM_CH, ARM_LIFT_ANG);
 
-  put_from_HUB(findConsumerForColor(COLOR_YELLOW, order_list), false,
+  // get_Yellow(SPEED_WAREHOUSE);
 
-               SPEED_CONSUMER);
+  // put_from_HUB(findConsumerForColor(COLOR_YELLOW, order_list), false,
 
-  // [2] สีน้ำเงิน: จาก HUB วิ่งไปเอาน้ำเงิน -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
+  //              SPEED_CONSUMER);
 
-  get_Blue(SPEED_WAREHOUSE);
+  // // [2] สีน้ำเงิน: จาก HUB วิ่งไปเอาน้ำเงิน -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
 
-  put_from_HUB(findConsumerForColor(COLOR_BLUE, order_list), false,
+  // get_Blue(SPEED_WAREHOUSE);
 
-               SPEED_CONSUMER);
+  // put_from_HUB(findConsumerForColor(COLOR_BLUE, order_list), false,
 
-  // [3] สีดำ: จาก HUB วิ่งไปเอาดำ -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
+  //              SPEED_CONSUMER);
 
-  get_Black(SPEED_WAREHOUSE);
+  // // [3] สีดำ: จาก HUB วิ่งไปเอาดำ -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
 
-  put_from_HUB(findConsumerForColor(COLOR_BLACK, order_list), false,
+  // get_Black(SPEED_WAREHOUSE);
 
-               SPEED_CONSUMER);
+  // put_from_HUB(findConsumerForColor(COLOR_BLACK, order_list), false,
 
-  // [4] สีเขียว: จาก HUB วิ่งไปเอาเขียว -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
+  //              SPEED_CONSUMER);
 
-  get_Green(SPEED_WAREHOUSE);
+  // // [4] สีเขียว: จาก HUB วิ่งไปเอาเขียว -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
 
-  put_from_HUB(findConsumerForColor(COLOR_GREEN, order_list), false,
+  // get_Green(SPEED_WAREHOUSE);
 
-               SPEED_CONSUMER);
+  // put_from_HUB(findConsumerForColor(COLOR_GREEN, order_list), false,
 
-  // [5] สีแดง: จาก HUB วิ่งไปเอาแดง -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
+  //              SPEED_CONSUMER);
 
-  get_Red(SPEED_WAREHOUSE);
+  // // [5] สีแดง: จาก HUB วิ่งไปเอาแดง -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
 
-  put_from_HUB(findConsumerForColor(COLOR_RED, order_list), false,
+  // get_Red(SPEED_WAREHOUSE);
 
-               SPEED_CONSUMER);
+  // put_from_HUB(findConsumerForColor(COLOR_RED, order_list), false,
 
-  // [6] สีขาว: จาก HUB วิ่งไปเอาขาว -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
+  //              SPEED_CONSUMER);
 
-  get_White(SPEED_WAREHOUSE);
+  // // [6] สีขาว: จาก HUB วิ่งไปเอาขาว -> นำกลับมา HUB -> ไปวางช่องลูกค้า (1-6)
 
-  put_from_HUB(findConsumerForColor(COLOR_WHITE, order_list), false,
+  // get_White(SPEED_WAREHOUSE);
 
-               SPEED_CONSUMER);
+  // put_from_HUB(findConsumerForColor(COLOR_WHITE, order_list), false,
+
+  //              SPEED_CONSUMER);
 
   // --------------------------------------------------------------------------
 
   // ขั้นตอนที่ 4: ภารกิจเรียกคืนสินค้าชำรุด (Product Recall)
 
   // --------------------------------------------------------------------------
+  sw();
+  if (ENABLE_PRODUCT_RECALL) {
 
-  // if (ENABLE_PRODUCT_RECALL) {
+    executeProductRecallExact(order_list, SPEED_RECALL);
 
-  //   executeProductRecallExact(order_list, SPEED_RECALL);
+  }
 
-  // }
-
-  // //
-
-  // --------------------------------------------------------------------------
-
-  // // ขั้นตอนที่ 5: กลับเข้าจุดเริ่มต้น (Return to Start) รับคะแนนโบนัส 10 คะแนน
-
-  // //
+  //
 
   // --------------------------------------------------------------------------
+
+  // ขั้นตอนที่ 5: กลับเข้าจุดเริ่มต้น (Return to Start) รับคะแนนโบนัส 10 คะแนน
+
+  //
+
+  --------------------------------------------------------------------------
 
   // Serial.println("\n>>> [PHASE 5] Returning to START Box <<<");
 
   // returnToStartBox(SPEED_RETURN);
 
-  // // บันทึกสรุปผลภารกิจและแสดงบนจอ TFT
+  // บันทึกสรุปผลภารกิจและแสดงบนจอ TFT
 
-  // mission_summary.duration_ms = millis() - mission_start_time;
+  mission_summary.duration_ms = millis() - mission_start_time;
 
-  // mission_summary.distance_cm = getDistanceCm();
+  mission_summary.distance_cm = getDistanceCm();
 
-  // mission_summary.pulses      = abs(get_pulse_Encoder(selection_Encoder));
+  mission_summary.pulses      = abs(get_pulse_Encoder(selection_Encoder));
 
-  // mission_summary.completed   = true;
+  mission_summary.completed   = true;
 
-  // snprintf(mission_summary.finishReason,
+  snprintf(mission_summary.finishReason,
 
-  // sizeof(mission_summary.finishReason), "MISSION FINISHED");
+  sizeof(mission_summary.finishReason), "MISSION FINISHED");
 
-  // buzzer(2400, 200);
+  buzzer(2400, 200);
 
-  // delay(100);
+  delay(100);
 
-  // buzzer(2400, 200);
+  buzzer(2400, 200);
 
-  // drawColorSummaryScreen();
+  drawColorSummaryScreen();
 }
